@@ -329,7 +329,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
 
                 {twitchMsg ? (
                     <div
-                        className={`rounded-xl border px-3 py-2 text-sm break-words ${isHttpErrorText(twitchMsg) ? "opacity-90" : "opacity-80"
+                        className={`rounded-xl border px-3 py-2 text-sm wrap-break-word ${isHttpErrorText(twitchMsg) ? "opacity-90" : "opacity-80"
                             }`}
                     >
                         {twitchMsg}

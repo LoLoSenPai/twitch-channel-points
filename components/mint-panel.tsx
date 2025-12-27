@@ -1,16 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { VersionedTransaction } from "@solana/web3.js";
-
-type Me = {
-    user: { id: string; displayName: string };
-    tickets: number;
-    totalStickers: number;
-    mints: Array<{ stickerId: string; mintTx: string; createdAt: string }>;
-};
+import { useMe } from "@/lib/hooks/use-me";
 
 type Reveal = {
     id: string;
@@ -21,26 +15,14 @@ type Reveal = {
 
 export function MintPanel() {
     const wallet = useWallet();
-    const [me, setMe] = useState<Me | null>(null);
     const [loading, setLoading] = useState(false);
-    const [refreshing, setRefreshing] = useState(false);
     const [reveal, setReveal] = useState<Reveal | null>(null);
 
-    const refresh = useCallback(async () => {
-        setRefreshing(true);
-        try {
-            const r = await fetch("/api/me", { cache: "no-store" });
-            if (r.ok) setMe(await r.json());
-        } finally {
-            setRefreshing(false);
-        }
-    }, []);
-
-    useEffect(() => {
-        void refresh();
-    }, [refresh]);
+    // ✅ polling auto, mais on le coupe pendant un mint pour éviter double refresh
+    const { me, refreshing, refresh } = useMe({ enabled: !loading, intervalMs: 10_000 });
 
     const tickets = me?.tickets;
+
     const canMint = useMemo(
         () => !!wallet.publicKey && (tickets ?? 0) > 0,
         [wallet.publicKey, tickets]
@@ -84,10 +66,7 @@ export function MintPanel() {
             const { tx } = (await sub.json()) as { ok: true; tx: string };
 
             const metaBase = process.env.NEXT_PUBLIC_METADATA_BASE_URI;
-
-            const metaUrl = metaBase
-                ? `${metaBase}/${prepJson.stickerId}.json`
-                : null;
+            const metaUrl = metaBase ? `${metaBase}/${prepJson.stickerId}.json` : null;
 
             const metaRes = metaUrl ? await fetch(metaUrl, { cache: "no-store" }) : null;
             const meta = metaRes?.ok ? await metaRes.json() : null;
@@ -99,7 +78,7 @@ export function MintPanel() {
                 tx,
             });
 
-            await refresh();
+            await refresh(); // ✅ refresh compteur + état
         } catch (e) {
             if (intentId) {
                 await fetch("/api/mint/cancel", {
@@ -115,7 +94,6 @@ export function MintPanel() {
         }
     }
 
-
     return (
         <div className="rounded-2xl border p-4 space-y-4">
             <div className="flex items-center justify-between gap-4">
@@ -123,9 +101,7 @@ export function MintPanel() {
                     <div className="text-lg font-semibold">Mint Panini (V0)</div>
                     <div className="text-sm opacity-70">
                         Tickets:{" "}
-                        <span className="font-medium">
-                            {tickets === undefined ? "…" : tickets}
-                        </span>
+                        <span className="font-medium">{tickets === undefined ? "…" : tickets}</span>
                         {refreshing ? <span className="ml-2 opacity-60">(sync)</span> : null}
                     </div>
                 </div>
@@ -146,7 +122,6 @@ export function MintPanel() {
                             : "Connect wallet + avoir un ticket"}
             </button>
 
-            {/* REVEAL */}
             {reveal ? (
                 <div className="rounded-2xl border p-4 space-y-3">
                     <div className="text-sm opacity-70">🎉 Nouveau sticker !</div>
@@ -166,7 +141,7 @@ export function MintPanel() {
                             <div className="text-xs opacity-70">ID: #{reveal.id}</div>
                         </div>
                         <button
-                            className="rounded-xl border px-3 py-2 text-sm"
+                            className="rounded-xl border px-3 py-2 text-sm cursor-pointer"
                             onClick={() => setReveal(null)}
                         >
                             Fermer
@@ -174,11 +149,11 @@ export function MintPanel() {
                     </div>
 
                     <div className="flex gap-2">
-                        <a className="rounded-xl border px-3 py-2 text-sm" href="/album">
+                        <a className="rounded-xl border px-3 py-2 text-sm cursor-pointer" href="/album">
                             Voir dans l’album →
                         </a>
                         <a
-                            className="rounded-xl border px-3 py-2 text-sm opacity-80"
+                            className="rounded-xl border px-3 py-2 text-sm opacity-80 cursor-pointer"
                             href={`https://solscan.io/tx/${reveal.tx}?cluster=devnet`}
                             target="_blank"
                             rel="noreferrer"
