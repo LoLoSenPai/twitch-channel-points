@@ -1,0 +1,25 @@
+{
+  "collectionName": "Panini V0.1",
+  "description": "Panini stickers (test).",
+  "total": 3,
+  "items": [
+    {
+      "id": "1",
+      "name": "Hodler d’Alt Déchu",
+      "image": "001.png",
+      "weight": 60
+    },
+    {
+      "id": "2",
+      "name": "Analyseur d’Alt Déchu",
+      "image": "002.png",
+      "weight": 30
+    },
+    {
+      "id": "3",
+      "name": "Gardien du Bitcoin Déchu",
+      "image": "003.png",
+      "weight": 10
+    }
+  ]
+}

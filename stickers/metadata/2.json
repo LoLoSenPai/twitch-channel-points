@@ -1,0 +1,20 @@
+{
+  "name": "Analyseur d’Alt Déchu",
+  "symbol": "PANINI",
+  "description": "Panini stickers (test).",
+  "image": "https://indigo-permanent-gayal-308.mypinata.cloud/ipfs/bafybeiciunnu5zbsnqtcg5ctctwzivg4mqah5rnntfgplbeayuqhengsa4/002.png",
+  "attributes": [
+    { "trait_type": "sticker_id", "value": "2" },
+    { "trait_type": "series", "value": "v0.1" },
+    { "trait_type": "rarity_weight", "value": 30 }
+  ],
+  "properties": {
+    "category": "image",
+    "files": [
+      {
+        "uri": "https://indigo-permanent-gayal-308.mypinata.cloud/ipfs/bafybeiciunnu5zbsnqtcg5ctctwzivg4mqah5rnntfgplbeayuqhengsa4/002.png",
+        "type": "image/png"
+      }
+    ]
+  }
+}

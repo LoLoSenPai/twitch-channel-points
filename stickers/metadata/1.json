@@ -1,0 +1,20 @@
+{
+  "name": "Hodler d’Alt Déchu",
+  "symbol": "PANINI",
+  "description": "Panini stickers (test).",
+  "image": "https://indigo-permanent-gayal-308.mypinata.cloud/ipfs/bafybeiciunnu5zbsnqtcg5ctctwzivg4mqah5rnntfgplbeayuqhengsa4/001.png",
+  "attributes": [
+    { "trait_type": "sticker_id", "value": "1" },
+    { "trait_type": "series", "value": "v0.1" },
+    { "trait_type": "rarity_weight", "value": 60 }
+  ],
+  "properties": {
+    "category": "image",
+    "files": [
+      {
+        "uri": "https://indigo-permanent-gayal-308.mypinata.cloud/ipfs/bafybeiciunnu5zbsnqtcg5ctctwzivg4mqah5rnntfgplbeayuqhengsa4/001.png",
+        "type": "image/png"
+      }
+    ]
+  }
+}

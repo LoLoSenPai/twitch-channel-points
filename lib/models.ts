@@ -1,0 +1,65 @@
+import mongoose, { Schema } from "mongoose";
+
+const RedemptionSchema = new Schema(
+  {
+    redemptionId: { type: String, unique: true, index: true },
+    twitchUserId: { type: String, index: true },
+    rewardId: { type: String, index: true },
+    status: {
+      type: String,
+      enum: ["PENDING", "CONSUMED", "FAILED"],
+      default: "PENDING",
+    },
+    lockedByIntentId: { type: String, default: null, index: true },
+    consumedAt: Date,
+    mintTx: String,
+  },
+  { timestamps: true }
+);
+
+const MintSchema = new Schema(
+  {
+    twitchUserId: { type: String, index: true },
+    wallet: { type: String, index: true },
+    stickerId: { type: String, index: true },
+    mintTx: String,
+    assetId: String,
+  },
+  { timestamps: true }
+);
+
+const MintIntentSchema = new Schema(
+  {
+    intentId: { type: String, unique: true, index: true },
+    twitchUserId: { type: String, index: true },
+    wallet: String,
+    redemptionId: String,
+    stickerId: String,
+    preparedTxB64: String,
+    status: {
+      type: String,
+      enum: ["PREPARED", "SUBMITTED", "DONE", "FAILED"],
+      default: "PREPARED",
+    },
+    error: { type: String, default: null },
+  },
+  { timestamps: true }
+);
+
+const CollectionSchema = new Schema(
+  {
+    name: { type: String, required: true },
+    coreCollectionPubkey: { type: String, default: null },
+    merkleTreePubkey: { type: String, required: true },
+    isActive: { type: Boolean, default: false, index: true },
+  },
+  { timestamps: true }
+);
+
+export const Redemption =
+  mongoose.models.Redemption || mongoose.model("Redemption", RedemptionSchema);
+export const Mint = mongoose.models.Mint || mongoose.model("Mint", MintSchema);
+export const MintIntent =
+  mongoose.models.MintIntent || mongoose.model("MintIntent", MintIntentSchema);
+export const Collection =
+  mongoose.models.Collection || mongoose.model("Collection", CollectionSchema);
