@@ -10,33 +10,52 @@ export type Me = {
 };
 
 type Options = {
-  intervalMs?: number; // default 10s
-  enabled?: boolean; // default true
+  intervalMs?: number; // ex: 5_000 -> every 5s
+  enabled?: boolean;
 };
 
 export function useMe(opts: Options = {}) {
-  const { intervalMs = 10_000, enabled = true } = opts;
+  const { intervalMs = 3_000, enabled = true } = opts;
 
   const [me, setMe] = useState<Me | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const [refreshing, setRefreshing] = useState(false); // uniquement pour refresh "loud"
 
   const inFlight = useRef(false);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const refresh = useCallback(async () => {
+  const fetchMe = useCallback(async (): Promise<Me | null> => {
+    const r = await fetch("/api/me", { cache: "no-store" });
+    if (!r.ok) return null;
+    return (await r.json()) as Me;
+  }, []);
+
+  const refreshSilent = useCallback(async () => {
+    if (!enabled) return;
+    if (inFlight.current) return;
+
+    inFlight.current = true;
+    try {
+      const next = await fetchMe();
+      if (next) setMe(next);
+    } finally {
+      inFlight.current = false;
+    }
+  }, [enabled, fetchMe]);
+
+  const refreshLoud = useCallback(async () => {
     if (!enabled) return;
     if (inFlight.current) return;
 
     inFlight.current = true;
     setRefreshing(true);
     try {
-      const r = await fetch("/api/me", { cache: "no-store" });
-      if (r.ok) setMe((await r.json()) as Me);
+      const next = await fetchMe();
+      if (next) setMe(next);
     } finally {
       setRefreshing(false);
       inFlight.current = false;
     }
-  }, [enabled]);
+  }, [enabled, fetchMe]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -44,7 +63,7 @@ export function useMe(opts: Options = {}) {
     const start = () => {
       if (timer.current) return;
       timer.current = setInterval(() => {
-        if (document.visibilityState === "visible") void refresh();
+        if (document.visibilityState === "visible") void refreshSilent();
       }, intervalMs);
     };
 
@@ -55,14 +74,14 @@ export function useMe(opts: Options = {}) {
 
     const onVis = () => {
       if (document.visibilityState === "visible") {
-        void refresh();
+        void refreshSilent();
         start();
       } else {
         stop();
       }
     };
 
-    void refresh();
+    void refreshSilent();
     start();
     document.addEventListener("visibilitychange", onVis);
 
@@ -70,7 +89,7 @@ export function useMe(opts: Options = {}) {
       stop();
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [enabled, intervalMs, refresh]);
+  }, [enabled, intervalMs, refreshSilent]);
 
-  return { me, refreshing, refresh, setMe };
+  return { me, refreshing, refreshSilent, refreshLoud, setMe };
 }

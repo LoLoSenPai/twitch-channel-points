@@ -19,7 +19,7 @@ export function MintPanel() {
     const [reveal, setReveal] = useState<Reveal | null>(null);
 
     // ✅ polling auto, mais on le coupe pendant un mint pour éviter double refresh
-    const { me, refreshing, refresh } = useMe({ enabled: !loading, intervalMs: 10_000 });
+    const { me, refreshing, refreshLoud } = useMe({ enabled: !loading, intervalMs: 3_000 });
 
     const tickets = me?.tickets;
 
@@ -78,7 +78,7 @@ export function MintPanel() {
                 tx,
             });
 
-            await refresh(); // ✅ refresh compteur + état
+            await refreshLoud();
         } catch (e) {
             if (intentId) {
                 await fetch("/api/mint/cancel", {
@@ -86,7 +86,7 @@ export function MintPanel() {
                     headers: { "content-type": "application/json" },
                     body: JSON.stringify({ intentId, reason: "USER_CANCELLED" }),
                 });
-                await refresh();
+                await refreshLoud();
             }
             throw e;
         } finally {
