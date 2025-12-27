@@ -18,8 +18,11 @@ export function MintPanel() {
     const [loading, setLoading] = useState(false);
     const [reveal, setReveal] = useState<Reveal | null>(null);
 
-    // ✅ polling auto, mais on le coupe pendant un mint pour éviter double refresh
-    const { me, refreshing, refreshLoud } = useMe({ enabled: !loading, intervalMs: 3_000 });
+    const { me, refreshingUi, refresh } = useMe({
+        enabled: !loading,         // stop pendant mint
+        intervalMs: 3000,
+        endpoint: "/api/me",
+    });
 
     const tickets = me?.tickets;
 
@@ -78,7 +81,7 @@ export function MintPanel() {
                 tx,
             });
 
-            await refreshLoud();
+            await refresh();
         } catch (e) {
             if (intentId) {
                 await fetch("/api/mint/cancel", {
@@ -86,7 +89,7 @@ export function MintPanel() {
                     headers: { "content-type": "application/json" },
                     body: JSON.stringify({ intentId, reason: "USER_CANCELLED" }),
                 });
-                await refreshLoud();
+                await refresh();
             }
             throw e;
         } finally {
@@ -99,10 +102,9 @@ export function MintPanel() {
             <div className="flex items-center justify-between gap-4">
                 <div>
                     <div className="text-lg font-semibold">Mint Panini (V0)</div>
-                    <div className="text-sm opacity-70">
-                        Tickets:{" "}
-                        <span className="font-medium">{tickets === undefined ? "…" : tickets}</span>
-                        {refreshing ? <span className="ml-2 opacity-60">(sync)</span> : null}
+                    <div className="text-sm opacity-70 flex items-center gap-2">
+                        Tickets: <span className="font-medium">{tickets === undefined ? "…" : tickets}</span>
+                        {refreshingUi ? <span className="inline-block h-2 w-2 rounded-full bg-current opacity-50" /> : null}
                     </div>
                 </div>
                 <WalletMultiButton />
