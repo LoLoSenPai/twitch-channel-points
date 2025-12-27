@@ -183,7 +183,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
         setTwitchBusy("subs");
         setTwitchMsg("");
         try {
-            const r = await fetch("/api/admin/twitch/eventsub/subscriptions", { cache: "no-store" });
+            const r = await fetch("/api/admin/twitch/eventsub", { cache: "no-store" });
             const text = await r.text();
 
             if (!r.ok) {
@@ -191,9 +191,9 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                 return;
             }
 
-            const j = JSON.parse(text) as { items: TwitchSub[] };
-            setSubs(j.items ?? []);
-            setTwitchMsg(`OK: ${j.items?.length ?? 0} subscriptions`);
+            const j = JSON.parse(text) as { data?: TwitchSub[] };
+            setSubs(j.data ?? []);
+            setTwitchMsg(`OK: ${(j.data ?? []).length} subscriptions`);
         } catch (e) {
             setTwitchMsg(`Erreur fetch subs: ${(e as Error).message}`);
         } finally {
@@ -202,18 +202,12 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
     }
 
     async function subscribeEventSub() {
-        if (!selectedRewardId) {
-            setTwitchMsg("Choisis un reward avant de subscribe.");
-            return;
-        }
-
         setTwitchBusy("subscribe");
         setTwitchMsg("");
         try {
-            const r = await fetch("/api/admin/twitch/eventsub/subscribe", {
+            const r = await fetch("/api/admin/twitch/eventsub", {
                 method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ rewardId: selectedRewardId }),
+                cache: "no-store",
             });
             const text = await r.text();
 
@@ -222,10 +216,32 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                 return;
             }
 
-            setTwitchMsg("✅ Subscription créée (ou déjà existante).");
+            setTwitchMsg("✅ Subscription créée.");
             await fetchSubscriptions();
         } catch (e) {
             setTwitchMsg(`Erreur subscribe: ${(e as Error).message}`);
+        } finally {
+            setTwitchBusy(null);
+        }
+    }
+
+    async function deleteSub(id: string) {
+        setTwitchBusy("subs");
+        setTwitchMsg("");
+        try {
+            const r = await fetch(`/api/admin/twitch/eventsub?id=${encodeURIComponent(id)}`, {
+                method: "DELETE",
+                cache: "no-store",
+            });
+            const text = await r.text();
+            if (!r.ok) {
+                setTwitchMsg(text);
+                return;
+            }
+            setTwitchMsg("🧹 Subscription supprimée.");
+            await fetchSubscriptions();
+        } catch (e) {
+            setTwitchMsg(`Erreur delete: ${(e as Error).message}`);
         } finally {
             setTwitchBusy(null);
         }
@@ -347,7 +363,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                     <button
                                         className="rounded-xl border px-3 py-2 text-sm"
                                         onClick={() => copyToClipboard(selectedRewardId)}
-                                        disabled={!selectedRewardId}
+                                        disabled={twitchBusy !== null}
                                     >
                                         Copier l’ID
                                     </button>
@@ -371,16 +387,30 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                         {subs.length ? (
                             <div className="space-y-2">
                                 {subs.map((s) => (
-                                    <div key={s.id} className="rounded-xl border p-2 text-xs">
-                                        <div className="break-all">
-                                            <span className="opacity-70">id:</span> {s.id}
+                                    <div
+                                        key={s.id}
+                                        className="rounded-xl border p-2 text-xs flex items-start justify-between gap-3"
+                                    >
+                                        <div className="space-y-1">
+                                            <div className="break-all">
+                                                <span className="opacity-70">id:</span> {s.id}
+                                            </div>
+                                            <div>
+                                                <span className="opacity-70">status:</span> {s.status}
+                                            </div>
+                                            <div className="break-all">
+                                                <span className="opacity-70">type:</span> {s.type}
+                                            </div>
                                         </div>
-                                        <div>
-                                            <span className="opacity-70">status:</span> {s.status}
-                                        </div>
-                                        <div className="break-all">
-                                            <span className="opacity-70">type:</span> {s.type}
-                                        </div>
+
+                                        <button
+                                            className="rounded-xl border px-3 py-2 text-xs cursor-pointer"
+                                            onClick={() => deleteSub(s.id)}
+                                            disabled={twitchBusy !== null}
+                                            title="Supprimer cette subscription"
+                                        >
+                                            Delete
+                                        </button>
                                     </div>
                                 ))}
                             </div>
