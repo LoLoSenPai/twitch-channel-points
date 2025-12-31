@@ -269,7 +269,7 @@ export function MintPanel() {
                             <div className="font-medium">🎟️ Où trouver mes tickets ?</div>
                             <div className="opacity-70 mt-1">
                                 Les tickets viennent des rewards Twitch dispo sur
-                                <Link href="https://www.twitch.tv/nylstv" className="text-fuchsia-400 font-bold"> ma chaîne</Link>
+                                <Link href="https://www.twitch.tv/nylstv" target="_blank" rel="noopener noreferrer" className="text-fuchsia-400 font-bold"> ma chaîne</Link>
                                 .
                             </div>
                         </div>
