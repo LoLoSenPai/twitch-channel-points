@@ -2,7 +2,15 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Redemption, MintIntent, Mint } from "@/lib/models";
-import { Connection } from "@solana/web3.js";
+import { Connection, VersionedTransaction } from "@solana/web3.js";
+
+type IntentDoc = {
+  wallet: string;
+  stickerId: string | number;
+  redemptionId: string;
+  status: "PREPARED" | "DONE" | "FAILED";
+  preparedTxB64: string;
+};
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -19,17 +27,14 @@ export async function POST(req: Request) {
 
   await db();
 
-  const intent = await MintIntent.findOne({ intentId, twitchUserId }).lean();
+  const intent = (await MintIntent.findOne({
+    intentId,
+    twitchUserId,
+  }).lean()) as (IntentDoc & { _id?: unknown }) | null;
+
   if (!intent || intent.status !== "PREPARED") {
     return new NextResponse("Bad intent", { status: 409 });
   }
-
-  type IntentType = {
-    wallet: string;
-    stickerId: string | number;
-    redemptionId: string;
-    status: string;
-  };
 
   const rpcUrl = process.env.HELIUS_RPC_URL!;
   const connection = new Connection(rpcUrl, {
@@ -40,6 +45,19 @@ export async function POST(req: Request) {
   try {
     const raw = Buffer.from(signedTxB64, "base64");
 
+    // ✅ Anti-triche: vérifie que la tx signée correspond à la tx préparée (message identique)
+    const signedVtx = VersionedTransaction.deserialize(raw);
+    const preparedVtx = VersionedTransaction.deserialize(
+      Buffer.from(intent.preparedTxB64, "base64")
+    );
+
+    const signedMsg = Buffer.from(signedVtx.message.serialize());
+    const preparedMsg = Buffer.from(preparedVtx.message.serialize());
+
+    if (!signedMsg.equals(preparedMsg)) {
+      throw new Error("Signed transaction does not match prepared transaction");
+    }
+
     // 1) envoi
     const sig = await connection.sendRawTransaction(raw, {
       skipPreflight: false,
@@ -47,7 +65,7 @@ export async function POST(req: Request) {
       preflightCommitment: "processed",
     });
 
-    // 2) confirmation (attend la finalization)
+    // 2) confirmation
     const conf = await connection.confirmTransaction(sig, "confirmed");
     if (conf.value.err) {
       throw new Error(`Tx failed: ${JSON.stringify(conf.value.err)}`);
@@ -56,13 +74,13 @@ export async function POST(req: Request) {
     // 3) DB uniquement après succès
     await Mint.create({
       twitchUserId,
-      wallet: (intent as IntentType).wallet,
-      stickerId: String((intent as IntentType).stickerId),
+      wallet: intent.wallet,
+      stickerId: String(intent.stickerId),
       mintTx: sig,
     });
 
     await Redemption.updateOne(
-      { redemptionId: (intent as IntentType).redemptionId },
+      { redemptionId: intent.redemptionId },
       { $set: { status: "CONSUMED", consumedAt: new Date(), mintTx: sig } }
     );
 
@@ -71,18 +89,21 @@ export async function POST(req: Request) {
       { $set: { status: "DONE", mintTx: sig } }
     );
 
-    return NextResponse.json({ ok: true, tx: sig });
+    return NextResponse.json({
+      ok: true,
+      tx: sig,
+      stickerId: String(intent.stickerId),
+    });
   } catch (e) {
     console.error("mint/submit failed", e);
 
-    // statut intent + unlock ticket pour retry
     await MintIntent.updateOne(
       { intentId },
       { $set: { status: "FAILED", error: (e as Error)?.message ?? "unknown" } }
     );
 
     await Redemption.updateOne(
-      { redemptionId: (intent as IntentType).redemptionId },
+      { redemptionId: intent.redemptionId },
       { $set: { lockedByIntentId: null } }
     );
 

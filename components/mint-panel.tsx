@@ -4,7 +4,9 @@ import { useMemo, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { VersionedTransaction } from "@solana/web3.js";
-import { useMe } from "@/lib/hooks/use-me";
+import { useTickets } from "@/lib/hooks/use-tickets";
+import { BoosterScene } from "@/components/booster-model";
+import Link from "next/link";
 
 type Reveal = {
     id: string;
@@ -13,31 +15,59 @@ type Reveal = {
     tx: string;
 };
 
+type PullPhase = "idle" | "charging" | "flash" | "cardBack" | "cardFront";
+
+type Rarity = "R" | "SR" | "SSR";
+
+function rarityFromStickerId(id: string): Rarity {
+    if (id === "3") return "SSR"; // le plus rare (10%)
+    if (id === "2") return "SR";  // moyen (30%)
+    return "R";                   // commun (60%)
+}
+
+function rarityColor(r: Rarity) {
+    if (r === "SSR") return "#f59e0b"; // or
+    if (r === "SR") return "#a855f7";  // violet
+    return "#60a5fa";                  // bleu
+}
+
+
 export function MintPanel() {
     const wallet = useWallet();
     const [loading, setLoading] = useState(false);
     const [reveal, setReveal] = useState<Reveal | null>(null);
+    const [phase, setPhase] = useState<PullPhase>("idle");
+    const [glow, setGlow] = useState(0); // 0..1 pour booster + lumière
+    const [pendingReveal, setPendingReveal] = useState<Reveal | null>(null);
+    const [rarity, setRarity] = useState<Rarity | null>(null);
+    const [resetOrbitKey, setResetOrbitKey] = useState(0);
 
-    const { me, refreshingUi, refresh } = useMe({
-        enabled: !loading,         // stop pendant mint
+    const { tickets, refreshingUi, refresh: refreshTickets } = useTickets({
+        enabled: !loading,
         intervalMs: 3000,
-        endpoint: "/api/me",
     });
-
-    const tickets = me?.tickets;
 
     const canMint = useMemo(
         () => !!wallet.publicKey && (tickets ?? 0) > 0,
         [wallet.publicKey, tickets]
     );
 
-    async function onMint() {
-        if (!wallet.publicKey || !wallet.signTransaction) return;
+    const walletOk = !!wallet.publicKey;
+    const ticketsKnown = tickets !== undefined;
+    const ticketsOk = (tickets ?? 0) > 0;
+    const ready = walletOk && ticketsOk && !loading && phase === "idle";
+
+    const [hint, setHint] = useState<string | null>(null);
+
+    async function mintOnce(): Promise<Reveal> {
+        if (!wallet.publicKey || !wallet.signTransaction) {
+            throw new Error("Wallet not ready");
+        }
 
         let intentId: string | null = null;
 
-        setLoading(true);
         try {
+            // 1) prepare (NE DOIT PAS renvoyer stickerId)
             const prep = await fetch("/api/mint/prepare", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
@@ -48,17 +78,17 @@ export function MintPanel() {
             const prepJson = (await prep.json()) as {
                 intentId: string;
                 txB64: string;
-                stickerId: string;
             };
 
             intentId = prepJson.intentId;
 
+            // 2) sign (wallet pop ici)
             const txBytes = Uint8Array.from(Buffer.from(prepJson.txB64, "base64"));
             const vtx = VersionedTransaction.deserialize(txBytes);
-
             const signed = await wallet.signTransaction(vtx);
             const signedTxB64 = Buffer.from(signed.serialize()).toString("base64");
 
+            // 3) submit => ICI le serveur choisit le stickerId
             const sub = await fetch("/api/mint/submit", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
@@ -66,22 +96,25 @@ export function MintPanel() {
             });
             if (!sub.ok) throw new Error(await sub.text());
 
-            const { tx } = (await sub.json()) as { ok: true; tx: string };
+            const { tx, stickerId } = (await sub.json()) as { ok: true; tx: string; stickerId: string };
 
+            const r = rarityFromStickerId(String(stickerId));
+            setRarity(r);
+
+            // 4) metadata
             const metaBase = process.env.NEXT_PUBLIC_METADATA_BASE_URI;
-            const metaUrl = metaBase ? `${metaBase}/${prepJson.stickerId}.json` : null;
-
+            const metaUrl = metaBase ? `${metaBase}/${stickerId}.json` : null;
             const metaRes = metaUrl ? await fetch(metaUrl, { cache: "no-store" }) : null;
             const meta = metaRes?.ok ? await metaRes.json() : null;
 
-            setReveal({
-                id: String(prepJson.stickerId),
-                name: meta?.name ?? `Sticker #${prepJson.stickerId}`,
+            await refreshTickets();
+
+            return {
+                id: String(stickerId),
+                name: meta?.name ?? `Sticker #${stickerId}`,
                 image: meta?.image ?? "",
                 tx,
-            });
-
-            await refresh();
+            };
         } catch (e) {
             if (intentId) {
                 await fetch("/api/mint/cancel", {
@@ -89,40 +122,177 @@ export function MintPanel() {
                     headers: { "content-type": "application/json" },
                     body: JSON.stringify({ intentId, reason: "USER_CANCELLED" }),
                 });
-                await refresh();
+                await refreshTickets();
             }
             throw e;
+        }
+    }
+
+    async function openBooster() {
+        if (loading || phase !== "idle") return;
+
+        if (!walletOk) {
+            setHint("🔌 Connecte ton wallet Solana pour ouvrir un booster.");
+            return;
+        }
+        if (!ticketsKnown) {
+            setHint("⏳ Chargement des tickets…");
+            return;
+        }
+        if (!ticketsOk) {
+            setHint("🎟️ Aucun ticket. Récupère-en via les rewards Twitch.");
+            return;
+        }
+
+        setHint(null);
+
+        setLoading(true);
+        setReveal(null);
+        setPendingReveal(null);
+        setRarity(null);
+
+        setPhase("charging");
+        setGlow(0);
+
+        const start = performance.now();
+        const duration = 1100;
+
+        const anim = new Promise<void>((resolve) => {
+            const tick = () => {
+                const t = Math.min(1, (performance.now() - start) / duration);
+                const eased = 1 - Math.pow(1 - t, 3);
+                setGlow(eased);
+                if (t < 1) requestAnimationFrame(tick);
+                else resolve();
+            };
+            requestAnimationFrame(tick);
+        });
+
+        try {
+            const mintPromise = mintOnce();
+            const [pre] = await Promise.all([mintPromise, anim]);
+
+            setPendingReveal(pre);
+
+            setPhase("flash");
+            setTimeout(() => setPhase("cardBack"), 180);
+        } catch {
+            // reset clean
+            setPhase("idle");
+            setGlow(0);
+            setPendingReveal(null);
+            setRarity(null);
         } finally {
             setLoading(false);
         }
     }
 
+    const baseBodyColor = "#1F2430";
+    const glowColor = rarity ? rarityColor(rarity) : "#ffffff";
+
+    const chargingIntensity =
+        0.02 + glow * (rarity === "SSR" ? 0.35 : rarity === "SR" ? 0.25 : 0.18);
+
     return (
-        <div className="rounded-2xl border p-4 space-y-4">
+        <div className="rounded-2xl border p-4 space-y-4 bg-linear-to-br from-zinc-900/70 via-black/60 to-zinc-900/70">
             <div className="flex items-center justify-between gap-4">
                 <div>
                     <div className="text-lg font-semibold">Mint Panini (V0)</div>
+
                     <div className="text-sm opacity-70 flex items-center gap-2">
-                        Tickets: <span className="font-medium">{tickets === undefined ? "…" : tickets}</span>
-                        {refreshingUi ? <span className="inline-block h-2 w-2 rounded-full bg-current opacity-50" /> : null}
+                        Tickets:{" "}
+                        <span className="font-medium">
+                            {tickets === undefined ? "…" : tickets}
+                        </span>
+                        {refreshingUi ? (
+                            <span className="inline-block h-2 w-2 rounded-full bg-current opacity-50" />
+                        ) : null}
                     </div>
                 </div>
+
                 <WalletMultiButton />
             </div>
 
-            <button
-                className="w-full rounded-xl border px-4 py-3 disabled:opacity-50 cursor-pointer"
-                disabled={!canMint || loading}
-                onClick={onMint}
-            >
-                {loading
-                    ? "Mint..."
-                    : canMint
-                        ? "Mint (random)"
-                        : tickets === undefined
-                            ? "Chargement…"
-                            : "Connect wallet + avoir un ticket"}
-            </button>
+            <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+                {/* LEFT */}
+                <div className="rounded-2xl border p-4">
+                    <BoosterScene
+                        labelUrl="/preview.png"
+                        onOpen={openBooster}
+                        canOpen={!loading && phase === "idle"} // 👈 pas de canMint ici
+                        theme={{ body: { color: baseBodyColor, metalness: 0.55, roughness: 0.18, ...(phase === "charging" ? { emissive: glowColor, emissiveIntensity: chargingIntensity } : {}), }, }}
+                        shake={phase === "charging" ? glow : 0}
+                        resetOrbitKey={resetOrbitKey}
+                        lockControls={phase !== "idle"}
+                    />
+
+                    <div className="mt-3 text-sm opacity-80">
+                        {hint ? (
+                            <div>{hint}</div>
+                        ) : !wallet.publicKey ? (
+                            <div>🔌 Connecte ton wallet Solana pour ouvrir un booster.</div>
+                        ) : tickets === undefined ? (
+                            <div>⏳ Chargement des tickets…</div>
+                        ) : tickets <= 0 ? (
+                            <div>🎟️ Tu n’as aucun ticket. Récupère-en via les rewards Twitch.</div>
+                        ) : (
+                            <div>🟦 Clique sur le booster pour mint (1 ticket consommé).</div>
+                        )}
+                    </div>
+
+                </div>
+
+                {/* RIGHT */}
+                <div className="rounded-2xl border p-4">
+                    <div className="flex flex-wrap gap-2 pt-1 pb-3">
+                        <span className={`rounded-full border px-3 py-1 text-xs ${walletOk ? "opacity-90" : "opacity-60"}`}>
+                            {walletOk ? "✅ Wallet" : "⬜ Wallet"}
+                        </span>
+
+                        <span className={`rounded-full border px-3 py-1 text-xs ${ticketsKnown ? (ticketsOk ? "opacity-90" : "opacity-60") : "opacity-80"}`}>
+                            {!ticketsKnown ? "⏳ Tickets…" : ticketsOk ? `✅ Tickets (${tickets})` : "⬜ Tickets"}
+                        </span>
+
+                        <span className={`rounded-full border px-3 py-1 text-xs ${ready ? "opacity-90" : "opacity-60"}`}>
+                            {ready ? "✅ Ready" : "⬜ Ready"}
+                        </span>
+                    </div>
+                    <div className="text-lg font-semibold">Comment ça marche ?</div>
+                    <ol className="mt-3 space-y-2 text-sm opacity-80 list-decimal pl-5">
+                        <li>Récupère un ticket via le reward Twitch.</li>
+                        <li>Connecte ton wallet Solana.</li>
+                        <li>Clique sur le booster → signe la transaction → révèle ta carte.</li>
+                    </ol>
+
+                    <div className="mt-5 space-y-3 text-sm">
+                        <div className="rounded-xl border p-3">
+                            <div className="font-medium">🎟️ Où trouver mes tickets ?</div>
+                            <div className="opacity-70 mt-1">
+                                Les tickets viennent des rewards Twitch dispo sur
+                                <Link href="https://www.twitch.tv/nylstv" className="text-fuchsia-400 font-bold"> ma chaîne</Link>
+                                .
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl border p-3">
+                            <div className="font-medium">🧾 Ça coûte quoi ?</div>
+                            <div className="opacity-70 mt-1">
+                                1 ticket + les frais réseau Solana.
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl border p-3">
+                            <div className="font-medium">📚 Où je vois mes cartes ?</div>
+                            <div className="opacity-70 mt-1">Dans l’album.</div>
+                            <a className="mt-2 inline-flex rounded-xl border px-3 py-2 text-sm" href="/album">
+                                Voir l’album →
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
 
             {reveal ? (
                 <div className="rounded-2xl border p-4 space-y-3">
@@ -142,6 +312,7 @@ export function MintPanel() {
                             <div className="font-semibold">{reveal.name}</div>
                             <div className="text-xs opacity-70">ID: #{reveal.id}</div>
                         </div>
+
                         <button
                             className="rounded-xl border px-3 py-2 text-sm cursor-pointer"
                             onClick={() => setReveal(null)}
@@ -154,6 +325,7 @@ export function MintPanel() {
                         <a className="rounded-xl border px-3 py-2 text-sm cursor-pointer" href="/album">
                             Voir dans l’album →
                         </a>
+
                         <a
                             className="rounded-xl border px-3 py-2 text-sm opacity-80 cursor-pointer"
                             href={`https://solscan.io/tx/${reveal.tx}?cluster=devnet`}
@@ -165,6 +337,131 @@ export function MintPanel() {
                     </div>
                 </div>
             ) : null}
+        </div>
+    );
+}
+
+function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx }: {
+    phase: "charging" | "flash" | "cardBack" | "cardFront";
+    sticker: { id: string; name: string; image: string } | null;
+    tx: string | null;
+    onFlip: () => void;
+    onClose: () => void;
+    onSkip: () => void;
+    accent: string;
+}) {
+    const showFlash = phase === "flash";
+    const showCard = phase === "cardBack" || phase === "cardFront";
+    const flipped = phase === "cardFront";
+    const glow = accent === "#60a5fa" ? "0 0 25px #60a5fa33" : `0 0 90px ${accent}66`;
+
+    return (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm">
+            {/* bouton skip */}
+            <button
+                className="absolute right-4 top-4 rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-sm cursor-pointer"
+                onClick={onSkip}
+            >
+                Skip
+            </button>
+
+            {/* flash blanc */}
+            <div
+                className={`absolute inset-0 transition-opacity duration-150 ${showFlash ? "opacity-100" : "opacity-0 pointer-events-none"
+                    } bg-white`}
+            />
+
+            {/* overlay couleur accent */}
+            <div
+                className={`absolute inset-0 transition-opacity duration-200 ${showFlash ? "opacity-35" : "opacity-0 pointer-events-none"
+                    }`}
+                style={{ background: accent }}
+            />
+
+            {/* carte */}
+            {showCard ? (
+                <div className="relative">
+                    <div className="[perspective:1200px]">
+                        <button
+                            className="relative h-[420px] w-[300px] cursor-pointer select-none rounded-2xl"
+                            style={{ boxShadow: glow }}
+                            onClick={onFlip}
+                        >
+                            <div
+                                className={`absolute inset-0 transition-transform duration-700 transform-3d ${flipped ? "transform-[rotateY(180deg)]" : ""
+                                    }`}
+                            >
+                                {/* BACK */}
+                                <div className="absolute inset-0 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-900 to-black shadow-xl [backface-visibility:hidden] grid place-items-center">
+                                    <div className="text-sm opacity-80">Clique pour révéler</div>
+                                    <div className="mt-2 text-xs opacity-50">(dos de carte)</div>
+                                </div>
+
+                                {/* FRONT */}
+                                <div className="absolute inset-0 rounded-2xl border border-white/20 bg-black shadow-xl transform-[rotateY(180deg)] backface-hidden overflow-hidden">
+                                    {sticker?.image ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
+                                        <img
+                                            src={sticker.image}
+                                            alt={sticker.name}
+                                            className="h-full w-full object-contain"
+                                        />
+                                    ) : null}
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+
+                    {/* fermer */}
+                    <div className="mt-4 flex justify-center gap-2">
+                        <a className="rounded-xl border px-3 py-2 text-sm cursor-pointer" href="/album">
+                            Voir dans l’album →
+                        </a>
+
+                        {tx ? (
+                            <a
+                                className="rounded-xl border border-white/20 bg-black/40 px-4 py-2 text-sm cursor-pointer"
+                                href={`https://solscan.io/tx/${tx}?cluster=devnet`}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                Voir la tx
+                            </a>
+                        ) : null}
+                        <button
+                            className="rounded-xl border border-white/20 bg-black/40 px-4 py-2 text-sm cursor-pointer"
+                            onClick={onClose}
+                        >
+                            Fermer
+                        </button>
+                    </div>
+                </div>
+            ) : null}
+        </div>
+    );
+}
+
+function Step({
+    title,
+    ok,
+    pending,
+    detail,
+}: {
+    title: string;
+    ok: boolean;
+    pending?: boolean;
+    detail?: string;
+}) {
+    const icon = pending ? "⏳" : ok ? "✅" : "⬜";
+    const text = pending ? "opacity-90" : ok ? "opacity-90" : "opacity-60";
+
+    return (
+        <div className="flex items-start gap-2">
+            <div className="mt-[2px]">{icon}</div>
+            <div className="min-w-0">
+                <div className={`text-sm font-medium ${text}`}>{title}</div>
+                {detail ? <div className="text-xs opacity-60 mt-0.5">{detail}</div> : null}
+            </div>
         </div>
     );
 }

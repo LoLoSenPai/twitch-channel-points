@@ -17,6 +17,15 @@ const RedemptionSchema = new Schema(
   { timestamps: true }
 );
 
+// ✅ index composé pour accélérer /api/me/tickets et /api/mint/prepare
+RedemptionSchema.index({
+  twitchUserId: 1,
+  rewardId: 1,
+  status: 1,
+  lockedByIntentId: 1,
+  createdAt: 1,
+});
+
 const MintSchema = new Schema(
   {
     twitchUserId: { type: String, index: true },

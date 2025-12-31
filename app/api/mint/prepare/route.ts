@@ -143,7 +143,7 @@ export async function POST(req: Request) {
       status: "PREPARED",
     });
 
-    return NextResponse.json({ intentId, txB64, stickerId });
+    return NextResponse.json({ intentId, txB64 });
   } catch (e) {
     console.error("mint/prepare failed", e);
 
