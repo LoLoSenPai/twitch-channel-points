@@ -3,6 +3,7 @@ import { MintPanel } from "@/components/mint-panel";
 import Link from "next/link";
 import { LogoutButton } from "@/components/logout-button";
 import { PageShell } from "@/components/page-shell";
+import Image from "next/image";
 
 interface ExtendedUser {
     name?: string | null;
@@ -18,9 +19,9 @@ export default async function HomePage() {
                 <main className="relative z-10 mx-auto flex min-h-[72vh] max-w-3xl items-center px-6">
                     <div className="w-full rounded-3xl border border-white/10 bg-black/30 p-10 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_30px_120px_rgba(0,0,0,0.65)] backdrop-blur-xl">
                         <div className="flex items-start gap-5">
-                            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/5">
+                            <div className="">
                                 {/* petit carré “logo” sobre */}
-                                <span className="text-sm font-semibold tracking-tight text-white/80">PM</span>
+                                <Image src="/nyls-pfp.jpg" alt="Panini Mint Logo" width={48} height={48} className="rounded-full w-24 h-auto" />
                             </div>
 
                             <div className="min-w-0 flex-1">
