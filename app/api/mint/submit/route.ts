@@ -4,6 +4,16 @@ import { db } from "@/lib/db";
 import { Redemption, MintIntent, Mint } from "@/lib/models";
 import { Connection, VersionedTransaction } from "@solana/web3.js";
 
+type SessionUser = {
+  id?: string;
+  name?: string;
+  displayName?: string;
+};
+
+type ExtendedSessionUser = SessionUser & {
+  displayName?: string;
+};
+
 type IntentDoc = {
   wallet: string;
   stickerId: string | number;
@@ -12,9 +22,17 @@ type IntentDoc = {
   preparedTxB64: string;
 };
 
+type NotifyPayload = {
+  displayName: string;
+  stickerName: string;
+  stickerId: string;
+  rarity: string;
+  tx: string;
+};
+
 export async function POST(req: Request) {
   const session = await auth();
-  const twitchUserId = (session?.user as { id?: string })?.id;
+  const twitchUserId = (session?.user as SessionUser)?.id;
   if (!twitchUserId) return new NextResponse("Unauthorized", { status: 401 });
 
   const body = await req.json().catch(() => null);
@@ -48,7 +66,7 @@ export async function POST(req: Request) {
     // ✅ Anti-triche: vérifie que la tx signée correspond à la tx préparée (message identique)
     const signedVtx = VersionedTransaction.deserialize(raw);
     const preparedVtx = VersionedTransaction.deserialize(
-      Buffer.from(intent.preparedTxB64, "base64")
+      Buffer.from(intent.preparedTxB64, "base64"),
     );
 
     const signedMsg = Buffer.from(signedVtx.message.serialize());
@@ -81,13 +99,45 @@ export async function POST(req: Request) {
 
     await Redemption.updateOne(
       { redemptionId: intent.redemptionId },
-      { $set: { status: "CONSUMED", consumedAt: new Date(), mintTx: sig } }
+      { $set: { status: "CONSUMED", consumedAt: new Date(), mintTx: sig } },
     );
+
+    async function notifyTwitchBot(payload: NotifyPayload) {
+      const url = process.env.TWITCH_BOT_NOTIFY_URL; // ex: http://localhost:8787/notify
+      if (!url) return;
+
+      try {
+        await fetch(url, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } catch (e) {
+        // silence: ne doit pas casser le mint
+        console.error("notify bot failed", e);
+      }
+    }
 
     await MintIntent.updateOne(
       { intentId },
-      { $set: { status: "DONE", mintTx: sig } }
+      { $set: { status: "DONE", mintTx: sig } },
     );
+
+    await notifyTwitchBot({
+      displayName:
+        (session?.user as ExtendedSessionUser)?.displayName ??
+        (session?.user as ExtendedSessionUser)?.name ??
+        "Quelqu'un",
+      stickerName: `Panini #${String(intent.stickerId)}`,
+      stickerId: String(intent.stickerId),
+      rarity:
+        String(intent.stickerId) === "3"
+          ? "SSR"
+          : String(intent.stickerId) === "2"
+            ? "SR"
+            : "R",
+      tx: sig,
+    });
 
     return NextResponse.json({
       ok: true,
@@ -99,12 +149,12 @@ export async function POST(req: Request) {
 
     await MintIntent.updateOne(
       { intentId },
-      { $set: { status: "FAILED", error: (e as Error)?.message ?? "unknown" } }
+      { $set: { status: "FAILED", error: (e as Error)?.message ?? "unknown" } },
     );
 
     await Redemption.updateOne(
       { redemptionId: intent.redemptionId },
-      { $set: { lockedByIntentId: null } }
+      { $set: { lockedByIntentId: null } },
     );
 
     return new NextResponse("Mint failed", { status: 500 });
