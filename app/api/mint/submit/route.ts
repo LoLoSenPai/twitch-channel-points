@@ -145,12 +145,27 @@ export async function POST(req: Request) {
       { $set: { status: "DONE", mintTx: sig } },
     );
 
+    // 4) notification Twitch bot
+    let stickerName = `Panini #${String(intent.stickerId)}`;
+
+    try {
+      const base = process.env.METADATA_BASE_URI; // ✅ tu l'as déjà
+      if (base) {
+        const metaUrl = `${base}/${String(intent.stickerId)}.json`;
+        const metaRes = await fetch(metaUrl, { cache: "no-store" });
+        if (metaRes.ok) {
+          const meta = (await metaRes.json()) as { name?: string };
+          if (meta?.name) stickerName = meta.name;
+        }
+      }
+    } catch {}
+
     const payload: NotifyPayload = {
       displayName:
         (session?.user as ExtendedSessionUser)?.displayName ??
         (session?.user as ExtendedSessionUser)?.name ??
         "Quelqu'un",
-      stickerName: `Panini #${String(intent.stickerId)}`,
+      stickerName, // ✅ ex: "Gardien du Bitcoin Déchu"
       stickerId: String(intent.stickerId),
       rarity:
         String(intent.stickerId) === "3"

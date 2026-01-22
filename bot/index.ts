@@ -51,7 +51,7 @@ async function main() {
 
       const rarityEmoji =
         rarity === "SSR" ? "🟡" : rarity === "SR" ? "🟣" : "🔵";
-      const msg = `🎉 ${displayName} vient d’ouvrir un booster : "${stickerName}" (#${stickerId}) (${rarity} ${rarityEmoji}) ! GG 🔥`;
+      const msg = `🎉 ${displayName} vient d’ouvrir un booster : Panini #${stickerId}: ${stickerName} (${rarity} ${rarityEmoji}) ! GG 🔥`;
 
       await client.say(CHANNEL, msg);
       return res.json({ ok: true });
@@ -63,9 +63,7 @@ async function main() {
 
   app.get("/health", (_, res) => res.send("ok"));
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Bot listening on :${PORT}`);
-  });
+  app.listen(PORT, "127.0.0.1", () => console.log(`Bot listening on :${PORT}`));
 }
 
 main().catch((e) => {
