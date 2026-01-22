@@ -31,22 +31,38 @@ type NotifyPayload = {
 };
 
 async function notifyTwitchBot(payload: NotifyPayload) {
-  const url = process.env.TWITCH_BOT_NOTIFY_URL; // ex: https://gallant-carson....plesk.page/notify
-  if (!url) return;
+  const url = process.env.TWITCH_BOT_NOTIFY_URL; // ex: https://...plesk.page/notify
+
+  // ✅ debug minimal (visible dans les logs Vercel)
+  if (!url) {
+    console.log("[notify] TWITCH_BOT_NOTIFY_URL missing");
+    return;
+  }
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 1500); // 1.5s max
+  const timeout = setTimeout(() => controller.abort(), 1500);
 
   try {
-    await fetch(url, {
+    console.log("[notify] POST", url);
+
+    const res = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
       signal: controller.signal,
+      // pas de cache, au cas où
+      cache: "no-store",
     });
+
+    console.log("[notify] status", res.status);
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.log("[notify] body", text.slice(0, 300));
+    }
   } catch (e) {
-    // silence: ne doit jamais casser / ralentir le mint
-    console.error("notify bot failed", e);
+    // ✅ log pour voir l’erreur dans Vercel (DNS, TLS, timeout, etc.)
+    console.log("[notify] error", (e as Error)?.message ?? e);
   } finally {
     clearTimeout(timeout);
   }
@@ -146,7 +162,8 @@ export async function POST(req: Request) {
     };
 
     // 🚀 fire-and-forget (ne bloque jamais la réponse API)
-    void notifyTwitchBot(payload);
+    // void notifyTwitchBot(payload);
+    await notifyTwitchBot(payload);
 
     return NextResponse.json({
       ok: true,
