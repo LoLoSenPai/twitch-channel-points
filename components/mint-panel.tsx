@@ -100,29 +100,49 @@ export function MintPanel() {
             const r = rarityFromStickerId(String(stickerId));
             setRarity(r);
 
-            // 4) metadata (best effort, ne doit JAMAIS throw)
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            let meta: any = null;
-            try {
-                const metaBase = process.env.NEXT_PUBLIC_METADATA_BASE_URI;
-                const metaUrl = metaBase ? `${metaBase}/${stickerId}.json` : null;
-                if (metaUrl) {
-                    const metaRes = await fetch(metaUrl, { cache: "no-store" });
-                    if (metaRes.ok) meta = await metaRes.json();
-                }
-            } catch { }
-
-            // refresh tickets (best effort)
-            try {
-                await refreshTickets();
-            } catch { }
-
-            return {
+            // 4) on prépare un reveal immédiat (ne bloque jamais l’anim)
+            const baseReveal: Reveal = {
                 id: String(stickerId),
-                name: meta?.name ?? `Sticker #${stickerId}`,
-                image: meta?.image ?? "",
+                name: `Panini #${String(stickerId)}`,
+                image: "",
                 tx,
             };
+
+            // refresh tickets en background (ne bloque pas)
+            void refreshTickets().catch(() => { });
+
+            // metadata en background (ne bloque pas)
+            void (async () => {
+                try {
+                    const metaBase = process.env.NEXT_PUBLIC_METADATA_BASE_URI;
+                    const metaUrl = metaBase ? `${metaBase}/${stickerId}.json` : null;
+                    if (!metaUrl) return;
+
+                    const metaRes = await fetch(metaUrl, { cache: "no-store" });
+                    if (!metaRes.ok) return;
+
+                    const meta = (await metaRes.json()) as { name?: string; image?: string };
+
+                    const patch = {
+                        name: meta?.name ?? baseReveal.name,
+                        image: meta?.image ?? baseReveal.image,
+                    };
+
+                    // si le reveal est encore en attente, on le met à jour
+                    setPendingReveal((prev) =>
+                        prev && prev.id === baseReveal.id ? { ...prev, ...patch } : prev
+                    );
+
+                    // si le reveal a déjà été affiché, on le met à jour aussi
+                    setReveal((prev) =>
+                        prev && prev.id === baseReveal.id ? { ...prev, ...patch } : prev
+                    );
+                } catch {
+                    // silence
+                }
+            })();
+
+            return baseReveal;
         } catch (e) {
             // cancel uniquement si on n’a PAS déjà soumis
             if (intentId && !mintSubmitted) {
@@ -305,7 +325,34 @@ export function MintPanel() {
                 </div>
             </div>
 
-
+            {phase !== "idle" ? (
+                <PullOverlay
+                    phase={phase}
+                    sticker={
+                        pendingReveal
+                            ? { id: pendingReveal.id, name: pendingReveal.name, image: pendingReveal.image }
+                            : null
+                    }
+                    tx={pendingReveal?.tx ?? null}
+                    accent={glowColor}
+                    onSkip={() => {
+                        if (pendingReveal) setReveal(pendingReveal);
+                        setPhase("cardFront");
+                    }}
+                    onFlip={() => {
+                        if (phase === "cardBack" && pendingReveal) {
+                            setReveal(pendingReveal);
+                            setPhase("cardFront");
+                        }
+                    }}
+                    onClose={() => {
+                        setPhase("idle");
+                        setGlow(0);
+                        setPendingReveal(null);
+                        setResetOrbitKey((k) => k + 1);
+                    }}
+                />
+            ) : null}
 
             {reveal ? (
                 <div className="rounded-2xl border p-4 space-y-3">
