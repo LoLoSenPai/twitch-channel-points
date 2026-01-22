@@ -26,9 +26,31 @@ type NotifyPayload = {
   displayName: string;
   stickerName: string;
   stickerId: string;
-  rarity: string;
+  rarity: "R" | "SR" | "SSR";
   tx: string;
 };
+
+async function notifyTwitchBot(payload: NotifyPayload) {
+  const url = process.env.TWITCH_BOT_NOTIFY_URL; // ex: https://gallant-carson....plesk.page/notify
+  if (!url) return;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 1500); // 1.5s max
+
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+  } catch (e) {
+    // silence: ne doit jamais casser / ralentir le mint
+    console.error("notify bot failed", e);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -102,28 +124,12 @@ export async function POST(req: Request) {
       { $set: { status: "CONSUMED", consumedAt: new Date(), mintTx: sig } },
     );
 
-    async function notifyTwitchBot(payload: NotifyPayload) {
-      const url = process.env.TWITCH_BOT_NOTIFY_URL; // ex: http://localhost:8787/notify
-      if (!url) return;
-
-      try {
-        await fetch(url, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-      } catch (e) {
-        // silence: ne doit pas casser le mint
-        console.error("notify bot failed", e);
-      }
-    }
-
     await MintIntent.updateOne(
       { intentId },
       { $set: { status: "DONE", mintTx: sig } },
     );
 
-    await notifyTwitchBot({
+    const payload: NotifyPayload = {
       displayName:
         (session?.user as ExtendedSessionUser)?.displayName ??
         (session?.user as ExtendedSessionUser)?.name ??
@@ -137,7 +143,10 @@ export async function POST(req: Request) {
             ? "SR"
             : "R",
       tx: sig,
-    });
+    };
+
+    // 🚀 fire-and-forget (ne bloque jamais la réponse API)
+    void notifyTwitchBot(payload);
 
     return NextResponse.json({
       ok: true,

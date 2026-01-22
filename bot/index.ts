@@ -63,7 +63,7 @@ async function main() {
 
   app.get("/health", (_, res) => res.send("ok"));
 
-  app.listen(PORT, () => {
+  app.listen(PORT, "0.0.0.0", () => {
     console.log(`Bot listening on :${PORT}`);
   });
 }

@@ -65,9 +65,10 @@ export function MintPanel() {
         }
 
         let intentId: string | null = null;
+        let mintSubmitted = false;
 
         try {
-            // 1) prepare (NE DOIT PAS renvoyer stickerId)
+            // 1) prepare
             const prep = await fetch("/api/mint/prepare", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
@@ -75,20 +76,16 @@ export function MintPanel() {
             });
             if (!prep.ok) throw new Error(await prep.text());
 
-            const prepJson = (await prep.json()) as {
-                intentId: string;
-                txB64: string;
-            };
-
+            const prepJson = (await prep.json()) as { intentId: string; txB64: string };
             intentId = prepJson.intentId;
 
-            // 2) sign (wallet pop ici)
+            // 2) sign
             const txBytes = Uint8Array.from(Buffer.from(prepJson.txB64, "base64"));
             const vtx = VersionedTransaction.deserialize(txBytes);
             const signed = await wallet.signTransaction(vtx);
             const signedTxB64 = Buffer.from(signed.serialize()).toString("base64");
 
-            // 3) submit => ICI le serveur choisit le stickerId
+            // 3) submit
             const sub = await fetch("/api/mint/submit", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
@@ -96,18 +93,29 @@ export function MintPanel() {
             });
             if (!sub.ok) throw new Error(await sub.text());
 
+            mintSubmitted = true;
+
             const { tx, stickerId } = (await sub.json()) as { ok: true; tx: string; stickerId: string };
 
             const r = rarityFromStickerId(String(stickerId));
             setRarity(r);
 
-            // 4) metadata
-            const metaBase = process.env.NEXT_PUBLIC_METADATA_BASE_URI;
-            const metaUrl = metaBase ? `${metaBase}/${stickerId}.json` : null;
-            const metaRes = metaUrl ? await fetch(metaUrl, { cache: "no-store" }) : null;
-            const meta = metaRes?.ok ? await metaRes.json() : null;
+            // 4) metadata (best effort, ne doit JAMAIS throw)
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let meta: any = null;
+            try {
+                const metaBase = process.env.NEXT_PUBLIC_METADATA_BASE_URI;
+                const metaUrl = metaBase ? `${metaBase}/${stickerId}.json` : null;
+                if (metaUrl) {
+                    const metaRes = await fetch(metaUrl, { cache: "no-store" });
+                    if (metaRes.ok) meta = await metaRes.json();
+                }
+            } catch { }
 
-            await refreshTickets();
+            // refresh tickets (best effort)
+            try {
+                await refreshTickets();
+            } catch { }
 
             return {
                 id: String(stickerId),
@@ -116,13 +124,18 @@ export function MintPanel() {
                 tx,
             };
         } catch (e) {
-            if (intentId) {
-                await fetch("/api/mint/cancel", {
-                    method: "POST",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ intentId, reason: "USER_CANCELLED" }),
-                });
-                await refreshTickets();
+            // cancel uniquement si on n’a PAS déjà soumis
+            if (intentId && !mintSubmitted) {
+                try {
+                    await fetch("/api/mint/cancel", {
+                        method: "POST",
+                        headers: { "content-type": "application/json" },
+                        body: JSON.stringify({ intentId, reason: "USER_CANCELLED" }),
+                    });
+                } catch { }
+                try {
+                    await refreshTickets();
+                } catch { }
             }
             throw e;
         }
