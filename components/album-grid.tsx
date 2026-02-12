@@ -1,115 +1,419 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { cn } from "@/lib/utils";
 import stickers from "@/stickers/stickers.json";
+import { AnimatePresence, motion } from "framer-motion";
+import { createPortal } from "react-dom";
 
 type Mint = { stickerId: string; mintTx: string };
-type Me = { mints: Mint[]; totalStickers: number };
+type Me = {
+    mints: Mint[];
+    totalStickers?: number;
+    user?: { displayName?: string };
+};
+
+type StickerItem = {
+    id: string;
+    name?: string;
+    image?: string;
+};
 
 type StickerJson = {
     total?: number;
-    items: Array<{ id: string; name?: string; image?: string }>;
+    items: StickerItem[];
+};
+
+type AlbumSlot = {
+    slotNumber: number;
+    sticker?: StickerItem;
+};
+
+type SelectedCard = {
+    slotNumber: number;
+    name: string;
+    imageSrc: string;
+    qty: number;
 };
 
 const ST = stickers as StickerJson;
+const SLOTS_PER_PAGE = 9;
+const SLOTS_PER_SPREAD = SLOTS_PER_PAGE * 2;
 
 const IMAGE_BASE =
     process.env.NEXT_PUBLIC_STICKERS_IMAGE_BASE?.trim() || "/stickers/";
 
 function resolveStickerImageSrc(image?: string) {
-    const v = (image ?? "").trim();
-    if (!v) return null;
+    const value = (image ?? "").trim();
+    if (!value) return null;
 
-    // URL absolue
-    if (v.startsWith("http://") || v.startsWith("https://")) return v;
+    if (value.startsWith("http://") || value.startsWith("https://")) return value;
+    if (value.startsWith("/")) return value;
 
-    // chemin absolu local
-    if (v.startsWith("/")) return v;
-
-    // filename => base (ipfs gateway ou /stickers/)
     const base = IMAGE_BASE.endsWith("/") ? IMAGE_BASE : `${IMAGE_BASE}/`;
-    return `${base}${v}`;
+    return `${base}${value}`;
+}
+
+function buildSlots(totalSlots: number, items: StickerItem[]): AlbumSlot[] {
+    const sortedItems = [...items].sort((a, b) => {
+        const aa = Number(a.id);
+        const bb = Number(b.id);
+        if (Number.isFinite(aa) && Number.isFinite(bb)) return aa - bb;
+        return String(a.id).localeCompare(String(b.id));
+    });
+
+    const bySlotNumber = new Map<number, StickerItem>();
+    const overflow: StickerItem[] = [];
+
+    for (const item of sortedItems) {
+        const slotNumber = Number(item.id);
+        if (
+            Number.isInteger(slotNumber) &&
+            slotNumber >= 1 &&
+            slotNumber <= totalSlots &&
+            !bySlotNumber.has(slotNumber)
+        ) {
+            bySlotNumber.set(slotNumber, item);
+        } else {
+            overflow.push(item);
+        }
+    }
+
+    let overflowIndex = 0;
+    const slots: AlbumSlot[] = [];
+
+    for (let slotNumber = 1; slotNumber <= totalSlots; slotNumber += 1) {
+        const sticker = bySlotNumber.get(slotNumber) ?? overflow[overflowIndex++];
+        slots.push({ slotNumber, sticker });
+    }
+
+    return slots;
+}
+
+function chunkSlots(slots: AlbumSlot[]) {
+    const chunks: AlbumSlot[][] = [];
+    for (let i = 0; i < slots.length; i += SLOTS_PER_SPREAD) {
+        chunks.push(slots.slice(i, i + SLOTS_PER_SPREAD));
+    }
+    return chunks;
+}
+
+function AlbumLeaf({
+    side,
+    pageNumber,
+    slots,
+    ownedMap,
+    baseDelay,
+    onCardSelect,
+}: {
+    side: "left" | "right";
+    pageNumber: number;
+    slots: AlbumSlot[];
+    ownedMap: Map<string, number>;
+    baseDelay: number;
+    onCardSelect: (card: SelectedCard) => void;
+}) {
+    const paddedSlots: (AlbumSlot | null)[] = [...slots];
+    while (paddedSlots.length < SLOTS_PER_PAGE) paddedSlots.push(null);
+
+    return (
+        <div className={cn("album-leaf", side === "left" ? "album-leaf-left" : "album-leaf-right")}>
+            <div
+                className={cn(
+                    "album-ring-strip",
+                    side === "left" ? "album-ring-strip-left" : "album-ring-strip-right"
+                )}
+                aria-hidden="true"
+            >
+                <span className="album-ring-hole" />
+                <span className="album-ring-hole" />
+                <span className="album-ring-hole" />
+            </div>
+            <div className="album-page-number">Page {pageNumber}</div>
+            <div className="album-slot-grid">
+                {paddedSlots.map((slot, index) => {
+                    if (!slot) {
+                        return (
+                            <article
+                                key={`blank-${side}-${index}`}
+                                className="album-slot album-slot-empty"
+                                style={{ animationDelay: `${baseDelay + index * 45}ms` }}
+                            >
+                                <div className="album-slot-frame">
+                                    <div className="album-slot-pocket" />
+                                </div>
+                            </article>
+                        );
+                    }
+
+                    const stickerId = slot.sticker ? String(slot.sticker.id) : null;
+                    const qty = stickerId ? (ownedMap.get(stickerId) ?? 0) : 0;
+                    const owned = qty > 0;
+                    const imageSrc = resolveStickerImageSrc(slot.sticker?.image);
+                    const hasMetadata = Boolean(slot.sticker);
+
+                    return (
+                        <article
+                            key={`slot-${slot.slotNumber}`}
+                            className={cn(
+                                "album-slot",
+                                owned && "album-slot-owned",
+                                hasMetadata && !owned && "album-slot-missing",
+                                !hasMetadata && "album-slot-secret"
+                            )}
+                            style={{ animationDelay: `${baseDelay + index * 45}ms` }}
+                        >
+                            <div className="album-slot-frame">
+                                {owned && imageSrc ? (
+                                    <button
+                                        type="button"
+                                        className="album-slot-card-button"
+                                        onClick={() =>
+                                            onCardSelect({
+                                                slotNumber: slot.slotNumber,
+                                                name: slot.sticker?.name ?? `Sticker #${slot.slotNumber}`,
+                                                imageSrc,
+                                                qty,
+                                            })
+                                        }
+                                    >
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={imageSrc}
+                                            alt={slot.sticker?.name ?? `Sticker #${slot.slotNumber}`}
+                                            className="album-slot-image"
+                                            loading="lazy"
+                                        />
+                                    </button>
+                                ) : (
+                                    <div className="album-slot-pocket">
+                                        {hasMetadata ? (
+                                            <span className="album-slot-pocket-id">#{slot.slotNumber}</span>
+                                        ) : null}
+                                    </div>
+                                )}
+
+                                {owned ? <span className="album-slot-badge">x{qty}</span> : null}
+                            </div>
+                        </article>
+                    );
+                })}
+            </div>
+        </div>
+    );
 }
 
 export function AlbumGrid() {
     const [me, setMe] = useState<Me | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [spreadIndex, setSpreadIndex] = useState(0);
+    const [turnDirection, setTurnDirection] = useState<"idle" | "next" | "prev">("idle");
+    const [selectedCard, setSelectedCard] = useState<SelectedCard | null>(null);
+    const [mounted, setMounted] = useState(false);
+    const turnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
+        let active = true;
+
         (async () => {
-            const r = await fetch("/api/me", { cache: "no-store" });
-            if (r.ok) setMe(await r.json());
+            try {
+                const response = await fetch("/api/me", { cache: "no-store" });
+                if (!active) return;
+                if (response.ok) {
+                    setMe(await response.json());
+                } else {
+                    setMe(null);
+                }
+            } finally {
+                if (active) setLoading(false);
+            }
         })();
+
+        return () => {
+            active = false;
+            if (turnTimer.current) clearTimeout(turnTimer.current);
+        };
+    }, []);
+
+    useEffect(() => {
+        setMounted(true);
     }, []);
 
     const ownedMap = useMemo(() => {
         const map = new Map<string, number>();
-        for (const m of me?.mints ?? []) {
-            const id = String(m.stickerId);
+        for (const mint of me?.mints ?? []) {
+            const id = String(mint.stickerId);
             map.set(id, (map.get(id) ?? 0) + 1);
         }
         return map;
     }, [me]);
 
-    const total = ST.total ?? ST.items.length;
+    const totalSlots = Math.max(
+        me?.totalStickers ?? 0,
+        ST.total ?? 0,
+        ST.items.length,
+        1
+    );
 
-    const ownedCount = useMemo(() => {
-        let c = 0;
-        for (const s of ST.items) if ((ownedMap.get(String(s.id)) ?? 0) > 0) c++;
-        return c;
-    }, [ownedMap]);
+    const slots = useMemo(() => buildSlots(totalSlots, ST.items), [totalSlots]);
+    const spreads = useMemo(() => chunkSlots(slots), [slots]);
+
+    useEffect(() => {
+        setSpreadIndex((prev) => Math.min(prev, Math.max(spreads.length - 1, 0)));
+    }, [spreads.length]);
+
+    const uniqueOwnedCount = useMemo(() => {
+        let count = 0;
+        for (const slot of slots) {
+            const stickerId = slot.sticker ? String(slot.sticker.id) : null;
+            if (stickerId && (ownedMap.get(stickerId) ?? 0) > 0) count += 1;
+        }
+        return count;
+    }, [slots, ownedMap]);
+
+    const mintedTotal = me?.mints.length ?? 0;
+    const duplicates = Math.max(0, mintedTotal - uniqueOwnedCount);
+    const completion = Math.round((uniqueOwnedCount / totalSlots) * 100);
+
+    const currentSpread = spreads[spreadIndex] ?? [];
+    const leftSlots = currentSpread.slice(0, SLOTS_PER_PAGE);
+    const rightSlots = currentSpread.slice(SLOTS_PER_PAGE, SLOTS_PER_SPREAD);
+
+    const leftPageNumber = spreadIndex * 2 + 1;
+    const rightPageNumber = leftPageNumber + 1;
+
+    const moveTo = (nextIndex: number, direction: "next" | "prev") => {
+        if (nextIndex < 0 || nextIndex >= spreads.length) return;
+        if (nextIndex === spreadIndex) return;
+
+        setSpreadIndex(nextIndex);
+        setTurnDirection(direction);
+
+        if (turnTimer.current) clearTimeout(turnTimer.current);
+        turnTimer.current = setTimeout(() => {
+            setTurnDirection("idle");
+            turnTimer.current = null;
+        }, 420);
+    };
 
     return (
-        <div className="space-y-3">
-            <div className="rounded-2xl border p-4">
-                <div className="text-lg font-semibold">Album</div>
-                <div className="text-sm opacity-70">
-                    Possédés: <span className="font-medium">{ownedCount}</span> / {total}
-                    <span className="ml-2 opacity-60">
-                        (stickers mintés: {me?.mints.length ?? "—"})
-                    </span>
+        <section className="panini-album">
+            <header className="album-hero">
+                <div className="album-hero-headline">
+                    <p className="album-kicker">NYLS PANINI COLLECTION</p>
+                    <h2 className="album-title">Ton album de stickers</h2>
+                    <p className="album-subtitle">
+                        {loading
+                            ? "Chargement de ton album..."
+                            : me?.user?.displayName
+                                ? `${me.user.displayName}, complete la collection en mintant chaque case.`
+                                : "Connecte Twitch pour afficher ton avancement complet."}
+                    </p>
                 </div>
+
+                <div className="album-stats">
+                    <p>
+                        Possedes <strong>{uniqueOwnedCount}</strong> / <strong>{totalSlots}</strong>
+                    </p>
+                    <p>
+                        Stickers mintes <strong>{mintedTotal}</strong>
+                    </p>
+                    <p>
+                        Doubles <strong>{duplicates}</strong>
+                    </p>
+                    <div className="album-progress" role="progressbar" aria-valuenow={completion} aria-valuemin={0} aria-valuemax={100}>
+                        <div className="album-progress-fill" style={{ width: `${completion}%` }} />
+                    </div>
+                    <p className="album-progress-label">Completion: {completion}%</p>
+                </div>
+            </header>
+
+            <div className={cn("album-book", turnDirection !== "idle" && `turn-${turnDirection}`)}>
+                <div className="album-spine" aria-hidden="true" />
+
+                <AlbumLeaf
+                    key={`left-${spreadIndex}`}
+                    side="left"
+                    pageNumber={leftPageNumber}
+                    slots={leftSlots}
+                    ownedMap={ownedMap}
+                    baseDelay={50}
+                    onCardSelect={setSelectedCard}
+                />
+
+                <AlbumLeaf
+                    key={`right-${spreadIndex}`}
+                    side="right"
+                    pageNumber={rightPageNumber}
+                    slots={rightSlots}
+                    ownedMap={ownedMap}
+                    baseDelay={125}
+                    onCardSelect={setSelectedCard}
+                />
             </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                {ST.items.map((s) => {
-                    const id = String(s.id);
-                    const qty = ownedMap.get(id) ?? 0;
-                    const owned = qty > 0;
+            <footer className="album-controls">
+                <button
+                    type="button"
+                    className="album-control-btn"
+                    onClick={() => moveTo(spreadIndex - 1, "prev")}
+                    disabled={spreadIndex === 0}
+                >
+                    Page precedente
+                </button>
 
-                    const imgSrc = resolveStickerImageSrc(s.image);
+                <p className="album-control-label">
+                    Double page {spreadIndex + 1} / {Math.max(spreads.length, 1)}
+                </p>
 
-                    return (
-                        <div
-                            key={id}
-                            className={`rounded-2xl border p-3 space-y-2 ${owned ? "" : "opacity-40"
-                                }`}
-                        >
-                            <div className="rounded-xl border aspect-square flex items-center justify-center text-sm opacity-80 overflow-hidden">
-                                {imgSrc ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
-                                    <img
-                                        src={imgSrc}
-                                        alt={s.name ?? `Sticker #${id}`}
-                                        className="h-full w-full object-cover"
-                                        loading="lazy"
-                                    />
-                                ) : (
-                                    <span className="font-semibold">#{id}</span>
-                                )}
-                            </div>
+                <button
+                    type="button"
+                    className="album-control-btn"
+                    onClick={() => moveTo(spreadIndex + 1, "next")}
+                    disabled={spreadIndex >= spreads.length - 1}
+                >
+                    Page suivante
+                </button>
+            </footer>
 
-                            <div className="text-sm">
-                                <div className="font-medium truncate">
-                                    {s.name ?? `Sticker #${id}`}
-                                </div>
-                                <div className="text-xs opacity-70">
-                                    {owned ? `x${qty}` : "manquant"}
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
+            {mounted
+                ? createPortal(
+                    <AnimatePresence>
+                        {selectedCard ? (
+                            <motion.div
+                                className="album-card-overlay"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                onClick={() => setSelectedCard(null)}
+                            >
+                                <motion.div
+                                    className="album-card-overlay-inner"
+                                    initial={{ scale: 0.8, y: 24, rotate: -2 }}
+                                    animate={{ scale: 1, y: 0, rotate: 0 }}
+                                    exit={{ scale: 0.85, y: 16, rotate: 1 }}
+                                    transition={{ type: "spring", stiffness: 260, damping: 24 }}
+                                    onClick={(event) => event.stopPropagation()}
+                                >
+                                    <div className="album-card-zoom">
+                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                        <img
+                                            src={selectedCard.imageSrc}
+                                            alt={selectedCard.name}
+                                            className="album-card-zoom-image"
+                                        />
+                                    </div>
+                                    {/* <div className="album-card-zoom-caption">
+                                        <p className="album-card-zoom-title">{selectedCard.name}</p>
+                                        <p className="album-card-zoom-sub">x{selectedCard.qty}</p>
+                                    </div> */}
+                                </motion.div>
+                            </motion.div>
+                        ) : null}
+                    </AnimatePresence>,
+                    document.body
+                )
+                : null}
+        </section>
     );
 }

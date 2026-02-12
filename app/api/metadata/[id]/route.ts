@@ -24,6 +24,22 @@ export async function GET(
   const sticker = getSticker(stickerId);
 
   const name = sticker?.name ?? `Sticker #${stickerId}`;
+  const attributes: Array<{ trait_type: string; value: string | number }> = [
+    { trait_type: "sticker_id", value: stickerId },
+    { trait_type: "series", value: "v0" },
+  ];
+
+  if (typeof sticker?.weight === "number") {
+    attributes.push({ trait_type: "rarity_weight", value: sticker.weight });
+  }
+
+  if (sticker?.rarity) {
+    attributes.push({ trait_type: "rarity", value: sticker.rarity });
+  }
+
+  if (typeof sticker?.maxSupply === "number") {
+    attributes.push({ trait_type: "max_supply", value: sticker.maxSupply });
+  }
 
   // IPFS/gateway en priorité, sinon public/stickers
   const imageBase = process.env.STICKERS_IMAGE_BASE || `${appBase}/stickers/`;
@@ -37,10 +53,7 @@ export async function GET(
     symbol: "PANINI",
     description: "Panini V0 (test).",
     image: imageUrl,
-    attributes: [
-      { trait_type: "sticker_id", value: stickerId },
-      { trait_type: "series", value: "v0" },
-    ],
+    attributes,
     external_url: appBase,
     properties: {
       category: "image",

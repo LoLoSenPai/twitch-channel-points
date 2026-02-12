@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { Redemption, MintIntent, Collection } from "@/lib/models";
-import { pickRandomStickerId } from "@/lib/stickers";
+import { Redemption, MintIntent, Collection, Mint } from "@/lib/models";
+import { getSticker, pickRandomAvailableStickerId } from "@/lib/stickers";
 
 import { umiServer } from "@/lib/solana/umi";
 import { mintV2 } from "@metaplex-foundation/mpl-bubblegum";
@@ -24,6 +24,16 @@ function safePublicKey(input?: string | null) {
   }
 }
 
+type CountByStickerAgg = { _id: string; count: number };
+
+function toCountMap(rows: CountByStickerAgg[]) {
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    map.set(String(row._id), Number(row.count) || 0);
+  }
+  return map;
+}
+
 export async function POST(req: Request) {
   const session = await auth();
   const twitchUserId = (session?.user as { id?: string })?.id;
@@ -40,9 +50,16 @@ export async function POST(req: Request) {
   const staleBefore = new Date(Date.now() - LOCK_TTL_MINUTES * 60_000);
   const rewardId = process.env.TWITCH_REWARD_ID;
 
+  await MintIntent.updateMany(
+    {
+      status: "PREPARED",
+      updatedAt: { $lt: staleBefore },
+    },
+    { $set: { status: "FAILED", error: "INTENT_EXPIRED" } }
+  );
+
   await Redemption.updateMany(
     {
-      twitchUserId,
       status: "PENDING",
       lockedByIntentId: { $ne: null },
       updatedAt: { $lt: staleBefore },
@@ -69,7 +86,28 @@ export async function POST(req: Request) {
   if (!ticket) return new NextResponse("No tickets", { status: 409 });
 
   try {
-    const stickerId = pickRandomStickerId();
+    const [mintedAgg, reservedAgg] = await Promise.all([
+      Mint.aggregate<CountByStickerAgg>([
+        { $group: { _id: "$stickerId", count: { $sum: 1 } } },
+      ]),
+      MintIntent.aggregate<CountByStickerAgg>([
+        { $match: { status: "PREPARED" } },
+        { $group: { _id: "$stickerId", count: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const stickerId = pickRandomAvailableStickerId({
+      mintedCounts: toCountMap(mintedAgg),
+      reservedCounts: toCountMap(reservedAgg),
+    });
+
+    if (!stickerId) {
+      await Redemption.updateOne(
+        { redemptionId: ticket.redemptionId },
+        { $set: { lockedByIntentId: null } }
+      );
+      return new NextResponse("Collection sold out", { status: 409 });
+    }
 
     const umi = umiServer();
     const ownerPk = publicKey(walletPubkey);
@@ -80,6 +118,8 @@ export async function POST(req: Request) {
       return new NextResponse("Missing METADATA_BASE_URI", { status: 500 });
 
     const uri = `${metaBase}/${stickerId}.json`;
+    const sticker = getSticker(stickerId);
+    const onchainName = sticker?.name ?? `Panini #${stickerId}`;
 
     const active = await Collection.findOne({ isActive: true }).lean();
 
@@ -108,7 +148,7 @@ export async function POST(req: Request) {
             coreCollection: coreCollectionPk,
             collectionAuthority: umi.identity,
             metadata: {
-              name: `Panini #${stickerId}`,
+              name: onchainName,
               uri,
               sellerFeeBasisPoints: 0,
               collection: some(coreCollectionPk),
@@ -117,7 +157,7 @@ export async function POST(req: Request) {
           }
         : {
             metadata: {
-              name: `Panini #${stickerId}`,
+              name: onchainName,
               uri,
               sellerFeeBasisPoints: 0,
               collection: none(),

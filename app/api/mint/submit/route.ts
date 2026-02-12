@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Redemption, MintIntent, Mint } from "@/lib/models";
+import { getSticker, type StickerRarity } from "@/lib/stickers";
 import { Connection, VersionedTransaction } from "@solana/web3.js";
 
 type SessionUser = {
@@ -26,7 +27,7 @@ type NotifyPayload = {
   displayName: string;
   stickerName: string;
   stickerId: string;
-  rarity: "R" | "SR" | "SSR";
+  rarity: StickerRarity;
   tx: string;
 };
 
@@ -168,11 +169,12 @@ export async function POST(req: Request) {
       stickerName, // ✅ ex: "Gardien du Bitcoin Déchu"
       stickerId: String(intent.stickerId),
       rarity:
-        String(intent.stickerId) === "3"
+        getSticker(String(intent.stickerId))?.rarity ??
+        (String(intent.stickerId) === "3"
           ? "SSR"
           : String(intent.stickerId) === "2"
             ? "SR"
-            : "R",
+            : "R"),
       tx: sig,
     };
 

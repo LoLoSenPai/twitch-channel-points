@@ -7,6 +7,8 @@ import { VersionedTransaction } from "@solana/web3.js";
 import { useTickets } from "@/lib/hooks/use-tickets";
 import { BoosterScene } from "@/components/booster-model";
 import Link from "next/link";
+import stickers from "@/stickers/stickers.json";
+import { normalizeRarity } from "@/lib/stickers";
 
 type Reveal = {
     id: string;
@@ -17,18 +19,49 @@ type Reveal = {
 
 type PullPhase = "idle" | "charging" | "flash" | "cardBack" | "cardFront";
 
-type Rarity = "R" | "SR" | "SSR";
+type Rarity =
+    | "common"
+    | "uncommon"
+    | "rare"
+    | "legendary"
+    | "mythic"
+    | "R"
+    | "SR"
+    | "SSR";
+
+type StickerJson = {
+    items: Array<{ id: string; rarity?: string }>;
+};
+
+const stickerRarityMap = new Map(
+    (stickers as StickerJson).items.map((item) => [String(item.id), item.rarity])
+);
 
 function rarityFromStickerId(id: string): Rarity {
+    const configured = normalizeRarity(stickerRarityMap.get(String(id)));
+    if (configured) return configured;
     if (id === "3") return "SSR"; // le plus rare (10%)
     if (id === "2") return "SR";  // moyen (30%)
     return "R";                   // commun (60%)
 }
 
 function rarityColor(r: Rarity) {
+    if (r === "mythic") return "#ef4444";
+    if (r === "legendary") return "#f59e0b";
+    if (r === "rare") return "#3b82f6";
+    if (r === "uncommon") return "#22c55e";
+    if (r === "common") return "#94a3b8";
     if (r === "SSR") return "#f59e0b"; // or
     if (r === "SR") return "#a855f7";  // violet
     return "#60a5fa";                  // bleu
+}
+
+function rarityBoostMultiplier(r: Rarity | null) {
+    if (r === "mythic") return 0.4;
+    if (r === "legendary" || r === "SSR") return 0.35;
+    if (r === "rare" || r === "SR") return 0.25;
+    if (r === "uncommon") return 0.2;
+    return 0.18;
 }
 
 
@@ -224,7 +257,7 @@ export function MintPanel() {
     const glowColor = rarity ? rarityColor(rarity) : "#ffffff";
 
     const chargingIntensity =
-        0.02 + glow * (rarity === "SSR" ? 0.35 : rarity === "SR" ? 0.25 : 0.18);
+        0.02 + glow * rarityBoostMultiplier(rarity);
 
     return (
         <div className="rounded-2xl border p-4 space-y-4 bg-linear-to-br from-zinc-900/70 via-black/60 to-zinc-900/70">

@@ -1,25 +1,31 @@
 {
   "collectionName": "Panini V0.1",
   "description": "Panini stickers (test).",
-  "total": 3,
+  "total": 44,
   "items": [
     {
       "id": "1",
       "name": "Hodler d’Alt Déchu",
       "image": "001.png",
-      "weight": 60
+      "weight": 60,
+      "rarity": "common",
+      "maxSupply": 5000
     },
     {
       "id": "2",
       "name": "Analyseur d’Alt Déchu",
       "image": "002.png",
-      "weight": 30
+      "weight": 30,
+      "rarity": "uncommon",
+      "maxSupply": 2500
     },
     {
       "id": "3",
       "name": "Gardien du Bitcoin Déchu",
       "image": "003.png",
-      "weight": 10
+      "weight": 10,
+      "rarity": "legendary",
+      "maxSupply": 1000
     }
   ]
 }

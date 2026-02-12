@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 type Stats = {
     ticketsPending: number;
@@ -42,6 +42,43 @@ type AdminData = {
     pendingTickets: PendingTicket[];
     preparedIntents: PreparedIntent[];
     collections: Collection[];
+    supply: SupplyData | null;
+};
+
+type SupplySummary = {
+    mintedTotal: number;
+    reservedTotal: number;
+    cappedMaxTotal: number;
+    cappedRemainingTotal: number;
+    soldOutCount: number;
+    totalConfigured: number;
+    cappedCount: number;
+};
+
+type SupplyItem = {
+    id: string;
+    name: string;
+    rarity:
+    | "common"
+    | "uncommon"
+    | "rare"
+    | "legendary"
+    | "mythic"
+    | "R"
+    | "SR"
+    | "SSR"
+    | null;
+    weight: number | null;
+    maxSupply: number | null;
+    minted: number;
+    reserved: number;
+    remaining: number | null;
+    soldOut: boolean;
+};
+
+type SupplyData = {
+    summary: SupplySummary;
+    items: SupplyItem[];
 };
 
 type TwitchReward = {
@@ -83,18 +120,19 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
     const [twitchMsg, setTwitchMsg] = useState<string>("");
 
     const webhookCallback = useMemo(() => {
-        // juste informatif: l’endpoint public webhook
-        // (c’est /api/twitch/eventsub dans ton projet)
+        // juste informatif: lâ€™endpoint public webhook
+        // (câ€™est /api/twitch/eventsub dans ton projet)
         if (typeof window === "undefined") return "/api/twitch/eventsub";
         return `${window.location.origin}/api/twitch/eventsub`;
     }, []);
 
     const refresh = useCallback(async () => {
-        const [s, t, i, c] = await Promise.all([
+        const [s, t, i, c, supply] = await Promise.all([
             fetch("/api/admin/stats").then((r) => r.json()),
             fetch("/api/admin/redemptions?status=PENDING&limit=30").then((r) => r.json()),
             fetch("/api/admin/intents?status=PREPARED&limit=30").then((r) => r.json()),
             fetch("/api/admin/collections").then((r) => r.json()),
+            fetch("/api/admin/supply").then((r) => r.json()),
         ]);
 
         setData({
@@ -102,8 +140,15 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
             pendingTickets: t.items ?? [],
             preparedIntents: i.items ?? [],
             collections: c.items ?? [],
+            supply,
         });
     }, []);
+
+    useEffect(() => {
+        if (!data.supply) {
+            void refresh();
+        }
+    }, [data.supply, refresh]);
 
     async function seedTickets() {
         await fetch("/api/admin/seed", {
@@ -216,7 +261,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                 return;
             }
 
-            setTwitchMsg("✅ Subscription créée.");
+            setTwitchMsg("âœ… Subscription crÃ©Ã©e.");
             await fetchSubscriptions();
         } catch (e) {
             setTwitchMsg(`Erreur subscribe: ${(e as Error).message}`);
@@ -238,7 +283,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                 setTwitchMsg(text);
                 return;
             }
-            setTwitchMsg("🧹 Subscription supprimée.");
+            setTwitchMsg("ðŸ§¹ Subscription supprimÃ©e.");
             await fetchSubscriptions();
         } catch (e) {
             setTwitchMsg(`Erreur delete: ${(e as Error).message}`);
@@ -250,7 +295,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
     async function copyToClipboard(v: string) {
         try {
             await navigator.clipboard.writeText(v);
-            setTwitchMsg("Copié ✅");
+            setTwitchMsg("CopiÃ© âœ…");
         } catch {
             setTwitchMsg("Copie impossible (permissions navigateur).");
         }
@@ -264,12 +309,52 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
             </button>
 
             <section className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <Card title="Tickets PENDING" value={data.stats?.ticketsPending ?? "—"} />
-                <Card title="Tickets CONSUMED" value={data.stats?.ticketsConsumed ?? "—"} />
-                <Card title="Mints total" value={data.stats?.mintsTotal ?? "—"} />
-                <Card title="Intents PREPARED" value={data.stats?.intentsPrepared ?? "—"} />
-                <Card title="Intents FAILED" value={data.stats?.intentsFailed ?? "—"} />
-                <Card title="Collections" value={data.stats?.collections ?? "—"} />
+                <Card title="Tickets PENDING" value={data.stats?.ticketsPending ?? "â€”"} />
+                <Card title="Tickets CONSUMED" value={data.stats?.ticketsConsumed ?? "â€”"} />
+                <Card title="Mints total" value={data.stats?.mintsTotal ?? "â€”"} />
+                <Card title="Intents PREPARED" value={data.stats?.intentsPrepared ?? "â€”"} />
+                <Card title="Intents FAILED" value={data.stats?.intentsFailed ?? "â€”"} />
+                <Card title="Collections" value={data.stats?.collections ?? "â€”"} />
+            </section>
+            <section className="rounded-2xl border p-4 space-y-3">
+                <div className="font-semibold">Supply collection</div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                    <div className="rounded-xl border p-2">
+                        Mintes: <span className="font-semibold">{data.supply?.summary.mintedTotal ?? "..."}</span>
+                    </div>
+                    <div className="rounded-xl border p-2">
+                        Reserves: <span className="font-semibold">{data.supply?.summary.reservedTotal ?? "..."}</span>
+                    </div>
+                    <div className="rounded-xl border p-2">
+                        Restants (caps): <span className="font-semibold">{data.supply?.summary.cappedRemainingTotal ?? "..."}</span>
+                    </div>
+                    <div className="rounded-xl border p-2">
+                        Sold out: <span className="font-semibold">{data.supply?.summary.soldOutCount ?? "..."}</span>
+                    </div>
+                </div>
+
+                <div className="space-y-2 max-h-80 overflow-auto pr-1">
+                    {(data.supply?.items ?? []).map((item) => (
+                        <div key={item.id} className="rounded-xl border p-3 text-xs flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="font-medium text-sm truncate">
+                                    #{item.id} {item.name}
+                                </div>
+                                <div className="opacity-70">
+                                    rarete: {item.rarity ?? "-"} | weight: {item.weight ?? "-"} | max: {item.maxSupply ?? "infini"}
+                                </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                                <div>mintes: {item.minted}</div>
+                                <div>reserves: {item.reserved}</div>
+                                <div>restants: {item.remaining ?? "infini"}</div>
+                                <div className={item.soldOut ? "text-red-400" : "opacity-70"}>
+                                    {item.soldOut ? "SOLD OUT" : "mintable"}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </section>
 
             <section className="rounded-2xl border p-4 space-y-2">
@@ -284,11 +369,11 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                 <span className="opacity-70">Tree:</span> {data.stats.activeCollection.merkleTreePubkey}
                             </div>
                             <div className="break-all">
-                                <span className="opacity-70">Core:</span> {data.stats.activeCollection.coreCollectionPubkey ?? "—"}
+                                <span className="opacity-70">Core:</span> {data.stats.activeCollection.coreCollectionPubkey ?? "â€”"}
                             </div>
                         </>
                     ) : (
-                        <span className="opacity-70">Aucune (fallback sur .env si présent)</span>
+                        <span className="opacity-70">Aucune (fallback sur .env si prÃ©sent)</span>
                     )}
                 </div>
             </section>
@@ -307,7 +392,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                         onClick={fetchRewards}
                         disabled={twitchBusy !== null}
                     >
-                        {twitchBusy === "rewards" ? "Chargement rewards…" : "Lister rewards"}
+                        {twitchBusy === "rewards" ? "Chargement rewardsâ€¦" : "Lister rewards"}
                     </button>
 
                     <button
@@ -315,7 +400,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                         onClick={fetchSubscriptions}
                         disabled={twitchBusy !== null}
                     >
-                        {twitchBusy === "subs" ? "Chargement subs…" : "Lister subscriptions"}
+                        {twitchBusy === "subs" ? "Chargement subsâ€¦" : "Lister subscriptions"}
                     </button>
 
                     <button
@@ -323,7 +408,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                         onClick={subscribeEventSub}
                         disabled={twitchBusy !== null || !selectedRewardId}
                     >
-                        {twitchBusy === "subscribe" ? "Subscribe…" : "Créer subscription EventSub"}
+                        {twitchBusy === "subscribe" ? "Subscribeâ€¦" : "CrÃ©er subscription EventSub"}
                     </button>
                 </div>
 
@@ -350,7 +435,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                 >
                                     {rewards.map((rw) => (
                                         <option key={rw.id} value={rw.id}>
-                                            {rw.title} — {rw.cost} pts {rw.is_enabled ? "" : "(disabled)"}
+                                            {rw.title} â€” {rw.cost} pts {rw.is_enabled ? "" : "(disabled)"}
                                         </option>
                                     ))}
                                 </select>
@@ -365,7 +450,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                         onClick={() => copyToClipboard(selectedRewardId)}
                                         disabled={twitchBusy !== null}
                                     >
-                                        Copier l’ID
+                                        Copier lâ€™ID
                                     </button>
                                 </div>
 
@@ -375,7 +460,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                             </>
                         ) : (
                             <div className="text-xs opacity-70">
-                                Clique “Lister rewards” (tu dois être loggé admin + scopes OK).
+                                Clique â€œLister rewardsâ€ (tu dois Ãªtre loggÃ© admin + scopes OK).
                             </div>
                         )}
                     </div>
@@ -415,7 +500,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                 ))}
                             </div>
                         ) : (
-                            <div className="text-xs opacity-70">Clique “Lister subscriptions”.</div>
+                            <div className="text-xs opacity-70">Clique â€œLister subscriptionsâ€.</div>
                         )}
                     </div>
                 </div>
@@ -441,7 +526,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                         Ajouter
                     </button>
                 </div>
-                <div className="text-xs opacity-70">Astuce: récupère ton twitchUserId via /api/me (en étant loggé)</div>
+                <div className="text-xs opacity-70">Astuce: rÃ©cupÃ¨re ton twitchUserId via /api/me (en Ã©tant loggÃ©)</div>
             </section>
 
             {/* collections */}
@@ -467,7 +552,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                         onChange={(e) => setNewCore(e.target.value)}
                     />
                     <button className="rounded-xl border px-4 py-2" onClick={createCollection}>
-                        Créer + activer
+                        CrÃ©er + activer
                     </button>
                 </div>
 
@@ -482,7 +567,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                     {c.name} {c.isActive ? <span className="opacity-70">(active)</span> : null}
                                 </div>
                                 <div className="opacity-70 break-all">Tree: {c.merkleTreePubkey}</div>
-                                <div className="opacity-70 break-all">Core: {c.coreCollectionPubkey ?? "—"}</div>
+                                <div className="opacity-70 break-all">Core: {c.coreCollectionPubkey ?? "â€”"}</div>
                             </div>
                             <div className="flex gap-2">
                                 {!c.isActive ? (
@@ -510,7 +595,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                     <span className="opacity-70">redemption:</span> {t.redemptionId}
                                 </div>
                                 <div>
-                                    <span className="opacity-70">locked:</span> {t.lockedByIntentId ?? "—"}
+                                    <span className="opacity-70">locked:</span> {t.lockedByIntentId ?? "â€”"}
                                 </div>
                             </div>
                             <button className="rounded-xl border px-3 py-2" onClick={() => forceUnlockTicket(t.redemptionId)}>

@@ -23,6 +23,15 @@ const client = new tmi.Client({
   channels: [CHANNEL],
 });
 
+function rarityEmojiFromLabel(rarity: string) {
+  const r = rarity.toLowerCase();
+  if (r === "mythic") return "??";
+  if (r === "legendary" || r === "ssr") return "??";
+  if (r === "rare" || r === "sr") return "??";
+  if (r === "uncommon") return "??";
+  return "?";
+}
+
 async function main() {
   await client.connect();
 
@@ -49,9 +58,8 @@ async function main() {
       }
       lastSig.set(tx, now);
 
-      const rarityEmoji =
-        rarity === "SSR" ? "🟡" : rarity === "SR" ? "🟣" : "🔵";
-      const msg = `🎉 ${displayName} vient d’ouvrir un booster : Panini #${stickerId}: ${stickerName} (${rarity} ${rarityEmoji}) ! GG 🔥`;
+      const rarityEmoji = rarityEmojiFromLabel(String(rarity));
+      const msg = `?? ${displayName} vient d’ouvrir un booster : Panini #${stickerId}: ${stickerName} (${rarity} ${rarityEmoji}) ! GG ??`;
 
       await client.say(CHANNEL, msg);
       return res.json({ ok: true });

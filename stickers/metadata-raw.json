@@ -1,0 +1,60 @@
+{
+  "collection": {
+    "name": "Genesis V0",
+    "symbol": "PANINI",
+    "description": "Collection Genesis V0 des stickers Panini.",
+    "series": "v0.1"
+  },
+  "base": {
+    "default_description": "Panini collectible."
+  },
+  "cards": [
+    { "card_id": "001", "name": "Couille en titane", "description": "", "image_file": "001.png", "rarity": "legendary", "weight": 60, "max_supply": 10 },
+    { "card_id": "002", "name": "Celui-qui-ne-doute-jamais", "description": "", "image_file": "002.png", "rarity": "legendary", "weight": 60, "max_supply": 10 },
+    { "card_id": "003", "name": "Chair fraîche", "description": "", "image_file": "003.png", "rarity": "common", "weight": 60, "max_supply": 50 },
+    { "card_id": "004", "name": "Hodler éternel", "description": "", "image_file": "004.png", "rarity": "uncommon", "weight": 60, "max_supply": 35 },
+    { "card_id": "005", "name": "Excès de confiance", "description": "", "image_file": "005.png", "rarity": "rare", "weight": 60, "max_supply": 20 },
+    { "card_id": "006", "name": "Hodler d'Alt Déchu", "description": "", "image_file": "006.png", "rarity": "rare", "weight": 60, "max_supply": 20 },
+    { "card_id": "007", "name": "Hibernation", "description": "", "image_file": "007.png", "rarity": "common", "weight": 60, "max_supply": 50 },
+    { "card_id": "008", "name": "Trader inouït", "description": "", "image_file": "008.png", "rarity": "rare", "weight": 60, "max_supply": 20 },
+    { "card_id": "009", "name": "Purge foudroyante", "description": "", "image_file": "009.png", "rarity": "legendary", "weight": 60, "max_supply": 10 },
+    { "card_id": "010", "name": "Prêt non officiel", "description": "", "image_file": "010.png", "rarity": "uncommon", "weight": 60, "max_supply": 35 },
+    { "card_id": "011", "name": "Prendre l'air", "description": "", "image_file": "011.png", "rarity": "common", "weight": 60, "max_supply": 50 },
+    { "card_id": "012", "name": "Recette du churros", "description": "", "image_file": "012.png", "rarity": "mythic", "weight": 60, "max_supply": 4 },
+    { "card_id": "013", "name": "Churrosserie", "description": "", "image_file": "013.png", "rarity": "rare", "weight": 60, "max_supply": 20 },
+    { "card_id": "014", "name": "Trader junior", "description": "", "image_file": "014.png", "rarity": "common", "weight": 60, "max_supply": 50 },
+    { "card_id": "015", "name": "Bon père de famille", "description": "", "image_file": "015.png", "rarity": "common", "weight": 60, "max_supply": 50 },
+    { "card_id": "016", "name": "Guerrier intrépide", "description": "", "image_file": "016.png", "rarity": "common", "weight": 60, "max_supply": 50 },
+
+    { "card_id": "017", "name": "Logique imparable", "description": "", "image_file": "017.png", "rarity": "common", "weight": 30, "max_supply": 50 },
+    { "card_id": "018", "name": "Coup de maître", "description": "", "image_file": "018.png", "rarity": "uncommon", "weight": 30, "max_supply": 35 },
+    { "card_id": "019", "name": "Mon gros PNL", "description": "", "image_file": "019.png", "rarity": "uncommon", "weight": 30, "max_supply": 35 },
+    { "card_id": "020", "name": "Le grand casino des memecoins", "description": "", "image_file": "020.png", "rarity": "common", "weight": 30, "max_supply": 50 },
+    { "card_id": "021", "name": "Liquidé !", "description": "", "image_file": "021.png", "rarity": "common", "weight": 30, "max_supply": 50 },
+    { "card_id": "022", "name": "Boubou, l'inquisiteur", "description": "", "image_file": "022.png", "rarity": "legendary", "weight": 30, "max_supply": 10 },
+    { "card_id": "023", "name": "Hasheur, le Messie", "description": "", "image_file": "023.png", "rarity": "legendary", "weight": 30, "max_supply": 10 },
+    { "card_id": "024", "name": "Julien, le Redoutable", "description": "", "image_file": "024.png", "rarity": "legendary", "weight": 30, "max_supply": 10 },
+    { "card_id": "025", "name": "Copy trading", "description": "", "image_file": "025.png", "rarity": "uncommon", "weight": 30, "max_supply": 35 },
+    { "card_id": "026", "name": "Mur de silence", "description": "", "image_file": "026.png", "rarity": "uncommon", "weight": 30, "max_supply": 35 },
+    { "card_id": "027", "name": "Avion pour Dubaï", "description": "", "image_file": "027.png", "rarity": "common", "weight": 30, "max_supply": 50 },
+
+    { "card_id": "028", "name": "Tony crypto", "description": "", "image_file": "028.png", "rarity": "uncommon", "weight": 12, "max_supply": 35 },
+    { "card_id": "029", "name": "Discipline", "description": "", "image_file": "029.png", "rarity": "common", "weight": 12, "max_supply": 50 },
+    { "card_id": "030", "name": "DCA a vie", "description": "", "image_file": "030.png", "rarity": "common", "weight": 12, "max_supply": 50 },
+    { "card_id": "031", "name": "Planctorisation", "description": "", "image_file": "031.png", "rarity": "common", "weight": 12, "max_supply": 50 },
+    { "card_id": "032", "name": "FOMO !!", "description": "", "image_file": "032.png", "rarity": "rare", "weight": 12, "max_supply": 20 },
+    { "card_id": "033", "name": "Retour à la réalité", "description": "", "image_file": "033.png", "rarity": "uncommon", "weight": 12, "max_supply": 35 },
+    { "card_id": "034", "name": "Fou du bus", "description": "", "image_file": "034.png", "rarity": "uncommon", "weight": 12, "max_supply": 35 },
+    { "card_id": "035", "name": "Break even miraculeux", "description": "", "image_file": "035.png", "rarity": "rare", "weight": 12, "max_supply": 20 },
+    { "card_id": "036", "name": "Hodler de Solana", "description": "", "image_file": "036.png", "rarity": "rare", "weight": 12, "max_supply": 20 },
+    { "card_id": "037", "name": "Expert macro-économique", "description": "", "image_file": "037.png", "rarity": "rare", "weight": 12, "max_supply": 20 },
+
+    { "card_id": "038", "name": "Stratégie douteuse", "description": "", "image_file": "038.png", "rarity": "rare", "weight": 4, "max_supply": 20 },
+    { "card_id": "039", "name": "Hodler d'EGLD", "description": "", "image_file": "039.png", "rarity": "rare", "weight": 4, "max_supply": 20 },
+    { "card_id": "040", "name": "Mes EGLD et mon couteau", "description": "", "image_file": "040.png", "rarity": "uncommon", "weight": 4, "max_supply": 35 },
+    { "card_id": "041", "name": "Buy the dip", "description": "", "image_file": "041.png", "rarity": "uncommon", "weight": 4, "max_supply": 35 },
+    { "card_id": "042", "name": "Retournement de veste", "description": "", "image_file": "042.png", "rarity": "common", "weight": 4, "max_supply": 50 },
+    { "card_id": "043", "name": "It's so over !", "description": "", "image_file": "043.png", "rarity": "common", "weight": 4, "max_supply": 50 },
+    { "card_id": "044", "name": "We are so back !", "description": "", "image_file": "044.png", "rarity": "common", "weight": 4, "max_supply": 50 }
+  ]
+}

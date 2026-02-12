@@ -72,6 +72,7 @@ export default async function AdminPage() {
         pendingTickets,
         preparedIntents,
         collections,
+        supply: null,
     };
 
     return (
