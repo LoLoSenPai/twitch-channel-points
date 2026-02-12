@@ -23,6 +23,30 @@ function pk(v: string) {
   return publicKey(v.trim());
 }
 
+function normalizedPublicKey(input: unknown): string {
+  if (typeof input === "string") {
+    const value = input.trim();
+    if (value) return value;
+  }
+
+  if (input && typeof input === "object") {
+    const record = input as Record<string, unknown>;
+    if ("assetId" in record) {
+      return normalizedPublicKey(record.assetId);
+    }
+    if ("id" in record) {
+      return normalizedPublicKey(record.id);
+    }
+  }
+
+  const coerced = String(input ?? "").trim();
+  if (coerced && coerced !== "[object Object]") {
+    return coerced;
+  }
+
+  throw new Error("Invalid public key input");
+}
+
 async function heliusCall(method: string, params: unknown) {
   const rpc = process.env.HELIUS_RPC_URL;
   if (!rpc) throw new Error("Missing HELIUS_RPC_URL");
@@ -52,10 +76,24 @@ async function heliusCall(method: string, params: unknown) {
 
 function dasRpc() {
   return {
-    getAsset: async (assetId: string) =>
-      (await heliusCall("getAsset", { id: String(assetId) })) as unknown,
-    getAssetProof: async (assetId: string) =>
-      (await heliusCall("getAssetProof", { id: String(assetId) })) as unknown,
+    getAsset: async (input: unknown) => {
+      const assetId = normalizedPublicKey(input);
+      const displayOptions =
+        input && typeof input === "object" && "displayOptions" in input
+          ? (input as { displayOptions?: unknown }).displayOptions
+          : undefined;
+
+      return (await heliusCall("getAsset", {
+        id: assetId,
+        ...(displayOptions && typeof displayOptions === "object"
+          ? { options: displayOptions }
+          : {}),
+      })) as unknown;
+    },
+    getAssetProof: async (input: unknown) =>
+      (await heliusCall("getAssetProof", {
+        id: normalizedPublicKey(input),
+      })) as unknown,
   };
 }
 
