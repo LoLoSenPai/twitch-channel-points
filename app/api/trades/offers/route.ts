@@ -40,7 +40,10 @@ export async function GET() {
       .sort({ createdAt: -1 })
       .limit(100)
       .lean(),
-    TradeOffer.find({ makerTwitchUserId: twitchUserId })
+    TradeOffer.find({
+      makerTwitchUserId: twitchUserId,
+      status: { $in: ["DRAFT", "OPEN", "LOCKED", "DONE"] },
+    })
       .sort({ createdAt: -1 })
       .limit(100)
       .lean(),

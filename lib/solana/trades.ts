@@ -23,95 +23,6 @@ function pk(v: string) {
   return publicKey(v.trim());
 }
 
-function normalizedPublicKey(input: unknown): string {
-  if (typeof input === "string") {
-    const value = input.trim();
-    if (value) return value;
-  }
-
-  if (input && typeof input === "object") {
-    const record = input as Record<string, unknown>;
-    if ("assetId" in record) {
-      return normalizedPublicKey(record.assetId);
-    }
-    if ("id" in record) {
-      return normalizedPublicKey(record.id);
-    }
-  }
-
-  const coerced = String(input ?? "").trim();
-  if (coerced && coerced !== "[object Object]") {
-    return coerced;
-  }
-
-  throw new Error("Invalid public key input");
-}
-
-async function heliusCall(method: string, params: unknown) {
-  const rpc = process.env.HELIUS_RPC_URL;
-  if (!rpc) throw new Error("Missing HELIUS_RPC_URL");
-
-  const response = await fetch(rpc, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: `${method}-${Date.now()}`,
-      method,
-      params,
-    }),
-    cache: "no-store",
-  });
-
-  if (!response.ok) throw new Error(`RPC ${method} failed (${response.status})`);
-  const json = (await response.json()) as {
-    result?: unknown;
-    error?: { message?: string };
-  };
-  if (json.error) {
-    throw new Error(json.error.message ?? `${method} error`);
-  }
-  return json.result;
-}
-
-function dasRpc(baseRpc: unknown) {
-  const rpc = (baseRpc ?? {}) as Record<string, unknown>;
-  const overrides: Record<string, unknown> = {
-    getAsset: async (input: unknown) => {
-      const assetId = normalizedPublicKey(input);
-      const displayOptions =
-        input && typeof input === "object" && "displayOptions" in input
-          ? (input as { displayOptions?: unknown }).displayOptions
-          : undefined;
-
-      return (await heliusCall("getAsset", {
-        id: assetId,
-        ...(displayOptions && typeof displayOptions === "object"
-          ? { options: displayOptions }
-          : {}),
-      })) as unknown;
-    },
-
-    getAssetProof: async (input: unknown) =>
-      (await heliusCall("getAssetProof", {
-        id: normalizedPublicKey(input),
-      })) as unknown,
-  };
-
-  return new Proxy(rpc, {
-    get(target, prop, receiver) {
-      if (typeof prop === "string" && prop in overrides) {
-        return overrides[prop];
-      }
-      const value = Reflect.get(target, prop, receiver);
-      if (typeof value === "function") {
-        return value.bind(target);
-      }
-      return value;
-    },
-  });
-}
-
 function parseStickerId(asset: AssetWithProof): string | null {
   const attrs = ((asset.rpcAsset as { content?: { metadata?: { attributes?: Array<{ trait_type?: string; value?: string | number }> } } })?.content?.metadata?.attributes ??
     []) as Array<{ trait_type?: string; value?: string | number }>;
@@ -124,18 +35,37 @@ function parseStickerId(asset: AssetWithProof): string | null {
   return String(stickerAttr.value ?? "").trim() || null;
 }
 
+function assertAssetInConfiguredCollection(asset: AssetWithProof) {
+  const expected = String(process.env.CORE_COLLECTION_PUBKEY ?? "").trim();
+  if (!expected) return;
+
+  const groups = (
+    (asset.rpcAsset as {
+      grouping?: Array<{ group_key?: string; group_value?: string }>;
+    })?.grouping ?? []
+  ) as Array<{ group_key?: string; group_value?: string }>;
+
+  const ok = groups.some(
+    (group) =>
+      String(group.group_key ?? "").toLowerCase() === "collection" &&
+      String(group.group_value ?? "").trim() === expected
+  );
+
+  if (!ok) {
+    throw new Error("Asset is not in configured collection");
+  }
+}
+
 function publicKeyEquals(a: unknown, b: string) {
   return String(a) === String(pk(b));
 }
 
 export async function getAssetWithTradeProof(assetId: string) {
   const umi = umiTradeDelegate();
-  const rpc = dasRpc(umi.rpc);
-  const asset = await getAssetWithProof(
-    { rpc } as never,
-    pk(assetId),
-    { truncateCanopy: true }
-  );
+  const asset = await getAssetWithProof({ rpc: umi.rpc as never } as never, pk(assetId), {
+    truncateCanopy: true,
+  });
+  assertAssetInConfiguredCollection(asset);
 
   return {
     umi,
@@ -226,15 +156,16 @@ export async function executeDelegatedSwap(params: {
     throw new Error("Delegate key mismatch");
   }
 
-  const rpc = dasRpc(umi.rpc);
   const [makerAsset, takerAsset] = await Promise.all([
-    getAssetWithProof({ rpc } as never, pk(params.makerAssetId), {
+    getAssetWithProof({ rpc: umi.rpc as never } as never, pk(params.makerAssetId), {
       truncateCanopy: true,
     }),
-    getAssetWithProof({ rpc } as never, pk(params.takerAssetId), {
+    getAssetWithProof({ rpc: umi.rpc as never } as never, pk(params.takerAssetId), {
       truncateCanopy: true,
     }),
   ]);
+  assertAssetInConfiguredCollection(makerAsset);
+  assertAssetInConfiguredCollection(takerAsset);
 
   if (!publicKeyEquals(makerAsset.leafOwner, params.makerWallet)) {
     throw new Error("Maker no longer owns the offered asset");

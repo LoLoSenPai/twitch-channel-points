@@ -3,6 +3,10 @@ import { auth } from "@/lib/auth";
 
 type DasAsset = {
   id: string;
+  grouping?: Array<{
+    group_key?: string;
+    group_value?: string;
+  }>;
   ownership?: {
     owner?: string;
     delegate?: string | null;
@@ -20,6 +24,17 @@ type DasAsset = {
     };
   };
 };
+
+function isInCollection(asset: DasAsset, collectionPubkey: string) {
+  const expected = collectionPubkey.trim();
+  if (!expected) return true;
+  const groups = asset.grouping ?? [];
+  return groups.some(
+    (group) =>
+      String(group.group_key ?? "").toLowerCase() === "collection" &&
+      String(group.group_value ?? "").trim() === expected
+  );
+}
 
 function stickerIdFromAsset(asset: DasAsset): string | null {
   const attrs = asset.content?.metadata?.attributes ?? [];
@@ -43,6 +58,7 @@ export async function GET(req: Request) {
 
   const rpc = process.env.HELIUS_RPC_URL;
   if (!rpc) return new NextResponse("Missing HELIUS_RPC_URL", { status: 500 });
+  const collectionPubkey = String(process.env.CORE_COLLECTION_PUBKEY ?? "").trim();
 
   const result: DasAsset[] = [];
   let page = 1;
@@ -88,6 +104,7 @@ export async function GET(req: Request) {
 
   const assets = result
     .filter((asset) => asset.compression?.compressed !== false)
+    .filter((asset) => isInCollection(asset, collectionPubkey))
     .map((asset) => {
       const stickerId = stickerIdFromAsset(asset);
       return {

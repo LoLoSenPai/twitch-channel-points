@@ -64,6 +64,7 @@ export function MarketplacePanel() {
   const [acceptAssetByOffer, setAcceptAssetByOffer] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<string>("");
+  const selectOptionStyle = { color: "#111827", backgroundColor: "#f8fafc" };
 
   const walletPk = wallet.publicKey?.toBase58() ?? "";
 
@@ -244,9 +245,9 @@ export function MarketplacePanel() {
             value={makerAssetId}
             onChange={(e) => setMakerAssetId(e.target.value)}
           >
-            <option value="">Choisis une de tes cartes</option>
+            <option value="" style={selectOptionStyle}>Choisis une de tes cartes</option>
             {assets.map((asset) => (
-              <option key={asset.assetId} value={asset.assetId}>
+              <option key={asset.assetId} value={asset.assetId} style={selectOptionStyle}>
                 #{asset.stickerId} - {asset.name ?? short(asset.assetId)}
               </option>
             ))}
@@ -286,9 +287,9 @@ export function MarketplacePanel() {
                         }))
                       }
                     >
-                      <option value="">Choisir ta carte #{offer.wantedStickerId}</option>
+                      <option value="" style={selectOptionStyle}>Choisir ta carte #{offer.wantedStickerId}</option>
                       {compatible.map((asset) => (
-                        <option key={asset.assetId} value={asset.assetId}>
+                        <option key={asset.assetId} value={asset.assetId} style={selectOptionStyle}>
                           #{asset.stickerId} - {asset.name ?? short(asset.assetId)}
                         </option>
                       ))}
