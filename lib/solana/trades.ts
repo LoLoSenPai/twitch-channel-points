@@ -62,9 +62,7 @@ function publicKeyEquals(a: unknown, b: string) {
 
 export async function getAssetWithTradeProof(assetId: string) {
   const umi = umiTradeDelegate();
-  const asset = await getAssetWithProof({ rpc: umi.rpc as never } as never, pk(assetId), {
-    truncateCanopy: true,
-  });
+  const asset = await getAssetWithProof({ rpc: umi.rpc as never } as never, pk(assetId));
   assertAssetInConfiguredCollection(asset);
 
   return {
@@ -157,12 +155,8 @@ export async function executeDelegatedSwap(params: {
   }
 
   const [makerAsset, takerAsset] = await Promise.all([
-    getAssetWithProof({ rpc: umi.rpc as never } as never, pk(params.makerAssetId), {
-      truncateCanopy: true,
-    }),
-    getAssetWithProof({ rpc: umi.rpc as never } as never, pk(params.takerAssetId), {
-      truncateCanopy: true,
-    }),
+    getAssetWithProof({ rpc: umi.rpc as never } as never, pk(params.makerAssetId)),
+    getAssetWithProof({ rpc: umi.rpc as never } as never, pk(params.takerAssetId)),
   ]);
   assertAssetInConfiguredCollection(makerAsset);
   assertAssetInConfiguredCollection(takerAsset);
