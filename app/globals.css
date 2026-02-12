@@ -224,7 +224,6 @@
     grid-template-columns: 1fr;
     gap: 0.8rem;
     isolation: isolate;
-    animation: album-rise 420ms ease-out both 80ms;
   }
 
   .album-book::before {
@@ -296,7 +295,8 @@
     box-shadow:
       inset 0 0 0 1px rgb(255 255 255 / 45%),
       0 2px 5px rgb(0 0 0 / 9%);
-    animation: album-slot-in 300ms ease-out both;
+    will-change: transform, opacity;
+    animation: album-slot-in 260ms cubic-bezier(0.18, 0.72, 0.2, 1) both;
   }
 
   .album-slot-blank {
@@ -629,7 +629,7 @@
 @keyframes album-slot-in {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(10px) scale(0.985);
   }
   to {
     opacity: 1;

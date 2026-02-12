@@ -103,14 +103,12 @@ function AlbumLeaf({
     pageNumber,
     slots,
     ownedMap,
-    baseDelay,
     onCardSelect,
 }: {
     side: "left" | "right";
     pageNumber: number;
     slots: AlbumSlot[];
     ownedMap: Map<string, number>;
-    baseDelay: number;
     onCardSelect: (card: SelectedCard) => void;
 }) {
     const paddedSlots: (AlbumSlot | null)[] = [...slots];
@@ -132,12 +130,13 @@ function AlbumLeaf({
             <div className="album-page-number">Page {pageNumber}</div>
             <div className="album-slot-grid">
                 {paddedSlots.map((slot, index) => {
+                    const delayMs = index * 34;
                     if (!slot) {
                         return (
                             <article
                                 key={`blank-${side}-${index}`}
                                 className="album-slot album-slot-empty"
-                                style={{ animationDelay: `${baseDelay + index * 45}ms` }}
+                                style={{ animationDelay: `${delayMs}ms` }}
                             >
                                 <div className="album-slot-frame">
                                     <div className="album-slot-pocket" />
@@ -161,7 +160,7 @@ function AlbumLeaf({
                                 hasMetadata && !owned && "album-slot-missing",
                                 !hasMetadata && "album-slot-secret"
                             )}
-                            style={{ animationDelay: `${baseDelay + index * 45}ms` }}
+                            style={{ animationDelay: `${delayMs}ms` }}
                         >
                             <div className="album-slot-frame">
                                 {owned && imageSrc ? (
@@ -332,22 +331,18 @@ export function AlbumGrid() {
                 <div className="album-spine" aria-hidden="true" />
 
                 <AlbumLeaf
-                    key={`left-${spreadIndex}`}
                     side="left"
                     pageNumber={leftPageNumber}
                     slots={leftSlots}
                     ownedMap={ownedMap}
-                    baseDelay={50}
                     onCardSelect={setSelectedCard}
                 />
 
                 <AlbumLeaf
-                    key={`right-${spreadIndex}`}
                     side="right"
                     pageNumber={rightPageNumber}
                     slots={rightSlots}
                     ownedMap={ownedMap}
-                    baseDelay={125}
                     onCardSelect={setSelectedCard}
                 />
             </div>
