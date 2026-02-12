@@ -74,9 +74,11 @@ async function heliusCall(method: string, params: unknown) {
   return json.result;
 }
 
-function dasRpc() {
-  return {
-    getAsset: async (input: unknown) => {
+function dasRpc(baseRpc: unknown) {
+  const rpc = (baseRpc ?? {}) as Record<string, unknown>;
+  const decoratedRpc = Object.create(rpc) as Record<string, unknown>;
+
+  decoratedRpc.getAsset = async (input: unknown) => {
       const assetId = normalizedPublicKey(input);
       const displayOptions =
         input && typeof input === "object" && "displayOptions" in input
@@ -89,12 +91,14 @@ function dasRpc() {
           ? { options: displayOptions }
           : {}),
       })) as unknown;
-    },
-    getAssetProof: async (input: unknown) =>
-      (await heliusCall("getAssetProof", {
-        id: normalizedPublicKey(input),
-      })) as unknown,
-  };
+    };
+
+  decoratedRpc.getAssetProof = async (input: unknown) =>
+    (await heliusCall("getAssetProof", {
+      id: normalizedPublicKey(input),
+    })) as unknown;
+
+  return decoratedRpc;
 }
 
 function parseStickerId(asset: AssetWithProof): string | null {
@@ -115,9 +119,12 @@ function publicKeyEquals(a: unknown, b: string) {
 
 export async function getAssetWithTradeProof(assetId: string) {
   const umi = umiTradeDelegate();
-  const asset = await getAssetWithProof({ rpc: dasRpc() } as never, pk(assetId), {
-    truncateCanopy: true,
-  });
+  const rpc = dasRpc(umi.rpc);
+  const asset = await getAssetWithProof(
+    { rpc } as never,
+    pk(assetId),
+    { truncateCanopy: true }
+  );
 
   return {
     umi,
@@ -208,11 +215,12 @@ export async function executeDelegatedSwap(params: {
     throw new Error("Delegate key mismatch");
   }
 
+  const rpc = dasRpc(umi.rpc);
   const [makerAsset, takerAsset] = await Promise.all([
-    getAssetWithProof({ rpc: dasRpc() } as never, pk(params.makerAssetId), {
+    getAssetWithProof({ rpc } as never, pk(params.makerAssetId), {
       truncateCanopy: true,
     }),
-    getAssetWithProof({ rpc: dasRpc() } as never, pk(params.takerAssetId), {
+    getAssetWithProof({ rpc } as never, pk(params.takerAssetId), {
       truncateCanopy: true,
     }),
   ]);
