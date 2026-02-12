@@ -1,0 +1,109 @@
+import { NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+
+type DasAsset = {
+  id: string;
+  ownership?: {
+    owner?: string;
+    delegate?: string | null;
+  };
+  compression?: {
+    compressed?: boolean;
+  };
+  content?: {
+    metadata?: {
+      name?: string;
+      attributes?: Array<{ trait_type?: string; value?: string | number }>;
+    };
+    links?: {
+      image?: string;
+    };
+  };
+};
+
+function stickerIdFromAsset(asset: DasAsset): string | null {
+  const attrs = asset.content?.metadata?.attributes ?? [];
+  const stickerAttr = attrs.find(
+    (a) => String(a.trait_type ?? "").toLowerCase() === "sticker_id"
+  );
+  if (!stickerAttr) return null;
+  return String(stickerAttr.value ?? "").trim() || null;
+}
+
+export async function GET(req: Request) {
+  const session = await auth();
+  const twitchUserId = (session?.user as { id?: string })?.id;
+  if (!twitchUserId) return new NextResponse("Unauthorized", { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const walletPubkey = String(searchParams.get("walletPubkey") ?? "").trim();
+  if (!walletPubkey) {
+    return new NextResponse("Missing walletPubkey query param", { status: 400 });
+  }
+
+  const rpc = process.env.HELIUS_RPC_URL;
+  if (!rpc) return new NextResponse("Missing HELIUS_RPC_URL", { status: 500 });
+
+  const result: DasAsset[] = [];
+  let page = 1;
+  const limit = 200;
+  const maxPages = 10;
+
+  while (page <= maxPages) {
+    const response = await fetch(rpc, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: `assets-${page}`,
+        method: "getAssetsByOwner",
+        params: {
+          ownerAddress: walletPubkey,
+          page,
+          limit,
+          sortBy: { sortBy: "created", sortDirection: "desc" },
+        },
+      }),
+      cache: "no-store",
+    });
+
+    if (!response.ok) {
+      return new NextResponse("Failed to fetch assets from DAS", { status: 502 });
+    }
+
+    const json = (await response.json()) as {
+      result?: { items?: DasAsset[] };
+      error?: { message?: string };
+    };
+
+    if (json.error) {
+      return new NextResponse(json.error.message ?? "DAS error", { status: 502 });
+    }
+
+    const items = json.result?.items ?? [];
+    result.push(...items);
+    if (items.length < limit) break;
+    page += 1;
+  }
+
+  const assets = result
+    .filter((asset) => asset.compression?.compressed !== false)
+    .map((asset) => {
+      const stickerId = stickerIdFromAsset(asset);
+      return {
+        assetId: asset.id,
+        stickerId,
+        name: asset.content?.metadata?.name ?? null,
+        image: asset.content?.links?.image ?? null,
+        owner: asset.ownership?.owner ?? walletPubkey,
+        delegate: asset.ownership?.delegate ?? null,
+      };
+    })
+    .filter((asset) => !!asset.stickerId);
+
+  return NextResponse.json({
+    wallet: walletPubkey,
+    count: assets.length,
+    items: assets,
+  });
+}

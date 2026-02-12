@@ -1,12 +1,12 @@
 {
-  "name": "Chair fraîche",
+  "name": "Fou du bus",
   "symbol": "PANINI",
   "description": "1ere édition de la collection de la chaine Twitch de Nyls.",
-  "image": "https://indigo-permanent-gayal-308.mypinata.cloud/ipfs/bafybeibeqy2j5v6rtm5naenif4nk2lvnsc57boi6p22ipngciwwvoiz2la/003.png",
+  "image": "https://indigo-permanent-gayal-308.mypinata.cloud/ipfs/bafybeibeqy2j5v6rtm5naenif4nk2lvnsc57boi6p22ipngciwwvoiz2la/034.png",
   "attributes": [
     {
       "trait_type": "sticker_id",
-      "value": "3"
+      "value": "34"
     },
     {
       "trait_type": "series",
@@ -14,18 +14,18 @@
     },
     {
       "trait_type": "rarity",
-      "value": "common"
+      "value": "uncommon"
     },
     {
       "trait_type": "maxSupply",
-      "value": 50
+      "value": 35
     }
   ],
   "properties": {
     "category": "image",
     "files": [
       {
-        "uri": "https://indigo-permanent-gayal-308.mypinata.cloud/ipfs/bafybeibeqy2j5v6rtm5naenif4nk2lvnsc57boi6p22ipngciwwvoiz2la/003.png",
+        "uri": "https://indigo-permanent-gayal-308.mypinata.cloud/ipfs/bafybeibeqy2j5v6rtm5naenif4nk2lvnsc57boi6p22ipngciwwvoiz2la/034.png",
         "type": "image/png"
       }
     ]

@@ -1,18 +1,31 @@
 {
-  "name": "Analyseur d’Alt Déchu",
+  "name": "Celui-qui-ne-doute-jamais",
   "symbol": "PANINI",
-  "description": "Panini stickers (test).",
-  "image": "https://indigo-permanent-gayal-308.mypinata.cloud/ipfs/bafybeiciunnu5zbsnqtcg5ctctwzivg4mqah5rnntfgplbeayuqhengsa4/002.png",
+  "description": "1ere édition de la collection de la chaine Twitch de Nyls.",
+  "image": "https://indigo-permanent-gayal-308.mypinata.cloud/ipfs/bafybeibeqy2j5v6rtm5naenif4nk2lvnsc57boi6p22ipngciwwvoiz2la/002.png",
   "attributes": [
-    { "trait_type": "sticker_id", "value": "2" },
-    { "trait_type": "series", "value": "v0.1" },
-    { "trait_type": "rarity_weight", "value": 30 }
+    {
+      "trait_type": "sticker_id",
+      "value": "2"
+    },
+    {
+      "trait_type": "series",
+      "value": "v1"
+    },
+    {
+      "trait_type": "rarity",
+      "value": "legendary"
+    },
+    {
+      "trait_type": "maxSupply",
+      "value": 10
+    }
   ],
   "properties": {
     "category": "image",
     "files": [
       {
-        "uri": "https://indigo-permanent-gayal-308.mypinata.cloud/ipfs/bafybeiciunnu5zbsnqtcg5ctctwzivg4mqah5rnntfgplbeayuqhengsa4/002.png",
+        "uri": "https://indigo-permanent-gayal-308.mypinata.cloud/ipfs/bafybeibeqy2j5v6rtm5naenif4nk2lvnsc57boi6p22ipngciwwvoiz2la/002.png",
         "type": "image/png"
       }
     ]

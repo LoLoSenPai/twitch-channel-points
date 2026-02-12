@@ -349,9 +349,12 @@ export function MintPanel() {
 
                         <div className="rounded-xl border p-3">
                             <div className="font-medium">📚 Où je vois mes cartes ?</div>
-                            <div className="opacity-70 mt-1">Dans l’album.</div>
+                            <div className="opacity-70 mt-1">Dans l’album, et tu peux aussi les échanger sur le marketplace.</div>
                             <a className="mt-2 inline-flex rounded-xl border px-3 py-2 text-sm" href="/album">
                                 Voir l’album →
+                            </a>
+                            <a className="mt-2 ml-2 inline-flex rounded-xl border px-3 py-2 text-sm" href="/marketplace">
+                                Ouvrir le marketplace →
                             </a>
                         </div>
                     </div>

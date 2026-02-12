@@ -65,6 +65,34 @@ const CollectionSchema = new Schema(
   { timestamps: true }
 );
 
+const TradeOfferSchema = new Schema(
+  {
+    offerId: { type: String, unique: true, index: true },
+    makerTwitchUserId: { type: String, required: true, index: true },
+    makerWallet: { type: String, required: true, index: true },
+    makerAssetId: { type: String, required: true, index: true },
+    makerStickerId: { type: String, required: true, index: true },
+    wantedStickerId: { type: String, required: true, index: true },
+    preparedDelegationTxB64: { type: String, default: null },
+    makerDelegationTxSig: { type: String, default: null },
+    takerTwitchUserId: { type: String, default: null, index: true },
+    takerWallet: { type: String, default: null },
+    takerAssetId: { type: String, default: null, index: true },
+    takerPreparedDelegationTxB64: { type: String, default: null },
+    takerDelegationTxSig: { type: String, default: null },
+    settlementTxSig: { type: String, default: null },
+    status: {
+      type: String,
+      enum: ["DRAFT", "OPEN", "LOCKED", "DONE", "CANCELLED", "FAILED", "EXPIRED"],
+      default: "DRAFT",
+      index: true,
+    },
+    error: { type: String, default: null },
+    expiresAt: { type: Date, default: null, index: true },
+  },
+  { timestamps: true }
+);
+
 export const Redemption =
   mongoose.models.Redemption || mongoose.model("Redemption", RedemptionSchema);
 export const Mint = mongoose.models.Mint || mongoose.model("Mint", MintSchema);
@@ -72,3 +100,5 @@ export const MintIntent =
   mongoose.models.MintIntent || mongoose.model("MintIntent", MintIntentSchema);
 export const Collection =
   mongoose.models.Collection || mongoose.model("Collection", CollectionSchema);
+export const TradeOffer =
+  mongoose.models.TradeOffer || mongoose.model("TradeOffer", TradeOfferSchema);

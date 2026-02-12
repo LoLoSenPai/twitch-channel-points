@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env" });
 
 import { generateSigner } from "@metaplex-foundation/umi";
 import { umiServer } from "../lib/solana/umi";

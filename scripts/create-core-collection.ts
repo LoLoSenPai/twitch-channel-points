@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-dotenv.config({ path: ".env.local" });
+dotenv.config({ path: ".env" });
 import { generateSigner } from "@metaplex-foundation/umi";
 import { umiServer } from "../lib/solana/umi";
 import { createCollection } from "@metaplex-foundation/mpl-core";
@@ -10,7 +10,7 @@ import { createCollection } from "@metaplex-foundation/mpl-core";
 
   await createCollection(umi, {
     collection: collectionSigner,
-    name: "Genesis V0",
+    name: "Panini Nyls - 1ere édition",
     uri: process.env.COLLECTION_METADATA_URI!,
     plugins: [{ type: "BubblegumV2" }],
   }).sendAndConfirm(umi);
