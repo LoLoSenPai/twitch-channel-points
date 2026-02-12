@@ -63,16 +63,17 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ ok: true, offerId, tx: sig });
   } catch (e) {
+    const message = (e as Error)?.message ?? "Delegation failed";
     await TradeOffer.updateOne(
       { offerId },
       {
         $set: {
           status: "FAILED",
-          error: (e as Error)?.message ?? "Delegation failed",
+          error: message,
         },
       }
     );
 
-    return new NextResponse("Offer submit failed", { status: 500 });
+    return new NextResponse(`Offer submit failed: ${message}`, { status: 500 });
   }
 }

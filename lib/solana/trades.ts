@@ -76,9 +76,8 @@ async function heliusCall(method: string, params: unknown) {
 
 function dasRpc(baseRpc: unknown) {
   const rpc = (baseRpc ?? {}) as Record<string, unknown>;
-  const decoratedRpc = Object.create(rpc) as Record<string, unknown>;
-
-  decoratedRpc.getAsset = async (input: unknown) => {
+  const overrides: Record<string, unknown> = {
+    getAsset: async (input: unknown) => {
       const assetId = normalizedPublicKey(input);
       const displayOptions =
         input && typeof input === "object" && "displayOptions" in input
@@ -91,14 +90,26 @@ function dasRpc(baseRpc: unknown) {
           ? { options: displayOptions }
           : {}),
       })) as unknown;
-    };
+    },
 
-  decoratedRpc.getAssetProof = async (input: unknown) =>
-    (await heliusCall("getAssetProof", {
-      id: normalizedPublicKey(input),
-    })) as unknown;
+    getAssetProof: async (input: unknown) =>
+      (await heliusCall("getAssetProof", {
+        id: normalizedPublicKey(input),
+      })) as unknown,
+  };
 
-  return decoratedRpc;
+  return new Proxy(rpc, {
+    get(target, prop, receiver) {
+      if (typeof prop === "string" && prop in overrides) {
+        return overrides[prop];
+      }
+      const value = Reflect.get(target, prop, receiver);
+      if (typeof value === "function") {
+        return value.bind(target);
+      }
+      return value;
+    },
+  });
 }
 
 function parseStickerId(asset: AssetWithProof): string | null {
