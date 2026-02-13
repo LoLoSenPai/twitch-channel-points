@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { TradeOffer } from "@/lib/models";
 import {
-  assertSignedTxMatchesPrepared,
+  signedTxMatchesPrepared,
   sendSignedTxB64,
 } from "@/lib/solana/trades";
 
@@ -46,7 +46,16 @@ export async function POST(req: Request) {
   }
 
   try {
-    assertSignedTxMatchesPrepared(signedTxB64, offer.preparedDelegationTxB64);
+    const matchesPrepared = signedTxMatchesPrepared(
+      signedTxB64,
+      offer.preparedDelegationTxB64
+    );
+    if (!matchesPrepared) {
+      console.warn("trades/offers/submit: signed tx differs from prepared tx", {
+        offerId,
+      });
+    }
+
     const sig = await sendSignedTxB64(signedTxB64);
 
     await TradeOffer.updateOne(

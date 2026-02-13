@@ -1,14 +1,19 @@
 import { Connection, VersionedTransaction } from "@solana/web3.js";
 import {
   AssetWithProof,
+  TokenProgramVersion,
+  TokenStandard,
   delegate,
-  getAssetWithProof,
   transfer,
 } from "@metaplex-foundation/mpl-bubblegum";
 import {
   createNoopSigner,
+  none,
   publicKey,
+  publicKeyBytes,
+  some,
   transactionBuilder,
+  wrapNullable,
 } from "@metaplex-foundation/umi";
 import { umiTradeDelegate } from "@/lib/solana/umi";
 
@@ -21,6 +26,122 @@ function rpcConnection() {
 
 function pk(v: string) {
   return publicKey(v.trim());
+}
+
+type DasAssetForProof = {
+  content?: {
+    metadata?: {
+      name?: string;
+      symbol?: string;
+      attributes?: Array<{ trait_type?: string; value?: string | number }>;
+    };
+    json_uri?: string;
+  };
+  royalty?: {
+    basis_points?: number;
+    primary_sale_happened?: boolean;
+  };
+  mutable?: boolean;
+  supply?: { edition_nonce?: number | null };
+  grouping?: Array<{ group_key?: string; group_value?: string }>;
+  creators?: Array<{
+    address: string;
+    share: number;
+    verified: boolean;
+  }>;
+  compression: {
+    data_hash: string;
+    creator_hash: string;
+    collection_hash?: string;
+    asset_data_hash?: string;
+    flags?: number;
+    leaf_id: number;
+  };
+  ownership: {
+    owner: string;
+    delegate?: string | null;
+  };
+};
+
+type DasAssetProofForProof = {
+  root: string;
+  proof: string[];
+  node_index: number;
+  tree_id: string;
+};
+
+async function loadAssetWithProof(
+  umi: ReturnType<typeof umiTradeDelegate>,
+  assetId: string
+): Promise<AssetWithProof> {
+  const rpc = umi.rpc as unknown as {
+    getAsset: (input: unknown) => Promise<DasAssetForProof>;
+    getAssetProof: (assetId: unknown) => Promise<DasAssetProofForProof>;
+  };
+
+  if (typeof rpc.getAsset !== "function" || typeof rpc.getAssetProof !== "function") {
+    throw new Error("RPC missing DAS methods (getAsset/getAssetProof)");
+  }
+
+  const assetPk = pk(assetId);
+  const [rpcAsset, rpcAssetProof] = await Promise.all([
+    rpc.getAsset({
+      assetId: assetPk,
+      displayOptions: { showUnverifiedCollections: true },
+    }),
+    rpc.getAssetProof(assetPk),
+  ]);
+
+  const collectionString = (rpcAsset.grouping ?? []).find(
+    (group) => String(group.group_key ?? "") === "collection"
+  )?.group_value;
+  const editionNonce =
+    typeof rpcAsset.supply?.edition_nonce === "number"
+      ? rpcAsset.supply.edition_nonce
+      : null;
+
+  const metadata: AssetWithProof["metadata"] = {
+    name: rpcAsset.content?.metadata?.name ?? "",
+    symbol: rpcAsset.content?.metadata?.symbol ?? "",
+    uri: rpcAsset.content?.json_uri ?? "",
+    sellerFeeBasisPoints: rpcAsset.royalty?.basis_points ?? 0,
+    primarySaleHappened: rpcAsset.royalty?.primary_sale_happened ?? false,
+    isMutable: rpcAsset.mutable ?? true,
+    editionNonce: wrapNullable(editionNonce),
+    tokenStandard: some(TokenStandard.NonFungible),
+    collection: collectionString
+      ? (some({ key: pk(collectionString), verified: true }) as never)
+      : none(),
+    uses: none(),
+    tokenProgramVersion: TokenProgramVersion.Original,
+    creators: (rpcAsset.creators ?? []).map((creator) => ({
+      ...creator,
+      address: pk(creator.address),
+    })),
+  };
+
+  const proof = Array.isArray(rpcAssetProof.proof) ? rpcAssetProof.proof : [];
+  return {
+    leafOwner: pk(rpcAsset.ownership.owner),
+    leafDelegate: pk(rpcAsset.ownership.delegate ?? rpcAsset.ownership.owner),
+    merkleTree: pk(rpcAssetProof.tree_id),
+    root: publicKeyBytes(pk(rpcAssetProof.root)),
+    dataHash: publicKeyBytes(pk(rpcAsset.compression.data_hash)),
+    creatorHash: publicKeyBytes(pk(rpcAsset.compression.creator_hash)),
+    collection_hash: rpcAsset.compression.collection_hash
+      ? publicKeyBytes(pk(rpcAsset.compression.collection_hash))
+      : undefined,
+    asset_data_hash: rpcAsset.compression.asset_data_hash
+      ? publicKeyBytes(pk(rpcAsset.compression.asset_data_hash))
+      : undefined,
+    flags: rpcAsset.compression.flags,
+    nonce: rpcAsset.compression.leaf_id,
+    index: rpcAssetProof.node_index - 2 ** proof.length,
+    proof: proof.map((node) => pk(node)),
+    metadata,
+    rpcAsset: rpcAsset as never,
+    rpcAssetProof: rpcAssetProof as never,
+  };
 }
 
 function parseStickerId(asset: AssetWithProof): string | null {
@@ -62,7 +183,7 @@ function publicKeyEquals(a: unknown, b: string) {
 
 export async function getAssetWithTradeProof(assetId: string) {
   const umi = umiTradeDelegate();
-  const asset = await getAssetWithProof({ rpc: umi.rpc as never } as never, pk(assetId));
+  const asset = await loadAssetWithProof(umi, assetId);
   assertAssetInConfiguredCollection(asset);
 
   return {
@@ -108,6 +229,15 @@ export function assertSignedTxMatchesPrepared(
   signedTxB64: string,
   preparedTxB64: string
 ) {
+  if (!signedTxMatchesPrepared(signedTxB64, preparedTxB64)) {
+    throw new Error("Signed transaction does not match prepared transaction");
+  }
+}
+
+export function signedTxMatchesPrepared(
+  signedTxB64: string,
+  preparedTxB64: string
+) {
   const signed = VersionedTransaction.deserialize(
     Buffer.from(signedTxB64, "base64")
   );
@@ -117,9 +247,7 @@ export function assertSignedTxMatchesPrepared(
 
   const signedMsg = Buffer.from(signed.message.serialize());
   const preparedMsg = Buffer.from(prepared.message.serialize());
-  if (!signedMsg.equals(preparedMsg)) {
-    throw new Error("Signed transaction does not match prepared transaction");
-  }
+  return signedMsg.equals(preparedMsg);
 }
 
 export async function sendSignedTxB64(signedTxB64: string) {
@@ -155,8 +283,8 @@ export async function executeDelegatedSwap(params: {
   }
 
   const [makerAsset, takerAsset] = await Promise.all([
-    getAssetWithProof({ rpc: umi.rpc as never } as never, pk(params.makerAssetId)),
-    getAssetWithProof({ rpc: umi.rpc as never } as never, pk(params.takerAssetId)),
+    loadAssetWithProof(umi, params.makerAssetId),
+    loadAssetWithProof(umi, params.takerAssetId),
   ]);
   assertAssetInConfiguredCollection(makerAsset);
   assertAssetInConfiguredCollection(takerAsset);

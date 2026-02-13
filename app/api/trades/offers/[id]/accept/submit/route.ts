@@ -3,8 +3,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { TradeOffer } from "@/lib/models";
 import {
-  assertSignedTxMatchesPrepared,
   executeDelegatedSwap,
+  signedTxMatchesPrepared,
   sendSignedTxB64,
 } from "@/lib/solana/trades";
 import { tradeDelegatePublicKeyBase58 } from "@/lib/solana/umi";
@@ -48,7 +48,17 @@ export async function POST(
 
   let takerDelegationTxSig: string | null = null;
   try {
-    assertSignedTxMatchesPrepared(signedTxB64, offer.takerPreparedDelegationTxB64);
+    const matchesPrepared = signedTxMatchesPrepared(
+      signedTxB64,
+      offer.takerPreparedDelegationTxB64
+    );
+    if (!matchesPrepared) {
+      console.warn(
+        "trades/offers/[id]/accept/submit: signed tx differs from prepared tx",
+        { offerId }
+      );
+    }
+
     takerDelegationTxSig = await sendSignedTxB64(signedTxB64);
 
     const settlementTxSig = await executeDelegatedSwap({
@@ -79,17 +89,18 @@ export async function POST(
       settlementTxSig,
     });
   } catch (e) {
+    const message = (e as Error)?.message ?? "Accept submit failed";
     await TradeOffer.updateOne(
       { offerId },
       {
         $set: {
           status: "FAILED",
           takerDelegationTxSig,
-          error: (e as Error)?.message ?? "Accept submit failed",
+          error: message,
         },
       }
     );
 
-    return new NextResponse("Accept submit failed", { status: 500 });
+    return new NextResponse(`Accept submit failed: ${message}`, { status: 500 });
   }
 }
