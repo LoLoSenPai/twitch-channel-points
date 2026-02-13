@@ -90,6 +90,7 @@ type StickerJson = {
 const ST = stickers as StickerJson;
 const IMAGE_BASE =
   process.env.NEXT_PUBLIC_STICKERS_IMAGE_BASE?.trim() || "/stickers/";
+const SOLSCAN_CLUSTER = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "";
 
 function short(v: string, head = 5, tail = 5) {
   if (!v) return "";
@@ -142,6 +143,26 @@ function normalizeStickerFilter(value: string) {
   return value.trim().replace(/^#/, "");
 }
 
+function toTimestamp(input: string) {
+  const t = Date.parse(input);
+  return Number.isFinite(t) ? t : 0;
+}
+
+function solscanTxUrl(signature: string) {
+  const suffix = SOLSCAN_CLUSTER
+    ? `?cluster=${encodeURIComponent(SOLSCAN_CLUSTER)}`
+    : "";
+  return `https://solscan.io/tx/${signature}${suffix}`;
+}
+
+async function copyText(value: string) {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  throw new Error("Clipboard API indisponible");
+}
+
 export function MarketplacePanel() {
   const wallet = useWallet();
 
@@ -157,6 +178,7 @@ export function MarketplacePanel() {
   const [acceptAssetByOffer, setAcceptAssetByOffer] = useState<Record<string, string>>({});
 
   const [marketMode, setMarketMode] = useState<"all" | "trade" | "sale">("all");
+  const [boardSort, setBoardSort] = useState<"recent" | "priceAsc" | "priceDesc">("recent");
   const [stickerFilter, setStickerFilter] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -259,22 +281,42 @@ export function MarketplacePanel() {
   const stickerNeedle = normalizeStickerFilter(stickerFilter);
   const openTrades = useMemo(() => {
     const src = offers?.open ?? [];
-    return src.filter((offer) => {
+    const filtered = src.filter((offer) => {
       if (!stickerNeedle) return true;
       return (
         String(offer.makerStickerId) === stickerNeedle ||
         String(offer.wantedStickerId) === stickerNeedle
       );
     });
+    return [...filtered].sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt));
   }, [offers?.open, stickerNeedle]);
 
   const openSales = useMemo(() => {
     const src = listings?.open ?? [];
-    return src.filter((listing) => {
+    const filtered = src.filter((listing) => {
       if (!stickerNeedle) return true;
       return String(listing.sellerStickerId) === stickerNeedle;
     });
-  }, [listings?.open, stickerNeedle]);
+    const sorted = [...filtered];
+    if (boardSort === "priceAsc") {
+      sorted.sort((a, b) => {
+        const byPrice = Number(a.priceLamports) - Number(b.priceLamports);
+        if (byPrice !== 0) return byPrice;
+        return toTimestamp(b.createdAt) - toTimestamp(a.createdAt);
+      });
+      return sorted;
+    }
+    if (boardSort === "priceDesc") {
+      sorted.sort((a, b) => {
+        const byPrice = Number(b.priceLamports) - Number(a.priceLamports);
+        if (byPrice !== 0) return byPrice;
+        return toTimestamp(b.createdAt) - toTimestamp(a.createdAt);
+      });
+      return sorted;
+    }
+    sorted.sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt));
+    return sorted;
+  }, [listings?.open, stickerNeedle, boardSort]);
 
   const visibleOpenCount =
     (marketMode === "all" || marketMode === "trade" ? openTrades.length : 0) +
@@ -288,6 +330,15 @@ export function MarketplacePanel() {
     const vtx = VersionedTransaction.deserialize(txBytes);
     const signed = await wallet.signTransaction(vtx);
     return Buffer.from(signed.serialize()).toString("base64");
+  }
+
+  async function copyTx(signature: string, label: string) {
+    try {
+      await copyText(signature);
+      setNotice(`${label} copie`);
+    } catch {
+      setNotice("Impossible de copier automatiquement");
+    }
   }
 
   async function createOffer() {
@@ -629,6 +680,17 @@ export function MarketplacePanel() {
               value={stickerFilter}
               onChange={(e) => setStickerFilter(e.target.value)}
             />
+            <select
+              className="rounded-xl border px-3 py-2 text-sm bg-transparent"
+              value={boardSort}
+              onChange={(e) =>
+                setBoardSort(e.target.value as "recent" | "priceAsc" | "priceDesc")
+              }
+            >
+              <option value="recent" style={selectOptionStyle}>Tri: Plus recent</option>
+              <option value="priceAsc" style={selectOptionStyle}>Tri: Prix croissant</option>
+              <option value="priceDesc" style={selectOptionStyle}>Tri: Prix decroissant</option>
+            </select>
           </div>
         </div>
 
@@ -754,8 +816,66 @@ export function MarketplacePanel() {
                     </span>
                   </div>
                   {offer.error ? <div className="opacity-70">erreur: {offer.error}</div> : null}
-                  {offer.makerDelegationTxSig ? <div className="opacity-70">delegation: {short(offer.makerDelegationTxSig, 8, 8)}</div> : null}
-                  {offer.settlementTxSig ? <div className="opacity-70">settlement: {short(offer.settlementTxSig, 8, 8)}</div> : null}
+                  {offer.makerDelegationTxSig ? (
+                    <div className="opacity-70 flex items-center gap-2 flex-wrap">
+                      delegation:{" "}
+                      <a
+                        className="underline hover:opacity-90"
+                        href={solscanTxUrl(offer.makerDelegationTxSig)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {short(offer.makerDelegationTxSig, 8, 8)}
+                      </a>
+                      <button
+                        type="button"
+                        className="rounded-md border px-2 py-0.5 text-xs"
+                        onClick={() => void copyTx(offer.makerDelegationTxSig!, "Tx delegation")}
+                      >
+                        Copier
+                      </button>
+                    </div>
+                  ) : null}
+                  {offer.takerDelegationTxSig ? (
+                    <div className="opacity-70 flex items-center gap-2 flex-wrap">
+                      taker delegation:{" "}
+                      <a
+                        className="underline hover:opacity-90"
+                        href={solscanTxUrl(offer.takerDelegationTxSig)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {short(offer.takerDelegationTxSig, 8, 8)}
+                      </a>
+                      <button
+                        type="button"
+                        className="rounded-md border px-2 py-0.5 text-xs"
+                        onClick={() => void copyTx(offer.takerDelegationTxSig!, "Tx taker delegation")}
+                      >
+                        Copier
+                      </button>
+                    </div>
+                  ) : null}
+                  {offer.settlementTxSig ? (
+                    <div className="opacity-70 flex items-center gap-2 flex-wrap">
+                      settlement:{" "}
+                      <a
+                        className="underline hover:opacity-90"
+                        href={solscanTxUrl(offer.settlementTxSig)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {short(offer.settlementTxSig, 8, 8)}
+                      </a>
+                      <button
+                        type="button"
+                        className="rounded-md border px-2 py-0.5 text-xs"
+                        onClick={() => void copyTx(offer.settlementTxSig!, "Tx settlement")}
+                      >
+                        Copier
+                      </button>
+                    </div>
+                  ) : null}
                   {(offer.status === "DRAFT" || offer.status === "OPEN") ? (
                     <button className="mt-2 rounded-xl border px-3 py-2 text-sm" disabled={loading} onClick={() => void cancelOffer(offer.offerId)}>
                       Annuler
@@ -782,8 +902,46 @@ export function MarketplacePanel() {
                     </span>
                   </div>
                   {listing.error ? <div className="opacity-70">erreur: {listing.error}</div> : null}
-                  {listing.sellerDelegationTxSig ? <div className="opacity-70">delegation: {short(listing.sellerDelegationTxSig, 8, 8)}</div> : null}
-                  {listing.buyTxSig ? <div className="opacity-70">vente tx: {short(listing.buyTxSig, 8, 8)}</div> : null}
+                  {listing.sellerDelegationTxSig ? (
+                    <div className="opacity-70 flex items-center gap-2 flex-wrap">
+                      delegation:{" "}
+                      <a
+                        className="underline hover:opacity-90"
+                        href={solscanTxUrl(listing.sellerDelegationTxSig)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {short(listing.sellerDelegationTxSig, 8, 8)}
+                      </a>
+                      <button
+                        type="button"
+                        className="rounded-md border px-2 py-0.5 text-xs"
+                        onClick={() => void copyTx(listing.sellerDelegationTxSig!, "Tx delegation vente")}
+                      >
+                        Copier
+                      </button>
+                    </div>
+                  ) : null}
+                  {listing.buyTxSig ? (
+                    <div className="opacity-70 flex items-center gap-2 flex-wrap">
+                      vente tx:{" "}
+                      <a
+                        className="underline hover:opacity-90"
+                        href={solscanTxUrl(listing.buyTxSig)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        {short(listing.buyTxSig, 8, 8)}
+                      </a>
+                      <button
+                        type="button"
+                        className="rounded-md border px-2 py-0.5 text-xs"
+                        onClick={() => void copyTx(listing.buyTxSig!, "Tx vente")}
+                      >
+                        Copier
+                      </button>
+                    </div>
+                  ) : null}
                   {(listing.status === "DRAFT" || listing.status === "OPEN") ? (
                     <button className="mt-2 rounded-xl border px-3 py-2 text-sm" disabled={loading} onClick={() => void cancelListing(listing.listingId)}>
                       Annuler
