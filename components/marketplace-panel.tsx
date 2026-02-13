@@ -1,9 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { VersionedTransaction } from "@solana/web3.js";
+import stickers from "@/stickers/stickers.json";
 
 type TradeAsset = {
   assetId: string;
@@ -43,11 +44,58 @@ type OffersResponse = {
   mine: MyOffer[];
 };
 
+type OpenListing = {
+  listingId: string;
+  sellerStickerId: string;
+  priceLamports: number;
+  status: string;
+  expiresAt: string | null;
+  createdAt: string;
+};
+
+type MyListing = {
+  listingId: string;
+  sellerStickerId: string;
+  sellerAssetId: string;
+  priceLamports: number;
+  status: string;
+  error: string | null;
+  buyerWallet: string | null;
+  sellerDelegationTxSig: string | null;
+  buyTxSig: string | null;
+};
+
+type ListingsResponse = {
+  delegateWallet: string;
+  open: OpenListing[];
+  mine: MyListing[];
+};
+
 type AssetsResponse = {
   wallet: string;
   count: number;
   items: TradeAsset[];
 };
+
+type StickerItem = {
+  id: string;
+  name?: string;
+  image?: string;
+};
+
+type StickerJson = {
+  items: StickerItem[];
+};
+
+const ST = stickers as StickerJson;
+const IMAGE_BASE =
+  process.env.NEXT_PUBLIC_STICKERS_IMAGE_BASE?.trim() || "/stickers/";
+
+function short(v: string, head = 5, tail = 5) {
+  if (!v) return "";
+  if (v.length <= head + tail + 1) return v;
+  return `${v.slice(0, head)}...${v.slice(-tail)}`;
+}
 
 function statusBadgeClass(status: string) {
   switch (status) {
@@ -56,6 +104,7 @@ function statusBadgeClass(status: string) {
     case "LOCKED":
       return "border-amber-400/40 bg-amber-500/10 text-amber-200";
     case "DONE":
+    case "SOLD":
       return "border-sky-400/40 bg-sky-500/10 text-sky-200";
     case "DRAFT":
       return "border-zinc-400/40 bg-zinc-500/10 text-zinc-200";
@@ -64,25 +113,66 @@ function statusBadgeClass(status: string) {
   }
 }
 
-function short(v: string, head = 5, tail = 5) {
-  if (!v) return "";
-  if (v.length <= head + tail + 1) return v;
-  return `${v.slice(0, head)}...${v.slice(-tail)}`;
+function resolveStickerImageSrc(image?: string | null) {
+  const value = (image ?? "").trim();
+  if (!value) return null;
+  if (value.startsWith("http://") || value.startsWith("https://")) return value;
+  if (value.startsWith("/")) return value;
+  const base = IMAGE_BASE.endsWith("/") ? IMAGE_BASE : `${IMAGE_BASE}/`;
+  return `${base}${value}`;
+}
+
+function lamportsToSol(lamports: number) {
+  const sol = Number(lamports || 0) / 1_000_000_000;
+  return sol.toLocaleString("fr-FR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  });
+}
+
+function solToLamports(value: string) {
+  const n = Number(value.replace(",", "."));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const lamports = Math.floor(n * 1_000_000_000);
+  if (lamports <= 0) return null;
+  return lamports;
+}
+
+function normalizeStickerFilter(value: string) {
+  return value.trim().replace(/^#/, "");
 }
 
 export function MarketplacePanel() {
   const wallet = useWallet();
+
   const [offers, setOffers] = useState<OffersResponse | null>(null);
+  const [listings, setListings] = useState<ListingsResponse | null>(null);
   const [assets, setAssets] = useState<TradeAsset[]>([]);
+
   const [makerAssetId, setMakerAssetId] = useState("");
   const [wantedStickerId, setWantedStickerId] = useState("");
+  const [saleAssetId, setSaleAssetId] = useState("");
+  const [salePriceSol, setSalePriceSol] = useState("0.05");
+
   const [acceptAssetByOffer, setAcceptAssetByOffer] = useState<Record<string, string>>({});
+
+  const [marketMode, setMarketMode] = useState<"all" | "trade" | "sale">("all");
+  const [stickerFilter, setStickerFilter] = useState("");
+
   const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState<string>("");
-  const selectOptionStyle = { color: "#111827", backgroundColor: "#f8fafc" };
-  const refreshTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const [notice, setNotice] = useState("");
 
   const walletPk = wallet.publicKey?.toBase58() ?? "";
+  const refreshTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
+  const selectOptionStyle = { color: "#111827", backgroundColor: "#f8fafc" };
+
+  const stickerById = useMemo(() => {
+    const map = new Map<string, StickerItem>();
+    for (const item of ST.items ?? []) {
+      map.set(String(item.id), item);
+    }
+    return map;
+  }, []);
 
   const assetsBySticker = useMemo(() => {
     const map = new Map<string, TradeAsset[]>();
@@ -95,37 +185,55 @@ export function MarketplacePanel() {
     return map;
   }, [assets]);
 
-  const refresh = useCallback(async (options?: { clearNotice?: boolean }) => {
-    setLoading(true);
-    if (options?.clearNotice !== false) {
-      setNotice("");
-    }
-    try {
-      const offersRes = await fetch("/api/trades/offers", { cache: "no-store" });
-      if (!offersRes.ok) throw new Error(await offersRes.text());
-      const offersJson = (await offersRes.json()) as OffersResponse;
-      setOffers(offersJson);
+  const refresh = useCallback(
+    async (options?: { clearNotice?: boolean }) => {
+      setLoading(true);
+      if (options?.clearNotice !== false) setNotice("");
 
-      if (walletPk) {
-        const assetsRes = await fetch(
-          `/api/trades/assets?walletPubkey=${encodeURIComponent(walletPk)}`,
-          { cache: "no-store" }
-        );
-        if (!assetsRes.ok) throw new Error(await assetsRes.text());
-        const assetsJson = (await assetsRes.json()) as AssetsResponse;
-        setAssets(assetsJson.items ?? []);
-        if (assetsJson.items.length) {
-          setMakerAssetId((prev) => prev || assetsJson.items[0].assetId);
+      try {
+        const requests = [
+          fetch("/api/trades/offers", { cache: "no-store" }),
+          fetch("/api/market/listings", { cache: "no-store" }),
+        ];
+
+        if (walletPk) {
+          requests.push(
+            fetch(`/api/trades/assets?walletPubkey=${encodeURIComponent(walletPk)}`, {
+              cache: "no-store",
+            })
+          );
         }
-      } else {
-        setAssets([]);
+
+        const [offersRes, listingsRes, assetsRes] = await Promise.all(requests);
+
+        if (!offersRes.ok) throw new Error(await offersRes.text());
+        if (!listingsRes.ok) throw new Error(await listingsRes.text());
+
+        const offersJson = (await offersRes.json()) as OffersResponse;
+        const listingsJson = (await listingsRes.json()) as ListingsResponse;
+        setOffers(offersJson);
+        setListings(listingsJson);
+
+        if (walletPk && assetsRes) {
+          if (!assetsRes.ok) throw new Error(await assetsRes.text());
+          const assetsJson = (await assetsRes.json()) as AssetsResponse;
+          setAssets(assetsJson.items ?? []);
+
+          if (assetsJson.items.length) {
+            setMakerAssetId((prev) => prev || assetsJson.items[0].assetId);
+            setSaleAssetId((prev) => prev || assetsJson.items[0].assetId);
+          }
+        } else {
+          setAssets([]);
+        }
+      } catch (e) {
+        setNotice((e as Error)?.message ?? "Erreur refresh");
+      } finally {
+        setLoading(false);
       }
-    } catch (e) {
-      setNotice((e as Error)?.message ?? "Erreur refresh");
-    } finally {
-      setLoading(false);
-    }
-  }, [walletPk]);
+    },
+    [walletPk]
+  );
 
   const scheduleFollowupRefreshes = useCallback(() => {
     const t1 = setTimeout(() => {
@@ -140,12 +248,37 @@ export function MarketplacePanel() {
   useEffect(() => {
     void refresh();
     return () => {
-      for (const timer of refreshTimersRef.current) {
-        clearTimeout(timer);
-      }
+      for (const timer of refreshTimersRef.current) clearTimeout(timer);
       refreshTimersRef.current = [];
     };
   }, [refresh]);
+
+  const delegateWallet =
+    offers?.delegateWallet ?? listings?.delegateWallet ?? "";
+
+  const stickerNeedle = normalizeStickerFilter(stickerFilter);
+  const openTrades = useMemo(() => {
+    const src = offers?.open ?? [];
+    return src.filter((offer) => {
+      if (!stickerNeedle) return true;
+      return (
+        String(offer.makerStickerId) === stickerNeedle ||
+        String(offer.wantedStickerId) === stickerNeedle
+      );
+    });
+  }, [offers?.open, stickerNeedle]);
+
+  const openSales = useMemo(() => {
+    const src = listings?.open ?? [];
+    return src.filter((listing) => {
+      if (!stickerNeedle) return true;
+      return String(listing.sellerStickerId) === stickerNeedle;
+    });
+  }, [listings?.open, stickerNeedle]);
+
+  const visibleOpenCount =
+    (marketMode === "all" || marketMode === "trade" ? openTrades.length : 0) +
+    (marketMode === "all" || marketMode === "sale" ? openSales.length : 0);
 
   async function signPreparedTx(txB64: string) {
     if (!wallet.signTransaction || !wallet.publicKey) {
@@ -166,6 +299,7 @@ export function MarketplacePanel() {
       setNotice("Choisis une carte et un sticker cible");
       return;
     }
+
     setLoading(true);
     setNotice("");
     try {
@@ -179,6 +313,7 @@ export function MarketplacePanel() {
         }),
       });
       if (!prep.ok) throw new Error(await prep.text());
+
       const prepJson = (await prep.json()) as { offerId: string; txB64: string };
       const signedTxB64 = await signPreparedTx(prepJson.txB64);
 
@@ -192,6 +327,7 @@ export function MarketplacePanel() {
         }),
       });
       if (!sub.ok) throw new Error(await sub.text());
+
       const subJson = (await sub.json()) as { tx?: string };
       setNotice(
         subJson?.tx
@@ -207,18 +343,55 @@ export function MarketplacePanel() {
     }
   }
 
-  async function cancelOffer(offerId: string) {
+  async function createListing() {
+    if (!walletPk) {
+      setNotice("Connecte ton wallet");
+      return;
+    }
+    const lamports = solToLamports(salePriceSol);
+    if (!saleAssetId || !lamports) {
+      setNotice("Choisis une carte et un prix valide");
+      return;
+    }
+
     setLoading(true);
     setNotice("");
     try {
-      const res = await fetch(`/api/trades/offers/${offerId}/cancel`, {
+      const prep = await fetch("/api/market/listings", {
         method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          walletPubkey: walletPk,
+          sellerAssetId: saleAssetId,
+          priceLamports: lamports,
+        }),
       });
-      if (!res.ok) throw new Error(await res.text());
-      setNotice("Offre annulee");
+      if (!prep.ok) throw new Error(await prep.text());
+
+      const prepJson = (await prep.json()) as { listingId: string; txB64: string };
+      const signedTxB64 = await signPreparedTx(prepJson.txB64);
+
+      const sub = await fetch("/api/market/listings/submit", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          listingId: prepJson.listingId,
+          walletPubkey: walletPk,
+          signedTxB64,
+        }),
+      });
+      if (!sub.ok) throw new Error(await sub.text());
+
+      const subJson = (await sub.json()) as { tx?: string };
+      setNotice(
+        subJson?.tx
+          ? `Vente creee\nDelegation tx: ${subJson.tx}`
+          : "Vente creee"
+      );
       await refresh({ clearNotice: false });
+      scheduleFollowupRefreshes();
     } catch (e) {
-      setNotice((e as Error)?.message ?? "Erreur annulation");
+      setNotice((e as Error)?.message ?? "Erreur creation vente");
     } finally {
       setLoading(false);
     }
@@ -244,10 +417,7 @@ export function MarketplacePanel() {
       const prep = await fetch(`/api/trades/offers/${offer.offerId}/accept/prepare`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          walletPubkey: walletPk,
-          takerAssetId,
-        }),
+        body: JSON.stringify({ walletPubkey: walletPk, takerAssetId }),
       });
       if (!prep.ok) throw new Error(await prep.text());
       const prepJson = (await prep.json()) as { txB64: string };
@@ -257,12 +427,10 @@ export function MarketplacePanel() {
       const sub = await fetch(`/api/trades/offers/${offer.offerId}/accept/submit`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          walletPubkey: walletPk,
-          signedTxB64,
-        }),
+        body: JSON.stringify({ walletPubkey: walletPk, signedTxB64 }),
       });
       if (!sub.ok) throw new Error(await sub.text());
+
       const subJson = (await sub.json()) as {
         takerDelegationTxSig?: string;
         settlementTxSig?: string;
@@ -285,12 +453,82 @@ export function MarketplacePanel() {
     }
   }
 
+  async function buyListing(listing: OpenListing) {
+    if (!walletPk) {
+      setNotice("Connecte ton wallet");
+      return;
+    }
+
+    setLoading(true);
+    setNotice("");
+    try {
+      const prep = await fetch(`/api/market/listings/${listing.listingId}/buy/prepare`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ walletPubkey: walletPk }),
+      });
+      if (!prep.ok) throw new Error(await prep.text());
+      const prepJson = (await prep.json()) as { txB64: string };
+
+      const signedTxB64 = await signPreparedTx(prepJson.txB64);
+
+      const sub = await fetch(`/api/market/listings/${listing.listingId}/buy/submit`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ walletPubkey: walletPk, signedTxB64 }),
+      });
+      if (!sub.ok) throw new Error(await sub.text());
+
+      const subJson = (await sub.json()) as { buyTxSig?: string };
+      setNotice(
+        subJson?.buyTxSig
+          ? `Achat execute\nBuy tx: ${subJson.buyTxSig}`
+          : "Achat execute"
+      );
+      await refresh({ clearNotice: false });
+      scheduleFollowupRefreshes();
+    } catch (e) {
+      setNotice((e as Error)?.message ?? "Erreur achat");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function cancelOffer(offerId: string) {
+    setLoading(true);
+    setNotice("");
+    try {
+      const res = await fetch(`/api/trades/offers/${offerId}/cancel`, { method: "POST" });
+      if (!res.ok) throw new Error(await res.text());
+      setNotice("Offre annulee");
+      await refresh({ clearNotice: false });
+    } catch (e) {
+      setNotice((e as Error)?.message ?? "Erreur annulation offre");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function cancelListing(listingId: string) {
+    setLoading(true);
+    setNotice("");
+    try {
+      const res = await fetch(`/api/market/listings/${listingId}/cancel`, { method: "POST" });
+      if (!res.ok) throw new Error(await res.text());
+      setNotice("Vente annulee");
+      await refresh({ clearNotice: false });
+    } catch (e) {
+      setNotice((e as Error)?.message ?? "Erreur annulation vente");
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm opacity-70">
-          Delegate trade wallet:{" "}
-          <span className="font-mono">{short(offers?.delegateWallet ?? "")}</span>
+          Delegate trade wallet: <span className="font-mono">{short(delegateWallet)}</span>
         </div>
         <div className="flex items-center gap-2">
           <button className="rounded-xl border px-3 py-2 text-sm" onClick={() => void refresh()} disabled={loading}>
@@ -302,63 +540,137 @@ export function MarketplacePanel() {
 
       {notice ? <div className="rounded-xl border p-3 text-sm whitespace-pre-line">{notice}</div> : null}
 
-      <section className="rounded-2xl border p-4 space-y-3">
-        <div className="font-semibold">Creer une offre (1 carte contre 1 carte)</div>
-        <div className="grid md:grid-cols-3 gap-2">
-          <select
-            className="rounded-xl border px-3 py-2 bg-transparent"
-            value={makerAssetId}
-            onChange={(e) => setMakerAssetId(e.target.value)}
-          >
-            <option value="" style={selectOptionStyle}>Choisis une de tes cartes</option>
-            {assets.map((asset) => (
-              <option key={asset.assetId} value={asset.assetId} style={selectOptionStyle}>
-                #{asset.stickerId} - {asset.name ?? short(asset.assetId)}
-              </option>
-            ))}
-          </select>
-          <input
-            className="rounded-xl border px-3 py-2 bg-transparent"
-            placeholder="Sticker souhaite (id)"
-            value={wantedStickerId}
-            onChange={(e) => setWantedStickerId(e.target.value)}
-          />
-          <button className="rounded-xl border px-3 py-2" disabled={loading} onClick={() => void createOffer()}>
-            Creer et deleguer
-          </button>
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border p-4 space-y-3">
+          <div className="font-semibold">Creer un echange (1 carte contre 1)</div>
+          <div className="grid gap-2">
+            <select
+              className="rounded-xl border px-3 py-2 bg-transparent"
+              value={makerAssetId}
+              onChange={(e) => setMakerAssetId(e.target.value)}
+            >
+              <option value="" style={selectOptionStyle}>Choisis ta carte a proposer</option>
+              {assets.map((asset) => (
+                <option key={asset.assetId} value={asset.assetId} style={selectOptionStyle}>
+                  #{asset.stickerId} - {asset.name ?? short(asset.assetId)}
+                </option>
+              ))}
+            </select>
+            <input
+              className="rounded-xl border px-3 py-2 bg-transparent"
+              placeholder="Sticker souhaite (id)"
+              value={wantedStickerId}
+              onChange={(e) => setWantedStickerId(e.target.value)}
+            />
+            <button className="rounded-xl border px-3 py-2" disabled={loading} onClick={() => void createOffer()}>
+              Creer et deleguer
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border p-4 space-y-3">
+          <div className="font-semibold">Creer une vente (prix fixe)</div>
+          <div className="grid gap-2">
+            <select
+              className="rounded-xl border px-3 py-2 bg-transparent"
+              value={saleAssetId}
+              onChange={(e) => setSaleAssetId(e.target.value)}
+            >
+              <option value="" style={selectOptionStyle}>Choisis ta carte a vendre</option>
+              {assets.map((asset) => (
+                <option key={asset.assetId} value={asset.assetId} style={selectOptionStyle}>
+                  #{asset.stickerId} - {asset.name ?? short(asset.assetId)}
+                </option>
+              ))}
+            </select>
+            <input
+              className="rounded-xl border px-3 py-2 bg-transparent"
+              placeholder="Prix en SOL (ex: 0.05)"
+              value={salePriceSol}
+              onChange={(e) => setSalePriceSol(e.target.value)}
+            />
+            <button className="rounded-xl border px-3 py-2" disabled={loading} onClick={() => void createListing()}>
+              Creer et deleguer
+            </button>
+          </div>
         </div>
       </section>
 
       <section className="rounded-2xl border p-4 space-y-3">
-        <div className="font-semibold">Offres ouvertes</div>
-        <div className="space-y-2">
-          {(offers?.open ?? []).length ? (
-            offers!.open.map((offer) => {
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="font-semibold">Market board</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-xl border p-1 text-sm">
+              <button
+                className={`rounded-lg px-3 py-1 ${marketMode === "all" ? "bg-white/20" : "opacity-70"}`}
+                onClick={() => setMarketMode("all")}
+                type="button"
+              >
+                Tout
+              </button>
+              <button
+                className={`rounded-lg px-3 py-1 ${marketMode === "trade" ? "bg-white/20" : "opacity-70"}`}
+                onClick={() => setMarketMode("trade")}
+                type="button"
+              >
+                Echanges
+              </button>
+              <button
+                className={`rounded-lg px-3 py-1 ${marketMode === "sale" ? "bg-white/20" : "opacity-70"}`}
+                onClick={() => setMarketMode("sale")}
+                type="button"
+              >
+                Ventes
+              </button>
+            </div>
+            <input
+              className="rounded-xl border px-3 py-2 text-sm bg-transparent"
+              placeholder="Filtre sticker (#14)"
+              value={stickerFilter}
+              onChange={(e) => setStickerFilter(e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {(marketMode === "all" || marketMode === "trade") &&
+            openTrades.map((offer) => {
+              const sticker = stickerById.get(String(offer.makerStickerId));
+              const imageSrc = resolveStickerImageSrc(sticker?.image);
               const compatible = assetsBySticker.get(String(offer.wantedStickerId)) ?? [];
               return (
-                <div key={offer.offerId} className="rounded-xl border p-3 text-sm space-y-2">
+                <article key={`trade-${offer.offerId}`} className="rounded-2xl border p-3 space-y-3 bg-black/20">
                   <div className="flex items-center justify-between gap-2">
-                    <div>
-                      Offre: donne <strong>#{offer.makerStickerId}</strong> contre{" "}
-                      <strong>#{offer.wantedStickerId}</strong>
-                    </div>
-                    <span
-                      className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(
-                        offer.status
-                      )}`}
-                    >
+                    <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-200">
+                      Echange
+                    </span>
+                    <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(offer.status)}`}>
                       {offer.status}
                     </span>
                   </div>
-                  <div className="grid md:grid-cols-[1fr_auto] gap-2">
+
+                  <div className="rounded-xl border overflow-hidden bg-black/30 aspect-[3/4]">
+                    {imageSrc ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={imageSrc} alt={sticker?.name ?? `Sticker #${offer.makerStickerId}`} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="h-full w-full grid place-items-center text-sm opacity-60">
+                        Sticker #{offer.makerStickerId}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-sm">
+                    <div className="font-semibold">#{offer.makerStickerId} contre #{offer.wantedStickerId}</div>
+                    <div className="opacity-70">Tu dois donner la carte #{offer.wantedStickerId}</div>
+                  </div>
+
+                  <div className="grid gap-2">
                     <select
-                      className="rounded-xl border px-3 py-2 bg-transparent"
+                      className="rounded-xl border px-3 py-2 bg-transparent text-sm"
                       value={acceptAssetByOffer[offer.offerId] ?? ""}
                       onChange={(e) =>
-                        setAcceptAssetByOffer((prev) => ({
-                          ...prev,
-                          [offer.offerId]: e.target.value,
-                        }))
+                        setAcceptAssetByOffer((prev) => ({ ...prev, [offer.offerId]: e.target.value }))
                       }
                     >
                       <option value="" style={selectOptionStyle}>Choisir ta carte #{offer.wantedStickerId}</option>
@@ -369,63 +681,119 @@ export function MarketplacePanel() {
                       ))}
                     </select>
                     <button
-                      className="rounded-xl border px-3 py-2"
+                      className="rounded-xl border px-3 py-2 text-sm"
                       disabled={loading || !compatible.length}
                       onClick={() => void acceptOffer(offer)}
                     >
-                      Accepter
+                      Accepter l&apos;echange
                     </button>
                   </div>
-                </div>
+                </article>
               );
-            })
-          ) : (
-            <div className="text-sm opacity-70">Aucune offre ouverte.</div>
-          )}
+            })}
+
+          {(marketMode === "all" || marketMode === "sale") &&
+            openSales.map((listing) => {
+              const sticker = stickerById.get(String(listing.sellerStickerId));
+              const imageSrc = resolveStickerImageSrc(sticker?.image);
+              return (
+                <article key={`sale-${listing.listingId}`} className="rounded-2xl border p-3 space-y-3 bg-black/20">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-2 py-0.5 text-xs text-fuchsia-200">
+                      Vente
+                    </span>
+                    <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(listing.status)}`}>
+                      {listing.status}
+                    </span>
+                  </div>
+
+                  <div className="rounded-xl border overflow-hidden bg-black/30 aspect-[3/4]">
+                    {imageSrc ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={imageSrc} alt={sticker?.name ?? `Sticker #${listing.sellerStickerId}`} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="h-full w-full grid place-items-center text-sm opacity-60">
+                        Sticker #{listing.sellerStickerId}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-sm">
+                    <div className="font-semibold">#{listing.sellerStickerId} - {sticker?.name ?? "Sticker"}</div>
+                    <div className="text-base font-semibold text-amber-200">{lamportsToSol(listing.priceLamports)} SOL</div>
+                  </div>
+
+                  <button
+                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                    disabled={loading}
+                    onClick={() => void buyListing(listing)}
+                  >
+                    Acheter
+                  </button>
+                </article>
+              );
+            })}
         </div>
+
+        {!visibleOpenCount ? (
+          <div className="text-sm opacity-70">Aucune annonce correspondante.</div>
+        ) : null}
       </section>
 
-      <section className="rounded-2xl border p-4 space-y-3">
-        <div className="font-semibold">Mes offres</div>
-        <div className="space-y-2">
+      <section className="grid gap-4 lg:grid-cols-2">
+        <div className="rounded-2xl border p-4 space-y-3">
+          <div className="font-semibold">Mes echanges</div>
           {(offers?.mine ?? []).length ? (
-            offers!.mine.map((offer) => (
-              <div key={offer.offerId} className="rounded-xl border p-3 text-sm space-y-1">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    #{offer.makerStickerId} contre #{offer.wantedStickerId}
+            <div className="space-y-2">
+              {offers!.mine.map((offer) => (
+                <div key={offer.offerId} className="rounded-xl border p-3 text-sm space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>#{offer.makerStickerId} contre #{offer.wantedStickerId}</div>
+                    <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(offer.status)}`}>
+                      {offer.status}
+                    </span>
                   </div>
-                  <span
-                    className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(
-                      offer.status
-                    )}`}
-                  >
-                    {offer.status}
-                  </span>
+                  {offer.error ? <div className="opacity-70">erreur: {offer.error}</div> : null}
+                  {offer.makerDelegationTxSig ? <div className="opacity-70">delegation: {short(offer.makerDelegationTxSig, 8, 8)}</div> : null}
+                  {offer.settlementTxSig ? <div className="opacity-70">settlement: {short(offer.settlementTxSig, 8, 8)}</div> : null}
+                  {(offer.status === "DRAFT" || offer.status === "OPEN") ? (
+                    <button className="mt-2 rounded-xl border px-3 py-2 text-sm" disabled={loading} onClick={() => void cancelOffer(offer.offerId)}>
+                      Annuler
+                    </button>
+                  ) : null}
                 </div>
-                {offer.error ? <div className="opacity-70">erreur: {offer.error}</div> : null}
-                {offer.makerDelegationTxSig ? (
-                  <div className="opacity-70">delegation: {short(offer.makerDelegationTxSig, 8, 8)}</div>
-                ) : null}
-                {offer.takerDelegationTxSig ? (
-                  <div className="opacity-70">taker delegation: {short(offer.takerDelegationTxSig, 8, 8)}</div>
-                ) : null}
-                {offer.settlementTxSig ? (
-                  <div className="opacity-70">settlement: {short(offer.settlementTxSig, 8, 8)}</div>
-                ) : null}
-                {(offer.status === "DRAFT" || offer.status === "OPEN") ? (
-                  <button
-                    className="mt-2 rounded-xl border px-3 py-2 text-sm"
-                    disabled={loading}
-                    onClick={() => void cancelOffer(offer.offerId)}
-                  >
-                    Annuler
-                  </button>
-                ) : null}
-              </div>
-            ))
+              ))}
+            </div>
           ) : (
-            <div className="text-sm opacity-70">Aucune offre.</div>
+            <div className="text-sm opacity-70">Aucun echange.</div>
+          )}
+        </div>
+
+        <div className="rounded-2xl border p-4 space-y-3">
+          <div className="font-semibold">Mes ventes</div>
+          {(listings?.mine ?? []).length ? (
+            <div className="space-y-2">
+              {listings!.mine.map((listing) => (
+                <div key={listing.listingId} className="rounded-xl border p-3 text-sm space-y-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>#{listing.sellerStickerId} - {lamportsToSol(listing.priceLamports)} SOL</div>
+                    <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(listing.status)}`}>
+                      {listing.status}
+                    </span>
+                  </div>
+                  {listing.error ? <div className="opacity-70">erreur: {listing.error}</div> : null}
+                  {listing.sellerDelegationTxSig ? <div className="opacity-70">delegation: {short(listing.sellerDelegationTxSig, 8, 8)}</div> : null}
+                  {listing.buyTxSig ? <div className="opacity-70">vente tx: {short(listing.buyTxSig, 8, 8)}</div> : null}
+                  {(listing.status === "DRAFT" || listing.status === "OPEN") ? (
+                    <button className="mt-2 rounded-xl border px-3 py-2 text-sm" disabled={loading} onClick={() => void cancelListing(listing.listingId)}>
+                      Annuler
+                    </button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm opacity-70">Aucune vente.</div>
           )}
         </div>
       </section>

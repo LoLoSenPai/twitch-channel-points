@@ -1,4 +1,12 @@
-import { Connection, VersionedTransaction } from "@solana/web3.js";
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  TransactionInstruction,
+  TransactionMessage,
+  VersionedTransaction,
+} from "@solana/web3.js";
 import {
   AssetWithProof,
   TokenProgramVersion,
@@ -7,6 +15,8 @@ import {
   transferV2,
 } from "@metaplex-foundation/mpl-bubblegum";
 import {
+  AccountMeta,
+  Instruction,
   createNoopSigner,
   none,
   publicKey,
@@ -26,6 +36,27 @@ function rpcConnection() {
 
 function pk(v: string) {
   return publicKey(v.trim());
+}
+
+function tradeDelegateWeb3Keypair() {
+  const source =
+    process.env.TRADE_DELEGATE_SECRET ?? process.env.SOLANA_AUTHORITY_SECRET;
+  if (!source) throw new Error("Missing TRADE_DELEGATE_SECRET");
+  return Keypair.fromSecretKey(Uint8Array.from(JSON.parse(source)));
+}
+
+function toWeb3Instruction(ix: Instruction): TransactionInstruction {
+  const keys = ix.keys.map((key: AccountMeta) => ({
+    pubkey: new PublicKey(String(key.pubkey)),
+    isSigner: Boolean(key.isSigner),
+    isWritable: Boolean(key.isWritable),
+  }));
+
+  return new TransactionInstruction({
+    programId: new PublicKey(String(ix.programId)),
+    keys,
+    data: Buffer.from(ix.data),
+  });
 }
 
 type DasAssetForProof = {
@@ -370,4 +401,76 @@ export async function executeDelegatedSwap(params: {
   }
 
   return sig;
+}
+
+export async function prepareDelegatedSalePurchaseTx(params: {
+  sellerAssetId: string;
+  sellerWallet: string;
+  buyerWallet: string;
+  priceLamports: number;
+  delegateWallet: string;
+}) {
+  if (!Number.isFinite(params.priceLamports) || params.priceLamports <= 0) {
+    throw new Error("Invalid sale price");
+  }
+
+  const umi = umiTradeDelegate();
+  const delegateSigner = umi.identity;
+  if (!publicKeyEquals(delegateSigner.publicKey, params.delegateWallet)) {
+    throw new Error("Delegate key mismatch");
+  }
+
+  const sellerAsset = await loadAssetWithProof(umi, params.sellerAssetId);
+  assertAssetInConfiguredCollection(sellerAsset);
+
+  if (!publicKeyEquals(sellerAsset.leafOwner, params.sellerWallet)) {
+    throw new Error("Seller no longer owns listed asset");
+  }
+  if (!publicKeyEquals(sellerAsset.leafDelegate, params.delegateWallet)) {
+    throw new Error("Listed asset is not delegated to trade authority");
+  }
+
+  const buyerPk = pk(params.buyerWallet);
+  const sellerPk = pk(params.sellerWallet);
+  const buyerSigner = createNoopSigner(buyerPk);
+
+  const bubblegumIx = transferV2(umi, {
+    merkleTree: sellerAsset.merkleTree,
+    root: sellerAsset.root,
+    dataHash: sellerAsset.dataHash,
+    creatorHash: sellerAsset.creatorHash,
+    assetDataHash: sellerAsset.asset_data_hash ?? none(),
+    flags: typeof sellerAsset.flags === "number" ? some(sellerAsset.flags) : none(),
+    nonce: sellerAsset.nonce,
+    index: sellerAsset.index,
+    proof: sellerAsset.proof,
+    payer: buyerSigner,
+    authority: delegateSigner,
+    leafOwner: sellerPk,
+    leafDelegate: delegateSigner.publicKey,
+    newLeafOwner: buyerPk,
+  }).getInstructions()[0];
+
+  const priceLamports = Math.floor(params.priceLamports);
+  const paymentIx = SystemProgram.transfer({
+    fromPubkey: new PublicKey(params.buyerWallet),
+    toPubkey: new PublicKey(params.sellerWallet),
+    lamports: priceLamports,
+  });
+
+  const connection = rpcConnection();
+  const latest = await connection.getLatestBlockhash("confirmed");
+
+  const message = new TransactionMessage({
+    payerKey: new PublicKey(params.buyerWallet),
+    recentBlockhash: latest.blockhash,
+    instructions: [paymentIx, toWeb3Instruction(bubblegumIx)],
+  }).compileToV0Message();
+
+  const vtx = new VersionedTransaction(message);
+  vtx.sign([tradeDelegateWeb3Keypair()]);
+
+  return {
+    txB64: Buffer.from(vtx.serialize()).toString("base64"),
+  };
 }
