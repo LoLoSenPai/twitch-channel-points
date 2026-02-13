@@ -1,9 +1,9 @@
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/admin";
-import { AdminDashboard } from "@/components/admin-dashboard";
 import { db } from "@/lib/db";
 import { Redemption, Mint, MintIntent, Collection } from "@/lib/models";
-import Link from "next/link";
+import { AdminDashboard } from "@/components/admin-dashboard";
 
 export default async function AdminPage() {
     const session = await auth();
@@ -13,7 +13,9 @@ export default async function AdminPage() {
         return (
             <main className="mx-auto max-w-5xl p-6">
                 <h1 className="text-2xl font-semibold">Admin</h1>
-                <Link className="underline mt-4 inline-block" href="/api/auth/signin">Login Twitch</Link>
+                <Link className="mt-4 inline-block underline" href="/api/auth/signin">
+                    Login Twitch
+                </Link>
             </main>
         );
     }
@@ -22,7 +24,7 @@ export default async function AdminPage() {
         return (
             <main className="mx-auto max-w-5xl p-6">
                 <h1 className="text-2xl font-semibold">Admin</h1>
-                <p className="opacity-70 mt-2">Accès refusé.</p>
+                <p className="mt-2 opacity-70">Accès refusé.</p>
             </main>
         );
     }
@@ -76,7 +78,7 @@ export default async function AdminPage() {
     };
 
     return (
-        <main className="mx-auto max-w-5xl p-6 space-y-6">
+        <main className="mx-auto max-w-5xl space-y-6 p-6">
             <div className="flex items-baseline justify-between gap-4">
                 <h1 className="text-2xl font-semibold">Admin</h1>
                 <div className="text-sm opacity-70">

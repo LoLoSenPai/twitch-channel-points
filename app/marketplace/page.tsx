@@ -9,14 +9,14 @@ export default async function MarketplacePage() {
   if (!session?.user) {
     return (
       <PageShell>
-        <main className="mx-auto max-w-xl p-6 space-y-4">
+        <main className="mx-auto max-w-xl space-y-4 p-6">
           <h1 className="text-2xl font-semibold">Marketplace</h1>
           <p className="opacity-70">Connecte-toi avec Twitch pour accéder aux échanges.</p>
           <Link
-            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white text-zinc-900 px-5 py-3 text-sm font-medium hover:opacity-90"
+            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white px-5 py-3 text-sm font-medium text-zinc-900 hover:opacity-90"
             href="/api/auth/signin/twitch?callbackUrl=%2Fmarketplace"
           >
-            {"Se connecter avec Twitch ->"}
+            Se connecter avec Twitch →
           </Link>
         </main>
       </PageShell>
@@ -25,13 +25,8 @@ export default async function MarketplacePage() {
 
   return (
     <PageShell>
-      <main className="mx-auto max-w-5xl p-6 space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">Marketplace</h1>
-          <Link className="underline opacity-80 hover:opacity-100" href="/">
-            {"<- Retour"}
-          </Link>
-        </div>
+      <main className="mx-auto max-w-5xl space-y-6 p-6">
+        <h1 className="text-2xl font-semibold">Marketplace</h1>
         <MarketplacePanel />
       </main>
     </PageShell>

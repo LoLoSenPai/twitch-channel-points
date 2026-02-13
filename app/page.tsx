@@ -1,7 +1,6 @@
+﻿import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { MintPanel } from "@/components/mint-panel";
-import Link from "next/link";
-import { LogoutButton } from "@/components/logout-button";
 import PageShell from "@/components/page-shell";
 
 interface ExtendedUser {
@@ -15,41 +14,71 @@ export default async function HomePage() {
     if (!session?.user) {
         return (
             <PageShell>
-                <main className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-xl flex-col justify-center p-6">
-                    <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-8 shadow-[0_0_80px_rgba(99,21,193,.12)] backdrop-blur">
-                        <h1 className="text-3xl font-semibold tracking-tight">Panini Mint</h1>
-                        <p className="mt-2 text-base opacity-70">
-                            Connecte-toi avec Twitch, récupère des tickets, puis ouvre tes boosters.
-                        </p>
+                <main className="mx-auto max-w-6xl space-y-8 p-4 sm:p-6 lg:p-10">
+                    <section className="grid gap-6 rounded-3xl border border-white/10 bg-black/30 p-6 shadow-[0_20px_80px_rgba(0,0,0,.35)] backdrop-blur md:p-8 lg:grid-cols-[1.15fr_0.85fr] lg:gap-10">
+                        <div className="space-y-4">
+                            <p className="text-xs uppercase tracking-[0.2em] text-white/60">Collection Twitch</p>
+                            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Mint tes cartes et complete ton album</h1>
+                            <p className="max-w-xl text-sm text-white/75 sm:text-base">
+                                Gagne des tickets via les points de chaine Twitch, connecte ton compte,
+                                ouvre des boosters et collectionne les 44 cartes.
+                            </p>
 
-                        <div className="mt-6">
-                            <Link
-                                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white text-zinc-900 px-5 py-3 text-sm font-medium hover:opacity-90"
-                                href="/api/auth/signin/twitch?callbackUrl=%2F"
-                            >
-                                Se connecter avec Twitch →
-                            </Link>
+                            <div className="pt-1">
+                                <Link
+                                    className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white px-5 py-3 text-sm font-medium text-zinc-900 transition hover:bg-white/90"
+                                    href="/api/auth/signin/twitch?callbackUrl=%2F"
+                                >
+                                    Se connecter avec Twitch
+                                </Link>
+                            </div>
                         </div>
 
-                        <div className="mt-4 text-sm opacity-60">
-                            Wallet Solana requis après connexion.
-                        </div>
-                    </div>
+                        <aside className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 sm:p-5">
+                            <p className="text-xs uppercase tracking-[0.16em] text-white/60">Comment demarrer</p>
+                            <ol className="mt-4 space-y-3 text-sm text-white/80">
+                                <li>1. Recupere un ticket via les rewards Twitch.</li>
+                                <li>2. Connecte ton compte et ton wallet Solana.</li>
+                                <li>3. Ouvre un booster pour minter une carte.</li>
+                                <li>4. Complete ton album et echange tes doublons.</li>
+                            </ol>
+                        </aside>
+                    </section>
+
+                    <section className="grid gap-3 sm:grid-cols-3">
+                        <article className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                            <p className="text-2xl font-semibold">44</p>
+                            <p className="text-sm text-white/70">cartes a collectionner</p>
+                        </article>
+                        <article className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                            <p className="text-2xl font-semibold">1 ticket</p>
+                            <p className="text-sm text-white/70">par mint de booster</p>
+                        </article>
+                        <article className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                            <p className="text-2xl font-semibold">Echanges</p>
+                            <p className="text-sm text-white/70">dans la marketplace communautaire</p>
+                        </article>
+                    </section>
                 </main>
             </PageShell>
         );
     }
 
+    const user = session.user as ExtendedUser;
+
     return (
         <PageShell>
-            <main className="mx-auto max-w-5xl p-6 space-y-6">
-                <h1 className="text-2xl font-semibold">Panini Mint</h1>
-                <div className="flex items-center justify-between">
-                    <div className="text-sm opacity-70">
-                        Connecté en tant que {(session.user as ExtendedUser).displayName ?? session.user.name}
+            <main className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6 lg:p-10">
+                <section className="rounded-3xl border border-white/10 bg-black/30 p-6 shadow-[0_20px_80px_rgba(0,0,0,.35)] backdrop-blur md:p-8">
+                    <div className="space-y-2">
+                        <p className="text-xs uppercase tracking-[0.2em] text-white/60">Panini Mint</p>
+                        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Bienvenue, {user.displayName ?? user.name}</h1>
+                        <p className="text-sm text-white/75 sm:text-base">
+                            Ouvre des boosters, recupere des cartes rares et avance dans ton album.
+                        </p>
                     </div>
-                    <LogoutButton />
-                </div>
+                </section>
+
                 <MintPanel />
             </main>
         </PageShell>

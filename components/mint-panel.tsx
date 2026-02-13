@@ -70,7 +70,7 @@ export function MintPanel() {
     const [loading, setLoading] = useState(false);
     const [reveal, setReveal] = useState<Reveal | null>(null);
     const [phase, setPhase] = useState<PullPhase>("idle");
-    const [glow, setGlow] = useState(0); // 0..1 pour booster + lumière
+    const [glow, setGlow] = useState(0); // 0..1 pour booster + lumiÃƒÂ¨re
     const [pendingReveal, setPendingReveal] = useState<Reveal | null>(null);
     const [rarity, setRarity] = useState<Rarity | null>(null);
     const [resetOrbitKey, setResetOrbitKey] = useState(0);
@@ -133,7 +133,7 @@ export function MintPanel() {
             const r = rarityFromStickerId(String(stickerId));
             setRarity(r);
 
-            // 4) on prépare un reveal immédiat (ne bloque jamais l’anim)
+            // 4) on prÃƒÂ©pare un reveal immÃƒÂ©diat (ne bloque jamais lÃ¢â‚¬â„¢anim)
             const baseReveal: Reveal = {
                 id: String(stickerId),
                 name: `Panini #${String(stickerId)}`,
@@ -161,12 +161,12 @@ export function MintPanel() {
                         image: meta?.image ?? baseReveal.image,
                     };
 
-                    // si le reveal est encore en attente, on le met à jour
+                    // si le reveal est encore en attente, on le met ÃƒÂ  jour
                     setPendingReveal((prev) =>
                         prev && prev.id === baseReveal.id ? { ...prev, ...patch } : prev
                     );
 
-                    // si le reveal a déjà été affiché, on le met à jour aussi
+                    // si le reveal a dÃƒÂ©jÃƒÂ  ÃƒÂ©tÃƒÂ© affichÃƒÂ©, on le met ÃƒÂ  jour aussi
                     setReveal((prev) =>
                         prev && prev.id === baseReveal.id ? { ...prev, ...patch } : prev
                     );
@@ -177,7 +177,7 @@ export function MintPanel() {
 
             return baseReveal;
         } catch (e) {
-            // cancel uniquement si on n’a PAS déjà soumis
+            // cancel uniquement si on nÃ¢â‚¬â„¢a PAS dÃƒÂ©jÃƒÂ  soumis
             if (intentId && !mintSubmitted) {
                 try {
                     await fetch("/api/mint/cancel", {
@@ -198,15 +198,15 @@ export function MintPanel() {
         if (loading || phase !== "idle") return;
 
         if (!walletOk) {
-            setHint("🔌 Connecte ton wallet Solana pour ouvrir un booster.");
+            setHint("Ã°Å¸â€Å’ Connecte ton wallet Solana pour ouvrir un booster.");
             return;
         }
         if (!ticketsKnown) {
-            setHint("⏳ Chargement des tickets…");
+            setHint("Ã¢ÂÂ³ Chargement des ticketsÃ¢â‚¬Â¦");
             return;
         }
         if (!ticketsOk) {
-            setHint("🎟️ Aucun ticket. Récupère-en via les rewards Twitch.");
+            setHint("Ã°Å¸Å½Å¸Ã¯Â¸Â Aucun ticket. RÃƒÂ©cupÃƒÂ¨re-en via les rewards Twitch.");
             return;
         }
 
@@ -268,7 +268,7 @@ export function MintPanel() {
                     <div className="text-sm opacity-70 flex items-center gap-2">
                         Tickets:{" "}
                         <span className="font-medium">
-                            {tickets === undefined ? "…" : tickets}
+                            {tickets === undefined ? "Ã¢â‚¬Â¦" : tickets}
                         </span>
                         {refreshingUi ? (
                             <span className="inline-block h-2 w-2 rounded-full bg-current opacity-50" />
@@ -285,7 +285,7 @@ export function MintPanel() {
                     <BoosterScene
                         labelUrl="/preview.png"
                         onOpen={openBooster}
-                        canOpen={!loading && phase === "idle"} // 👈 pas de canMint ici
+                        canOpen={!loading && phase === "idle"} // pas de canMint ici
                         theme={{ body: { color: baseBodyColor, metalness: 0.55, roughness: 0.18, ...(phase === "charging" ? { emissive: glowColor, emissiveIntensity: chargingIntensity } : {}), }, }}
                         shake={phase === "charging" ? glow : 0}
                         resetOrbitKey={resetOrbitKey}
@@ -296,13 +296,13 @@ export function MintPanel() {
                         {hint ? (
                             <div>{hint}</div>
                         ) : !wallet.publicKey ? (
-                            <div>🔌 Connecte ton wallet Solana pour ouvrir un booster.</div>
+                            <div>Connecte ton wallet Solana pour ouvrir un booster.</div>
                         ) : tickets === undefined ? (
-                            <div>⏳ Chargement des tickets…</div>
+                            <div>Chargement des tickets...</div>
                         ) : tickets <= 0 ? (
-                            <div>🎟️ Tu n’as aucun ticket. Récupère-en via les rewards Twitch.</div>
+                            <div>Tu n as aucun ticket. Recupere en via les rewards Twitch.</div>
                         ) : (
-                            <div>🟦 Clique sur le booster pour mint (1 ticket consommé).</div>
+                            <div>Clique sur le booster pour mint (1 ticket consomme).</div>
                         )}
                     </div>
 
@@ -312,50 +312,44 @@ export function MintPanel() {
                 <div className="rounded-2xl border p-4">
                     <div className="flex flex-wrap gap-2 pt-1 pb-3">
                         <span className={`rounded-full border px-3 py-1 text-xs ${walletOk ? "opacity-90" : "opacity-60"}`}>
-                            {walletOk ? "✅ Wallet" : "⬜ Wallet"}
+                            {walletOk ? "OK Wallet" : "Wallet"}
                         </span>
 
                         <span className={`rounded-full border px-3 py-1 text-xs ${ticketsKnown ? (ticketsOk ? "opacity-90" : "opacity-60") : "opacity-80"}`}>
-                            {!ticketsKnown ? "⏳ Tickets…" : ticketsOk ? `✅ Tickets (${tickets})` : "⬜ Tickets"}
+                            {!ticketsKnown ? "Tickets..." : ticketsOk ? `OK Tickets (${tickets})` : "Tickets"}
                         </span>
 
                         <span className={`rounded-full border px-3 py-1 text-xs ${ready ? "opacity-90" : "opacity-60"}`}>
-                            {ready ? "✅ Ready" : "⬜ Ready"}
+                            {ready ? "OK Ready" : "Ready"}
                         </span>
                     </div>
-                    <div className="text-lg font-semibold">Comment ça marche ?</div>
+                    <div className="text-lg font-semibold">Comment ca marche ?</div>
                     <ol className="mt-3 space-y-2 text-sm opacity-80 list-decimal pl-5">
-                        <li>Récupère un ticket via le reward Twitch.</li>
+                        <li>Recupere un ticket via le reward Twitch.</li>
                         <li>Connecte ton wallet Solana.</li>
-                        <li>Clique sur le booster → signe la transaction → révèle ta carte.</li>
+                        <li>Clique sur le booster, signe la transaction, puis revele ta carte.</li>
                     </ol>
 
                     <div className="mt-5 space-y-3 text-sm">
                         <div className="rounded-xl border p-3">
-                            <div className="font-medium">🎟️ Où trouver mes tickets ?</div>
+                            <div className="font-medium">Ou trouver mes tickets ?</div>
                             <div className="opacity-70 mt-1">
                                 Les tickets viennent des rewards Twitch dispo sur
-                                <Link href="https://www.twitch.tv/nylstv" target="_blank" rel="noopener noreferrer" className="text-fuchsia-400 font-bold"> ma chaîne</Link>
+                                <Link href="https://www.twitch.tv/nylstv" target="_blank" rel="noopener noreferrer" className="text-fuchsia-400 font-bold"> ma chaine</Link>
                                 .
                             </div>
                         </div>
 
                         <div className="rounded-xl border p-3">
-                            <div className="font-medium">🧾 Ça coûte quoi ?</div>
+                            <div className="font-medium">Ca coute quoi ?</div>
                             <div className="opacity-70 mt-1">
-                                1 ticket + les frais réseau Solana.
+                                1 ticket + les frais reseau Solana.
                             </div>
                         </div>
 
                         <div className="rounded-xl border p-3">
-                            <div className="font-medium">📚 Où je vois mes cartes ?</div>
-                            <div className="opacity-70 mt-1">Dans l’album, et tu peux aussi les échanger sur le marketplace.</div>
-                            <a className="mt-2 inline-flex rounded-xl border px-3 py-2 text-sm" href="/album">
-                                Voir l’album →
-                            </a>
-                            <a className="mt-2 ml-2 inline-flex rounded-xl border px-3 py-2 text-sm" href="/marketplace">
-                                Ouvrir le marketplace →
-                            </a>
+                            <div className="font-medium">Ou je vois mes cartes ?</div>
+                            <div className="opacity-70 mt-1">Dans album, et tu peux aussi les echanger sur le marketplace.</div>
                         </div>
                     </div>
                 </div>
@@ -392,7 +386,7 @@ export function MintPanel() {
 
             {reveal ? (
                 <div className="rounded-2xl border p-4 space-y-3">
-                    <div className="text-sm opacity-70">🎉 Nouveau sticker !</div>
+                    <div className="text-sm opacity-70">Ã°Å¸Å½â€° Nouveau sticker !</div>
 
                     {reveal.image ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -419,7 +413,7 @@ export function MintPanel() {
 
                     <div className="flex gap-2">
                         <a className="rounded-xl border px-3 py-2 text-sm cursor-pointer" href="/album">
-                            Voir dans l’album →
+                            Voir dans lÃ¢â‚¬â„¢album Ã¢â€ â€™
                         </a>
 
                         <a
@@ -488,9 +482,16 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx }: {
                                     }`}
                             >
                                 {/* BACK */}
-                                <div className="absolute inset-0 rounded-2xl border border-white/20 bg-gradient-to-b from-zinc-900 to-black shadow-xl [backface-visibility:hidden] grid place-items-center">
-                                    <div className="text-sm opacity-80">Clique pour révéler</div>
-                                    <div className="mt-2 text-xs opacity-50">(dos de carte)</div>
+                                <div className="absolute inset-0 rounded-2xl border border-white/20 bg-black shadow-xl [backface-visibility:hidden] overflow-hidden">
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img
+                                        src="/card-back.png"
+                                        alt="Dos de carte"
+                                        className="h-full w-full object-cover"
+                                    />
+                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 text-center text-sm text-white/90">
+                                        Clique pour rÃƒÂ©vÃƒÂ©ler
+                                    </div>
                                 </div>
 
                                 {/* FRONT */}
@@ -511,7 +512,7 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx }: {
                     {/* fermer */}
                     <div className="mt-4 flex justify-center gap-2">
                         <a className="rounded-xl border px-3 py-2 text-sm cursor-pointer" href="/album">
-                            Voir dans l’album →
+                            Voir dans lÃ¢â‚¬â„¢album Ã¢â€ â€™
                         </a>
 
                         {tx ? (
@@ -548,7 +549,7 @@ function Step({
     pending?: boolean;
     detail?: string;
 }) {
-    const icon = pending ? "⏳" : ok ? "✅" : "⬜";
+    const icon = pending ? "Ã¢ÂÂ³" : ok ? "Ã¢Å“â€¦" : "Ã¢Â¬Å“";
     const text = pending ? "opacity-90" : ok ? "opacity-90" : "opacity-60";
 
     return (

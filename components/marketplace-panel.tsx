@@ -251,7 +251,6 @@ export function MarketplacePanel() {
   const [boardCols, setBoardCols] = useState<"2" | "3" | "4">("3");
   const [stickerFilter, setStickerFilter] = useState("");
   const [activeTab, setActiveTab] = useState<"marketplace" | "create" | "mine">("marketplace");
-  const [showCreatePanel, setShowCreatePanel] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -833,7 +832,6 @@ export function MarketplacePanel() {
             className={buttonClass}
             onClick={() => {
               setActiveTab("create");
-              setShowCreatePanel(true);
             }}
             disabled={loading}
           >
@@ -843,28 +841,7 @@ export function MarketplacePanel() {
       </div>
 
       {activeTab === "create" ? (
-        <>
-          <div className="rounded-2xl border p-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="font-semibold">Créer une offre</div>
-              <button
-                type="button"
-                className={buttonSmallClass}
-                disabled={loading}
-                onClick={() => setShowCreatePanel((prev) => !prev)}
-              >
-                {showCreatePanel ? "Masquer le formulaire" : "Afficher le formulaire"}
-              </button>
-            </div>
-            {!showCreatePanel ? (
-              <div className="text-sm opacity-70">
-                Clique sur « Afficher le formulaire » pour proposer un échange.
-              </div>
-            ) : null}
-          </div>
-
-          {showCreatePanel ? (
-            <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
+        <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
               <div className="rounded-2xl border p-4 space-y-3">
                 <div className="font-semibold">Proposer un échange (1 carte contre 1)</div>
                 <div className="grid gap-2">
@@ -992,8 +969,6 @@ export function MarketplacePanel() {
                 </div>
               ) : null}
             </section>
-          ) : null}
-        </>
       ) : null}
 
       {activeTab === "marketplace" ? (
