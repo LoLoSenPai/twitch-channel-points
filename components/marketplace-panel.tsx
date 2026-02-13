@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { VersionedTransaction } from "@solana/web3.js";
@@ -49,6 +49,21 @@ type AssetsResponse = {
   items: TradeAsset[];
 };
 
+function statusBadgeClass(status: string) {
+  switch (status) {
+    case "OPEN":
+      return "border-emerald-400/40 bg-emerald-500/10 text-emerald-200";
+    case "LOCKED":
+      return "border-amber-400/40 bg-amber-500/10 text-amber-200";
+    case "DONE":
+      return "border-sky-400/40 bg-sky-500/10 text-sky-200";
+    case "DRAFT":
+      return "border-zinc-400/40 bg-zinc-500/10 text-zinc-200";
+    default:
+      return "border-zinc-400/40 bg-zinc-500/10 text-zinc-200";
+  }
+}
+
 function short(v: string, head = 5, tail = 5) {
   if (!v) return "";
   if (v.length <= head + tail + 1) return v;
@@ -65,6 +80,7 @@ export function MarketplacePanel() {
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<string>("");
   const selectOptionStyle = { color: "#111827", backgroundColor: "#f8fafc" };
+  const refreshTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
 
   const walletPk = wallet.publicKey?.toBase58() ?? "";
 
@@ -79,9 +95,11 @@ export function MarketplacePanel() {
     return map;
   }, [assets]);
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: { clearNotice?: boolean }) => {
     setLoading(true);
-    setNotice("");
+    if (options?.clearNotice !== false) {
+      setNotice("");
+    }
     try {
       const offersRes = await fetch("/api/trades/offers", { cache: "no-store" });
       if (!offersRes.ok) throw new Error(await offersRes.text());
@@ -109,8 +127,24 @@ export function MarketplacePanel() {
     }
   }, [walletPk]);
 
+  const scheduleFollowupRefreshes = useCallback(() => {
+    const t1 = setTimeout(() => {
+      void refresh({ clearNotice: false });
+    }, 1500);
+    const t2 = setTimeout(() => {
+      void refresh({ clearNotice: false });
+    }, 4000);
+    refreshTimersRef.current.push(t1, t2);
+  }, [refresh]);
+
   useEffect(() => {
     void refresh();
+    return () => {
+      for (const timer of refreshTimersRef.current) {
+        clearTimeout(timer);
+      }
+      refreshTimersRef.current = [];
+    };
   }, [refresh]);
 
   async function signPreparedTx(txB64: string) {
@@ -124,9 +158,13 @@ export function MarketplacePanel() {
   }
 
   async function createOffer() {
-    if (!walletPk) throw new Error("Connecte ton wallet");
+    if (!walletPk) {
+      setNotice("Connecte ton wallet");
+      return;
+    }
     if (!makerAssetId || !wantedStickerId.trim()) {
-      throw new Error("Choisis une carte et un sticker cible");
+      setNotice("Choisis une carte et un sticker cible");
+      return;
     }
     setLoading(true);
     setNotice("");
@@ -154,9 +192,16 @@ export function MarketplacePanel() {
         }),
       });
       if (!sub.ok) throw new Error(await sub.text());
-
-      setNotice("Offre creee");
-      await refresh();
+      const subJson = (await sub.json()) as { tx?: string };
+      setNotice(
+        subJson?.tx
+          ? `Offre creee\nDelegation tx: ${subJson.tx}`
+          : "Offre creee"
+      );
+      await refresh({ clearNotice: false });
+      scheduleFollowupRefreshes();
+    } catch (e) {
+      setNotice((e as Error)?.message ?? "Erreur creation offre");
     } finally {
       setLoading(false);
     }
@@ -171,20 +216,26 @@ export function MarketplacePanel() {
       });
       if (!res.ok) throw new Error(await res.text());
       setNotice("Offre annulee");
-      await refresh();
+      await refresh({ clearNotice: false });
+    } catch (e) {
+      setNotice((e as Error)?.message ?? "Erreur annulation");
     } finally {
       setLoading(false);
     }
   }
 
   async function acceptOffer(offer: OpenOffer) {
-    if (!walletPk) throw new Error("Connecte ton wallet");
+    if (!walletPk) {
+      setNotice("Connecte ton wallet");
+      return;
+    }
 
     const selected = acceptAssetByOffer[offer.offerId];
     const fallback = assetsBySticker.get(String(offer.wantedStickerId))?.[0]?.assetId;
     const takerAssetId = selected || fallback;
     if (!takerAssetId) {
-      throw new Error("Tu n'as pas la carte demandee");
+      setNotice("Tu n'as pas la carte demandee");
+      return;
     }
 
     setLoading(true);
@@ -212,9 +263,23 @@ export function MarketplacePanel() {
         }),
       });
       if (!sub.ok) throw new Error(await sub.text());
+      const subJson = (await sub.json()) as {
+        takerDelegationTxSig?: string;
+        settlementTxSig?: string;
+      };
 
-      setNotice("Echange execute");
-      await refresh();
+      const lines = ["Echange execute"];
+      if (subJson?.takerDelegationTxSig) {
+        lines.push(`Delegation tx: ${subJson.takerDelegationTxSig}`);
+      }
+      if (subJson?.settlementTxSig) {
+        lines.push(`Settlement tx: ${subJson.settlementTxSig}`);
+      }
+      setNotice(lines.join("\n"));
+      await refresh({ clearNotice: false });
+      scheduleFollowupRefreshes();
+    } catch (e) {
+      setNotice((e as Error)?.message ?? "Erreur acceptation offre");
     } finally {
       setLoading(false);
     }
@@ -235,7 +300,7 @@ export function MarketplacePanel() {
         </div>
       </div>
 
-      {notice ? <div className="rounded-xl border p-3 text-sm">{notice}</div> : null}
+      {notice ? <div className="rounded-xl border p-3 text-sm whitespace-pre-line">{notice}</div> : null}
 
       <section className="rounded-2xl border p-4 space-y-3">
         <div className="font-semibold">Creer une offre (1 carte contre 1 carte)</div>
@@ -272,9 +337,18 @@ export function MarketplacePanel() {
               const compatible = assetsBySticker.get(String(offer.wantedStickerId)) ?? [];
               return (
                 <div key={offer.offerId} className="rounded-xl border p-3 text-sm space-y-2">
-                  <div>
-                    Offre: donne <strong>#{offer.makerStickerId}</strong> contre{" "}
-                    <strong>#{offer.wantedStickerId}</strong>
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      Offre: donne <strong>#{offer.makerStickerId}</strong> contre{" "}
+                      <strong>#{offer.wantedStickerId}</strong>
+                    </div>
+                    <span
+                      className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(
+                        offer.status
+                      )}`}
+                    >
+                      {offer.status}
+                    </span>
                   </div>
                   <div className="grid md:grid-cols-[1fr_auto] gap-2">
                     <select
@@ -317,13 +391,28 @@ export function MarketplacePanel() {
           {(offers?.mine ?? []).length ? (
             offers!.mine.map((offer) => (
               <div key={offer.offerId} className="rounded-xl border p-3 text-sm space-y-1">
-                <div>
-                  #{offer.makerStickerId} contre #{offer.wantedStickerId}
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    #{offer.makerStickerId} contre #{offer.wantedStickerId}
+                  </div>
+                  <span
+                    className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusBadgeClass(
+                      offer.status
+                    )}`}
+                  >
+                    {offer.status}
+                  </span>
                 </div>
-                <div className="opacity-70">
-                  statut: {offer.status}
-                  {offer.error ? ` | erreur: ${offer.error}` : ""}
-                </div>
+                {offer.error ? <div className="opacity-70">erreur: {offer.error}</div> : null}
+                {offer.makerDelegationTxSig ? (
+                  <div className="opacity-70">delegation: {short(offer.makerDelegationTxSig, 8, 8)}</div>
+                ) : null}
+                {offer.takerDelegationTxSig ? (
+                  <div className="opacity-70">taker delegation: {short(offer.takerDelegationTxSig, 8, 8)}</div>
+                ) : null}
+                {offer.settlementTxSig ? (
+                  <div className="opacity-70">settlement: {short(offer.settlementTxSig, 8, 8)}</div>
+                ) : null}
                 {(offer.status === "DRAFT" || offer.status === "OPEN") ? (
                   <button
                     className="mt-2 rounded-xl border px-3 py-2 text-sm"
