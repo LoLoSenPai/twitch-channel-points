@@ -579,7 +579,7 @@ export function MarketplacePanel() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="text-sm opacity-70">
-          Delegate trade wallet: <span className="font-mono">{short(delegateWallet)}</span>
+          Wallet service du marketplace: <span className="font-mono">{short(delegateWallet)}</span>
         </div>
         <div className="flex items-center gap-2">
           <button className="rounded-xl border px-3 py-2 text-sm" onClick={() => void refresh()} disabled={loading}>
@@ -593,7 +593,7 @@ export function MarketplacePanel() {
 
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border p-4 space-y-3">
-          <div className="font-semibold">Creer un echange (1 carte contre 1)</div>
+          <div className="font-semibold">Proposer un echange (1 carte contre 1)</div>
           <div className="grid gap-2">
             <select
               className="rounded-xl border px-3 py-2 bg-transparent"
@@ -614,13 +614,13 @@ export function MarketplacePanel() {
               onChange={(e) => setWantedStickerId(e.target.value)}
             />
             <button className="rounded-xl border px-3 py-2" disabled={loading} onClick={() => void createOffer()}>
-              Creer et deleguer
+              Creer l&apos;offre
             </button>
           </div>
         </div>
 
         <div className="rounded-2xl border p-4 space-y-3">
-          <div className="font-semibold">Creer une vente (prix fixe)</div>
+          <div className="font-semibold">Mettre une carte en vente (prix fixe)</div>
           <div className="grid gap-2">
             <select
               className="rounded-xl border px-3 py-2 bg-transparent"
@@ -641,7 +641,7 @@ export function MarketplacePanel() {
               onChange={(e) => setSalePriceSol(e.target.value)}
             />
             <button className="rounded-xl border px-3 py-2" disabled={loading} onClick={() => void createListing()}>
-              Creer et deleguer
+              Mettre en vente
             </button>
           </div>
         </div>
