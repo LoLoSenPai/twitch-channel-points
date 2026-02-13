@@ -182,11 +182,18 @@ export function MarketplacePanel() {
   const [stickerFilter, setStickerFilter] = useState("");
 
   const [loading, setLoading] = useState(false);
+  const [busyAction, setBusyAction] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
 
   const walletPk = wallet.publicKey?.toBase58() ?? "";
   const refreshTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
   const selectOptionStyle = { color: "#111827", backgroundColor: "#f8fafc" };
+  const buttonClass =
+    "rounded-xl border px-3 py-2 text-sm transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-white/10 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
+  const buttonWideClass =
+    "w-full rounded-xl border px-3 py-2 text-sm transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-white/10 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
+  const buttonSmallClass =
+    "rounded-md border px-2 py-0.5 text-xs transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-white/10 active:scale-[0.98]";
 
   const stickerById = useMemo(() => {
     const map = new Map<string, StickerItem>();
@@ -341,7 +348,18 @@ export function MarketplacePanel() {
     }
   }
 
+  async function handleRefreshClick() {
+    if (loading) return;
+    setBusyAction("refresh");
+    try {
+      await refresh();
+    } finally {
+      setBusyAction((prev) => (prev === "refresh" ? null : prev));
+    }
+  }
+
   async function createOffer() {
+    if (loading) return;
     if (!walletPk) {
       setNotice("Connecte ton wallet");
       return;
@@ -351,6 +369,8 @@ export function MarketplacePanel() {
       return;
     }
 
+    const actionKey = "create-offer";
+    setBusyAction(actionKey);
     setLoading(true);
     setNotice("");
     try {
@@ -390,11 +410,13 @@ export function MarketplacePanel() {
     } catch (e) {
       setNotice((e as Error)?.message ?? "Erreur creation offre");
     } finally {
+      setBusyAction((prev) => (prev === actionKey ? null : prev));
       setLoading(false);
     }
   }
 
   async function createListing() {
+    if (loading) return;
     if (!walletPk) {
       setNotice("Connecte ton wallet");
       return;
@@ -405,6 +427,8 @@ export function MarketplacePanel() {
       return;
     }
 
+    const actionKey = "create-listing";
+    setBusyAction(actionKey);
     setLoading(true);
     setNotice("");
     try {
@@ -444,11 +468,13 @@ export function MarketplacePanel() {
     } catch (e) {
       setNotice((e as Error)?.message ?? "Erreur creation vente");
     } finally {
+      setBusyAction((prev) => (prev === actionKey ? null : prev));
       setLoading(false);
     }
   }
 
   async function acceptOffer(offer: OpenOffer) {
+    if (loading) return;
     if (!walletPk) {
       setNotice("Connecte ton wallet");
       return;
@@ -462,6 +488,8 @@ export function MarketplacePanel() {
       return;
     }
 
+    const actionKey = `accept-${offer.offerId}`;
+    setBusyAction(actionKey);
     setLoading(true);
     setNotice("");
     try {
@@ -500,16 +528,20 @@ export function MarketplacePanel() {
     } catch (e) {
       setNotice((e as Error)?.message ?? "Erreur acceptation offre");
     } finally {
+      setBusyAction((prev) => (prev === actionKey ? null : prev));
       setLoading(false);
     }
   }
 
   async function buyListing(listing: OpenListing) {
+    if (loading) return;
     if (!walletPk) {
       setNotice("Connecte ton wallet");
       return;
     }
 
+    const actionKey = `buy-${listing.listingId}`;
+    setBusyAction(actionKey);
     setLoading(true);
     setNotice("");
     try {
@@ -541,11 +573,15 @@ export function MarketplacePanel() {
     } catch (e) {
       setNotice((e as Error)?.message ?? "Erreur achat");
     } finally {
+      setBusyAction((prev) => (prev === actionKey ? null : prev));
       setLoading(false);
     }
   }
 
   async function cancelOffer(offerId: string) {
+    if (loading) return;
+    const actionKey = `cancel-offer-${offerId}`;
+    setBusyAction(actionKey);
     setLoading(true);
     setNotice("");
     try {
@@ -556,11 +592,15 @@ export function MarketplacePanel() {
     } catch (e) {
       setNotice((e as Error)?.message ?? "Erreur annulation offre");
     } finally {
+      setBusyAction((prev) => (prev === actionKey ? null : prev));
       setLoading(false);
     }
   }
 
   async function cancelListing(listingId: string) {
+    if (loading) return;
+    const actionKey = `cancel-listing-${listingId}`;
+    setBusyAction(actionKey);
     setLoading(true);
     setNotice("");
     try {
@@ -571,6 +611,7 @@ export function MarketplacePanel() {
     } catch (e) {
       setNotice((e as Error)?.message ?? "Erreur annulation vente");
     } finally {
+      setBusyAction((prev) => (prev === actionKey ? null : prev));
       setLoading(false);
     }
   }
@@ -582,8 +623,8 @@ export function MarketplacePanel() {
           Wallet service du marketplace: <span className="font-mono">{short(delegateWallet)}</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="rounded-xl border px-3 py-2 text-sm" onClick={() => void refresh()} disabled={loading}>
-            Refresh
+          <button className={buttonClass} onClick={() => void handleRefreshClick()} disabled={loading}>
+            {busyAction === "refresh" ? "Actualisation..." : "Actualiser"}
           </button>
           <WalletMultiButton />
         </div>
@@ -613,8 +654,8 @@ export function MarketplacePanel() {
               value={wantedStickerId}
               onChange={(e) => setWantedStickerId(e.target.value)}
             />
-            <button className="rounded-xl border px-3 py-2" disabled={loading} onClick={() => void createOffer()}>
-              Creer l&apos;offre
+            <button className={buttonClass} disabled={loading} onClick={() => void createOffer()}>
+              {busyAction === "create-offer" ? "Creation..." : "Creer l&apos;offre"}
             </button>
           </div>
         </div>
@@ -640,8 +681,8 @@ export function MarketplacePanel() {
               value={salePriceSol}
               onChange={(e) => setSalePriceSol(e.target.value)}
             />
-            <button className="rounded-xl border px-3 py-2" disabled={loading} onClick={() => void createListing()}>
-              Mettre en vente
+            <button className={buttonClass} disabled={loading} onClick={() => void createListing()}>
+              {busyAction === "create-listing" ? "Publication..." : "Mettre en vente"}
             </button>
           </div>
         </div>
@@ -653,21 +694,21 @@ export function MarketplacePanel() {
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex rounded-xl border p-1 text-sm">
               <button
-                className={`rounded-lg px-3 py-1 ${marketMode === "all" ? "bg-white/20" : "opacity-70"}`}
+                className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "all" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
                 onClick={() => setMarketMode("all")}
                 type="button"
               >
                 Tout
               </button>
               <button
-                className={`rounded-lg px-3 py-1 ${marketMode === "trade" ? "bg-white/20" : "opacity-70"}`}
+                className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "trade" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
                 onClick={() => setMarketMode("trade")}
                 type="button"
               >
                 Echanges
               </button>
               <button
-                className={`rounded-lg px-3 py-1 ${marketMode === "sale" ? "bg-white/20" : "opacity-70"}`}
+                className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "sale" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
                 onClick={() => setMarketMode("sale")}
                 type="button"
               >
@@ -743,11 +784,11 @@ export function MarketplacePanel() {
                       ))}
                     </select>
                     <button
-                      className="rounded-xl border px-3 py-2 text-sm"
+                      className={buttonClass}
                       disabled={loading || !compatible.length}
                       onClick={() => void acceptOffer(offer)}
                     >
-                      Accepter l&apos;echange
+                      {busyAction === `accept-${offer.offerId}` ? "Validation..." : "Accepter l&apos;echange"}
                     </button>
                   </div>
                 </article>
@@ -786,11 +827,11 @@ export function MarketplacePanel() {
                   </div>
 
                   <button
-                    className="w-full rounded-xl border px-3 py-2 text-sm"
+                    className={buttonWideClass}
                     disabled={loading}
                     onClick={() => void buyListing(listing)}
                   >
-                    Acheter
+                    {busyAction === `buy-${listing.listingId}` ? "Achat..." : "Acheter"}
                   </button>
                 </article>
               );
@@ -829,7 +870,8 @@ export function MarketplacePanel() {
                       </a>
                       <button
                         type="button"
-                        className="rounded-md border px-2 py-0.5 text-xs"
+                        className={buttonSmallClass}
+                        disabled={loading}
                         onClick={() => void copyTx(offer.makerDelegationTxSig!, "Tx delegation")}
                       >
                         Copier
@@ -849,7 +891,8 @@ export function MarketplacePanel() {
                       </a>
                       <button
                         type="button"
-                        className="rounded-md border px-2 py-0.5 text-xs"
+                        className={buttonSmallClass}
+                        disabled={loading}
                         onClick={() => void copyTx(offer.takerDelegationTxSig!, "Tx taker delegation")}
                       >
                         Copier
@@ -869,7 +912,8 @@ export function MarketplacePanel() {
                       </a>
                       <button
                         type="button"
-                        className="rounded-md border px-2 py-0.5 text-xs"
+                        className={buttonSmallClass}
+                        disabled={loading}
                         onClick={() => void copyTx(offer.settlementTxSig!, "Tx settlement")}
                       >
                         Copier
@@ -877,8 +921,12 @@ export function MarketplacePanel() {
                     </div>
                   ) : null}
                   {(offer.status === "DRAFT" || offer.status === "OPEN") ? (
-                    <button className="mt-2 rounded-xl border px-3 py-2 text-sm" disabled={loading} onClick={() => void cancelOffer(offer.offerId)}>
-                      Annuler
+                    <button
+                      className={`${buttonClass} mt-2`}
+                      disabled={loading}
+                      onClick={() => void cancelOffer(offer.offerId)}
+                    >
+                      {busyAction === `cancel-offer-${offer.offerId}` ? "Annulation..." : "Annuler"}
                     </button>
                   ) : null}
                 </div>
@@ -915,7 +963,8 @@ export function MarketplacePanel() {
                       </a>
                       <button
                         type="button"
-                        className="rounded-md border px-2 py-0.5 text-xs"
+                        className={buttonSmallClass}
+                        disabled={loading}
                         onClick={() => void copyTx(listing.sellerDelegationTxSig!, "Tx delegation vente")}
                       >
                         Copier
@@ -935,7 +984,8 @@ export function MarketplacePanel() {
                       </a>
                       <button
                         type="button"
-                        className="rounded-md border px-2 py-0.5 text-xs"
+                        className={buttonSmallClass}
+                        disabled={loading}
                         onClick={() => void copyTx(listing.buyTxSig!, "Tx vente")}
                       >
                         Copier
@@ -943,8 +993,12 @@ export function MarketplacePanel() {
                     </div>
                   ) : null}
                   {(listing.status === "DRAFT" || listing.status === "OPEN") ? (
-                    <button className="mt-2 rounded-xl border px-3 py-2 text-sm" disabled={loading} onClick={() => void cancelListing(listing.listingId)}>
-                      Annuler
+                    <button
+                      className={`${buttonClass} mt-2`}
+                      disabled={loading}
+                      onClick={() => void cancelListing(listing.listingId)}
+                    >
+                      {busyAction === `cancel-listing-${listing.listingId}` ? "Annulation..." : "Annuler"}
                     </button>
                   ) : null}
                 </div>
