@@ -67,6 +67,8 @@ type MyListing = {
 
 type ListingsResponse = {
   delegateWallet: string;
+  marketFeeBps?: number;
+  marketFeeWallet?: string;
   open: OpenListing[];
   mine: MyListing[];
 };
@@ -91,6 +93,9 @@ const ST = stickers as StickerJson;
 const IMAGE_BASE =
   process.env.NEXT_PUBLIC_STICKERS_IMAGE_BASE?.trim() || "/stickers/";
 const SOLSCAN_CLUSTER = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "";
+const SALES_UI_ENABLED =
+  (process.env.NEXT_PUBLIC_MARKET_ENABLE_SALES?.trim().toLowerCase() ?? "") === "1";
+const BOARD_GRID_STORAGE_KEY = "market.board.grid.cols";
 
 function short(v: string, head = 5, tail = 5) {
   if (!v) return "";
@@ -139,6 +144,13 @@ function solToLamports(value: string) {
   return lamports;
 }
 
+function splitMarketSaleAmount(priceLamports: number, marketFeeBps: number) {
+  const totalLamports = Math.max(0, Math.floor(Number(priceLamports) || 0));
+  const feeLamports = Math.floor((totalLamports * Math.max(0, Math.floor(Number(marketFeeBps) || 0))) / 10_000);
+  const sellerLamports = Math.max(0, totalLamports - feeLamports);
+  return { totalLamports, feeLamports, sellerLamports };
+}
+
 function normalizeStickerFilter(value: string) {
   return value.trim().replace(/^#/, "");
 }
@@ -146,6 +158,40 @@ function normalizeStickerFilter(value: string) {
 function toTimestamp(input: string) {
   const t = Date.parse(input);
   return Number.isFinite(t) ? t : 0;
+}
+
+function boardGridClass(cols: "2" | "3" | "4") {
+  if (cols === "2") {
+    return "grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-2";
+  }
+  if (cols === "4") {
+    return "grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4";
+  }
+  return "grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3";
+}
+
+function GridColsIcon({ cols }: { cols: 2 | 3 | 4 }) {
+  const width = 24;
+  const height = 16;
+  const gap = 1.5;
+  const colWidth = (width - gap * (cols + 1)) / cols;
+  const topY = 1.5;
+  const rowHeight = 5;
+  const bottomY = 9.5;
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="h-4 w-6" aria-hidden="true">
+      {Array.from({ length: cols }).map((_, index) => {
+        const x = gap + index * (colWidth + gap);
+        return (
+          <g key={`${cols}-${index}`}>
+            <rect x={x} y={topY} width={colWidth} height={rowHeight} rx="1" fill="currentColor" />
+            <rect x={x} y={bottomY} width={colWidth} height={rowHeight} rx="1" fill="currentColor" />
+          </g>
+        );
+      })}
+    </svg>
+  );
 }
 
 function solscanTxUrl(signature: string) {
@@ -177,8 +223,11 @@ export function MarketplacePanel() {
 
   const [acceptAssetByOffer, setAcceptAssetByOffer] = useState<Record<string, string>>({});
 
-  const [marketMode, setMarketMode] = useState<"all" | "trade" | "sale">("all");
+  const [marketMode, setMarketMode] = useState<"all" | "trade" | "sale">(
+    SALES_UI_ENABLED ? "all" : "trade"
+  );
   const [boardSort, setBoardSort] = useState<"recent" | "priceAsc" | "priceDesc">("recent");
+  const [boardCols, setBoardCols] = useState<"2" | "3" | "4">("3");
   const [stickerFilter, setStickerFilter] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -282,8 +331,24 @@ export function MarketplacePanel() {
     };
   }, [refresh]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem(BOARD_GRID_STORAGE_KEY);
+    if (saved === "2" || saved === "3" || saved === "4") {
+      setBoardCols(saved);
+    }
+  }, []);
+
   const delegateWallet =
     offers?.delegateWallet ?? listings?.delegateWallet ?? "";
+  const marketFeeBps = Math.max(0, Number(listings?.marketFeeBps ?? 0));
+  const marketFeeWallet = listings?.marketFeeWallet ?? delegateWallet;
+
+  const salePricePreview = useMemo(() => {
+    const totalLamports = solToLamports(salePriceSol);
+    if (!totalLamports) return null;
+    return splitMarketSaleAmount(totalLamports, marketFeeBps);
+  }, [salePriceSol, marketFeeBps]);
 
   const stickerNeedle = normalizeStickerFilter(stickerFilter);
   const openTrades = useMemo(() => {
@@ -325,9 +390,12 @@ export function MarketplacePanel() {
     return sorted;
   }, [listings?.open, stickerNeedle, boardSort]);
 
+  const showTrades = !SALES_UI_ENABLED || marketMode === "all" || marketMode === "trade";
+  const showSales = SALES_UI_ENABLED && (marketMode === "all" || marketMode === "sale");
+  const marketGridClass = boardGridClass(boardCols);
   const visibleOpenCount =
-    (marketMode === "all" || marketMode === "trade" ? openTrades.length : 0) +
-    (marketMode === "all" || marketMode === "sale" ? openSales.length : 0);
+    (showTrades ? openTrades.length : 0) +
+    (showSales ? openSales.length : 0);
 
   async function signPreparedTx(txB64: string) {
     if (!wallet.signTransaction || !wallet.publicKey) {
@@ -619,8 +687,18 @@ export function MarketplacePanel() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-sm opacity-70">
-          Wallet service du marketplace: <span className="font-mono">{short(delegateWallet)}</span>
+        <div className="text-sm opacity-70 space-y-1">
+          <div>
+            Wallet service du marketplace: <span className="font-mono">{short(delegateWallet)}</span>
+          </div>
+          {SALES_UI_ENABLED && marketFeeBps > 0 ? (
+            <div>
+              Frais market: {(marketFeeBps / 100).toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}%
+              {" · "}wallet fee: <span className="font-mono">{short(marketFeeWallet)}</span>
+            </div>
+          ) : SALES_UI_ENABLED ? (
+            <div>Frais market: 0%</div>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <button className={buttonClass} onClick={() => void handleRefreshClick()} disabled={loading}>
@@ -632,7 +710,7 @@ export function MarketplacePanel() {
 
       {notice ? <div className="rounded-xl border p-3 text-sm whitespace-pre-line">{notice}</div> : null}
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
         <div className="rounded-2xl border p-4 space-y-3">
           <div className="font-semibold">Proposer un échange (1 carte contre 1)</div>
           <div className="grid gap-2">
@@ -660,59 +738,118 @@ export function MarketplacePanel() {
           </div>
         </div>
 
-        <div className="rounded-2xl border p-4 space-y-3">
-          <div className="font-semibold">Mettre une carte en vente</div>
-          <div className="grid gap-2">
-            <select
-              className="rounded-xl border px-3 py-2 bg-transparent"
-              value={saleAssetId}
-              onChange={(e) => setSaleAssetId(e.target.value)}
-            >
-              <option value="" style={selectOptionStyle}>Choisis ta carte à vendre</option>
-              {assets.map((asset) => (
-                <option key={asset.assetId} value={asset.assetId} style={selectOptionStyle}>
-                  #{asset.stickerId} - {asset.name ?? short(asset.assetId)}
-                </option>
-              ))}
-            </select>
-            <input
-              className="rounded-xl border px-3 py-2 bg-transparent"
-              placeholder="Prix en SOL (ex: 0.05)"
-              value={salePriceSol}
-              onChange={(e) => setSalePriceSol(e.target.value)}
-            />
-            <button className={buttonClass} disabled={loading} onClick={() => void createListing()}>
-              {busyAction === "create-listing" ? "Publication..." : "Mettre en vente"}
-            </button>
+        {SALES_UI_ENABLED ? (
+          <div className="rounded-2xl border p-4 space-y-3">
+            <div className="font-semibold">Mettre une carte en vente</div>
+            <div className="grid gap-2">
+              <select
+                className="rounded-xl border px-3 py-2 bg-transparent"
+                value={saleAssetId}
+                onChange={(e) => setSaleAssetId(e.target.value)}
+              >
+                <option value="" style={selectOptionStyle}>Choisis ta carte à vendre</option>
+                {assets.map((asset) => (
+                  <option key={asset.assetId} value={asset.assetId} style={selectOptionStyle}>
+                    #{asset.stickerId} - {asset.name ?? short(asset.assetId)}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="rounded-xl border px-3 py-2 bg-transparent"
+                placeholder="Prix en SOL (ex: 0.05)"
+                value={salePriceSol}
+                onChange={(e) => setSalePriceSol(e.target.value)}
+              />
+              {salePricePreview ? (
+                <div className="text-xs opacity-70">
+                  Total acheteur: {lamportsToSol(salePricePreview.totalLamports)} SOL
+                  {" · "}Tu reçois: {lamportsToSol(salePricePreview.sellerLamports)} SOL
+                  {" · "}Frais: {lamportsToSol(salePricePreview.feeLamports)} SOL
+                </div>
+              ) : null}
+              <button className={buttonClass} disabled={loading} onClick={() => void createListing()}>
+                {busyAction === "create-listing" ? "Publication..." : "Mettre en vente"}
+              </button>
+            </div>
           </div>
-        </div>
+        ) : null}
       </section>
 
       <section className="rounded-2xl border p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="font-semibold">Market board</div>
           <div className="flex flex-wrap items-center gap-2">
+            {SALES_UI_ENABLED ? (
+              <div className="inline-flex rounded-xl border p-1 text-sm">
+                <button
+                  className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "all" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+                  onClick={() => setMarketMode("all")}
+                  type="button"
+                >
+                  Tout
+                </button>
+                <button
+                  className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "trade" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+                  onClick={() => setMarketMode("trade")}
+                  type="button"
+                >
+                  Echanges
+                </button>
+                <button
+                  className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "sale" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+                  onClick={() => setMarketMode("sale")}
+                  type="button"
+                >
+                  Ventes
+                </button>
+              </div>
+            ) : (
+              <div className="inline-flex rounded-xl border px-3 py-2 text-sm opacity-80">
+                Echanges
+              </div>
+            )}
             <div className="inline-flex rounded-xl border p-1 text-sm">
               <button
-                className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "all" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
-                onClick={() => setMarketMode("all")}
+                className={`rounded-lg px-2 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${boardCols === "2" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+                onClick={() => {
+                  setBoardCols("2");
+                  if (typeof window !== "undefined") {
+                    window.localStorage.setItem(BOARD_GRID_STORAGE_KEY, "2");
+                  }
+                }}
                 type="button"
+                aria-label="Afficher 2 cartes par ligne"
+                title="2 cartes"
               >
-                Tout
+                <GridColsIcon cols={2} />
               </button>
               <button
-                className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "trade" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
-                onClick={() => setMarketMode("trade")}
+                className={`rounded-lg px-2 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${boardCols === "3" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+                onClick={() => {
+                  setBoardCols("3");
+                  if (typeof window !== "undefined") {
+                    window.localStorage.setItem(BOARD_GRID_STORAGE_KEY, "3");
+                  }
+                }}
                 type="button"
+                aria-label="Afficher 3 cartes par ligne"
+                title="3 cartes"
               >
-                Echanges
+                <GridColsIcon cols={3} />
               </button>
               <button
-                className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "sale" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
-                onClick={() => setMarketMode("sale")}
+                className={`rounded-lg px-2 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${boardCols === "4" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+                onClick={() => {
+                  setBoardCols("4");
+                  if (typeof window !== "undefined") {
+                    window.localStorage.setItem(BOARD_GRID_STORAGE_KEY, "4");
+                  }
+                }}
                 type="button"
+                aria-label="Afficher 4 cartes par ligne"
+                title="4 cartes"
               >
-                Ventes
+                <GridColsIcon cols={4} />
               </button>
             </div>
             <input
@@ -735,8 +872,8 @@ export function MarketplacePanel() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {(marketMode === "all" || marketMode === "trade") &&
+        <div className={marketGridClass}>
+          {showTrades &&
             openTrades.map((offer) => {
               const sticker = stickerById.get(String(offer.makerStickerId));
               const imageSrc = resolveStickerImageSrc(sticker?.image);
@@ -795,10 +932,11 @@ export function MarketplacePanel() {
               );
             })}
 
-          {(marketMode === "all" || marketMode === "sale") &&
+          {showSales &&
             openSales.map((listing) => {
               const sticker = stickerById.get(String(listing.sellerStickerId));
               const imageSrc = resolveStickerImageSrc(sticker?.image);
+              const split = splitMarketSaleAmount(listing.priceLamports, marketFeeBps);
               return (
                 <article key={`sale-${listing.listingId}`} className="rounded-2xl border p-3 space-y-3 bg-black/20">
                   <div className="flex items-center justify-between gap-2">
@@ -823,7 +961,13 @@ export function MarketplacePanel() {
 
                   <div className="text-sm">
                     <div className="font-semibold">#{listing.sellerStickerId} - {sticker?.name ?? "Sticker"}</div>
-                    <div className="text-base font-semibold text-amber-200">{lamportsToSol(listing.priceLamports)} SOL</div>
+                    <div className="text-base font-semibold text-amber-200">{lamportsToSol(split.totalLamports)} SOL</div>
+                    {marketFeeBps > 0 ? (
+                      <div className="opacity-70 text-xs">
+                        Vendeur reçoit: {lamportsToSol(split.sellerLamports)} SOL
+                        {" · "}Frais market: {lamportsToSol(split.feeLamports)} SOL
+                      </div>
+                    ) : null}
                   </div>
 
                   <button
@@ -843,7 +987,7 @@ export function MarketplacePanel() {
         ) : null}
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-2">
+      <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
         <div className="rounded-2xl border p-4 space-y-3">
           <div className="font-semibold">Mes échanges</div>
           {(offers?.mine ?? []).length ? (
@@ -937,77 +1081,88 @@ export function MarketplacePanel() {
           )}
         </div>
 
-        <div className="rounded-2xl border p-4 space-y-3">
-          <div className="font-semibold">Mes ventes</div>
-          {(listings?.mine ?? []).length ? (
-            <div className="space-y-2">
-              {listings!.mine.map((listing) => (
-                <div key={listing.listingId} className="rounded-xl border p-3 text-sm space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>#{listing.sellerStickerId} - {lamportsToSol(listing.priceLamports)} SOL</div>
-                    <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(listing.status)}`}>
-                      {listing.status}
-                    </span>
-                  </div>
-                  {listing.error ? <div className="opacity-70">erreur: {listing.error}</div> : null}
-                  {listing.sellerDelegationTxSig ? (
-                    <div className="opacity-70 flex items-center gap-2 flex-wrap">
-                      delegation:{" "}
-                      <a
-                        className="underline hover:opacity-90"
-                        href={solscanTxUrl(listing.sellerDelegationTxSig)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {short(listing.sellerDelegationTxSig, 8, 8)}
-                      </a>
-                      <button
-                        type="button"
-                        className={buttonSmallClass}
-                        disabled={loading}
-                        onClick={() => void copyTx(listing.sellerDelegationTxSig!, "Tx delegation vente")}
-                      >
-                        Copier
-                      </button>
+        {SALES_UI_ENABLED ? (
+          <div className="rounded-2xl border p-4 space-y-3">
+            <div className="font-semibold">Mes ventes</div>
+            {(listings?.mine ?? []).length ? (
+              <div className="space-y-2">
+                {listings!.mine.map((listing) => {
+                  const split = splitMarketSaleAmount(listing.priceLamports, marketFeeBps);
+                  return (
+                    <div key={listing.listingId} className="rounded-xl border p-3 text-sm space-y-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <div>#{listing.sellerStickerId} - {lamportsToSol(split.totalLamports)} SOL</div>
+                        <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(listing.status)}`}>
+                          {listing.status}
+                        </span>
+                      </div>
+                      {marketFeeBps > 0 ? (
+                        <div className="opacity-70 text-xs">
+                          Net vendeur: {lamportsToSol(split.sellerLamports)} SOL
+                          {" · "}Frais: {lamportsToSol(split.feeLamports)} SOL
+                        </div>
+                      ) : null}
+                      {listing.error ? <div className="opacity-70">erreur: {listing.error}</div> : null}
+                      {listing.sellerDelegationTxSig ? (
+                        <div className="opacity-70 flex items-center gap-2 flex-wrap">
+                          delegation:{" "}
+                          <a
+                            className="underline hover:opacity-90"
+                            href={solscanTxUrl(listing.sellerDelegationTxSig)}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {short(listing.sellerDelegationTxSig, 8, 8)}
+                          </a>
+                          <button
+                            type="button"
+                            className={buttonSmallClass}
+                            disabled={loading}
+                            onClick={() => void copyTx(listing.sellerDelegationTxSig!, "Tx delegation vente")}
+                          >
+                            Copier
+                          </button>
+                        </div>
+                      ) : null}
+                      {listing.buyTxSig ? (
+                        <div className="opacity-70 flex items-center gap-2 flex-wrap">
+                          vente tx:{" "}
+                          <a
+                            className="underline hover:opacity-90"
+                            href={solscanTxUrl(listing.buyTxSig)}
+                            target="_blank"
+                            rel="noreferrer"
+                          >
+                            {short(listing.buyTxSig, 8, 8)}
+                          </a>
+                          <button
+                            type="button"
+                            className={buttonSmallClass}
+                            disabled={loading}
+                            onClick={() => void copyTx(listing.buyTxSig!, "Tx vente")}
+                          >
+                            Copier
+                          </button>
+                        </div>
+                      ) : null}
+                      {(listing.status === "DRAFT" || listing.status === "OPEN") ? (
+                        <button
+                          className={`${buttonClass} mt-2`}
+                          disabled={loading}
+                          onClick={() => void cancelListing(listing.listingId)}
+                        >
+                          {busyAction === `cancel-listing-${listing.listingId}` ? "Annulation..." : "Annuler"}
+                        </button>
+                      ) : null}
                     </div>
-                  ) : null}
-                  {listing.buyTxSig ? (
-                    <div className="opacity-70 flex items-center gap-2 flex-wrap">
-                      vente tx:{" "}
-                      <a
-                        className="underline hover:opacity-90"
-                        href={solscanTxUrl(listing.buyTxSig)}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        {short(listing.buyTxSig, 8, 8)}
-                      </a>
-                      <button
-                        type="button"
-                        className={buttonSmallClass}
-                        disabled={loading}
-                        onClick={() => void copyTx(listing.buyTxSig!, "Tx vente")}
-                      >
-                        Copier
-                      </button>
-                    </div>
-                  ) : null}
-                  {(listing.status === "DRAFT" || listing.status === "OPEN") ? (
-                    <button
-                      className={`${buttonClass} mt-2`}
-                      disabled={loading}
-                      onClick={() => void cancelListing(listing.listingId)}
-                    >
-                      {busyAction === `cancel-listing-${listing.listingId}` ? "Annulation..." : "Annuler"}
-                    </button>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-sm opacity-70">Aucune vente.</div>
-          )}
-        </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="text-sm opacity-70">Aucune vente.</div>
+            )}
+          </div>
+        ) : null}
       </section>
     </div>
   );

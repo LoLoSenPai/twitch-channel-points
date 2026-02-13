@@ -11,7 +11,7 @@ export default async function MarketplacePage() {
       <PageShell>
         <main className="mx-auto max-w-xl p-6 space-y-4">
           <h1 className="text-2xl font-semibold">Marketplace</h1>
-          <p className="opacity-70">Connecte-toi avec Twitch pour accéder aux échanges et aux ventes.</p>
+          <p className="opacity-70">Connecte-toi avec Twitch pour accéder aux échanges.</p>
           <Link
             className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white text-zinc-900 px-5 py-3 text-sm font-medium hover:opacity-90"
             href="/api/auth/signin/twitch?callbackUrl=%2Fmarketplace"

@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { SaleListing } from "@/lib/models";
 import { prepareDelegatedSalePurchaseTx } from "@/lib/solana/trades";
 import { tradeDelegatePublicKeyBase58 } from "@/lib/solana/umi";
+import { getMarketFeeBps, getMarketFeeWallet } from "@/lib/market-fees";
 
 type Params = { id: string };
 
@@ -63,12 +64,16 @@ export async function POST(
 
   try {
     const delegateWallet = tradeDelegatePublicKeyBase58();
-    const { txB64 } = await prepareDelegatedSalePurchaseTx({
+    const marketFeeBps = getMarketFeeBps();
+    const marketFeeWallet = getMarketFeeWallet(delegateWallet);
+    const { txB64, feeLamports, sellerLamports, totalLamports } = await prepareDelegatedSalePurchaseTx({
       sellerAssetId: String(lock.sellerAssetId),
       sellerWallet: String(lock.sellerWallet),
       buyerWallet: walletPubkey,
       priceLamports: Number(lock.priceLamports),
       delegateWallet,
+      marketFeeBps,
+      marketFeeWallet,
     });
 
     await SaleListing.updateOne(
@@ -86,6 +91,11 @@ export async function POST(
       txB64,
       delegateWallet,
       priceLamports: Number(lock.priceLamports),
+      marketFeeBps,
+      marketFeeWallet,
+      feeLamports,
+      sellerLamports,
+      totalLamports,
       sellerStickerId: String(lock.sellerStickerId),
     });
   } catch (e) {

@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { SaleListing } from "@/lib/models";
 import { prepareDelegateTxForAsset } from "@/lib/solana/trades";
 import { tradeDelegatePublicKeyBase58 } from "@/lib/solana/umi";
+import { getMarketFeeBps, getMarketFeeWallet } from "@/lib/market-fees";
 
 function oid() {
   return crypto.randomBytes(16).toString("hex");
@@ -28,6 +29,9 @@ export async function GET() {
   if (!twitchUserId) return new NextResponse("Unauthorized", { status: 401 });
 
   await db();
+  const delegateWallet = tradeDelegatePublicKeyBase58();
+  const marketFeeBps = getMarketFeeBps();
+  const marketFeeWallet = getMarketFeeWallet(delegateWallet);
 
   await SaleListing.updateMany(
     {
@@ -52,7 +56,9 @@ export async function GET() {
   ]);
 
   return NextResponse.json({
-    delegateWallet: tradeDelegatePublicKeyBase58(),
+    delegateWallet,
+    marketFeeBps,
+    marketFeeWallet,
     open: open.map((listing) => ({
       listingId: listing.listingId,
       sellerStickerId: listing.sellerStickerId,
@@ -93,6 +99,9 @@ export async function POST(req: Request) {
   }
 
   await db();
+  const delegateWallet = tradeDelegatePublicKeyBase58();
+  const marketFeeBps = getMarketFeeBps();
+  const marketFeeWallet = getMarketFeeWallet(delegateWallet);
 
   const activeOnSameAsset = await SaleListing.findOne({
     sellerAssetId,
@@ -104,7 +113,6 @@ export async function POST(req: Request) {
     });
   }
 
-  const delegateWallet = tradeDelegatePublicKeyBase58();
   const { txB64, stickerId } = await prepareDelegateTxForAsset({
     assetId: sellerAssetId,
     ownerWallet: walletPubkey,
@@ -147,6 +155,8 @@ export async function POST(req: Request) {
     sellerStickerId: stickerId,
     priceLamports,
     delegateWallet,
+    marketFeeBps,
+    marketFeeWallet,
     expiresAt,
   });
 }

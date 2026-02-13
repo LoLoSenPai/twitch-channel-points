@@ -409,9 +409,14 @@ export async function prepareDelegatedSalePurchaseTx(params: {
   buyerWallet: string;
   priceLamports: number;
   delegateWallet: string;
+  marketFeeBps: number;
+  marketFeeWallet: string;
 }) {
   if (!Number.isFinite(params.priceLamports) || params.priceLamports <= 0) {
     throw new Error("Invalid sale price");
+  }
+  if (!Number.isFinite(params.marketFeeBps) || params.marketFeeBps < 0 || params.marketFeeBps > 10_000) {
+    throw new Error("Invalid market fee bps");
   }
 
   const umi = umiTradeDelegate();
@@ -451,12 +456,35 @@ export async function prepareDelegatedSalePurchaseTx(params: {
     newLeafOwner: buyerPk,
   }).getInstructions()[0];
 
-  const priceLamports = Math.floor(params.priceLamports);
-  const paymentIx = SystemProgram.transfer({
-    fromPubkey: new PublicKey(params.buyerWallet),
-    toPubkey: new PublicKey(params.sellerWallet),
-    lamports: priceLamports,
-  });
+  const totalLamports = Math.floor(params.priceLamports);
+  const feeBps = Math.floor(params.marketFeeBps);
+  const feeLamports = Math.floor((totalLamports * feeBps) / 10_000);
+  const sellerLamports = totalLamports - feeLamports;
+  if (sellerLamports <= 0) {
+    throw new Error("Sale price is too low for configured market fee");
+  }
+
+  const buyerWeb3Pk = new PublicKey(params.buyerWallet);
+  const sellerWeb3Pk = new PublicKey(params.sellerWallet);
+  const feeWalletWeb3Pk = new PublicKey(params.marketFeeWallet);
+  const paymentInstructions: TransactionInstruction[] = [];
+
+  paymentInstructions.push(
+    SystemProgram.transfer({
+      fromPubkey: buyerWeb3Pk,
+      toPubkey: sellerWeb3Pk,
+      lamports: sellerLamports,
+    })
+  );
+  if (feeLamports > 0) {
+    paymentInstructions.push(
+      SystemProgram.transfer({
+        fromPubkey: buyerWeb3Pk,
+        toPubkey: feeWalletWeb3Pk,
+        lamports: feeLamports,
+      })
+    );
+  }
 
   const connection = rpcConnection();
   const latest = await connection.getLatestBlockhash("confirmed");
@@ -464,7 +492,7 @@ export async function prepareDelegatedSalePurchaseTx(params: {
   const message = new TransactionMessage({
     payerKey: new PublicKey(params.buyerWallet),
     recentBlockhash: latest.blockhash,
-    instructions: [paymentIx, toWeb3Instruction(bubblegumIx)],
+    instructions: [...paymentInstructions, toWeb3Instruction(bubblegumIx)],
   }).compileToV0Message();
 
   const vtx = new VersionedTransaction(message);
@@ -472,5 +500,8 @@ export async function prepareDelegatedSalePurchaseTx(params: {
 
   return {
     txB64: Buffer.from(vtx.serialize()).toString("base64"),
+    totalLamports,
+    feeLamports,
+    sellerLamports,
   };
 }
