@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import stickers from "@/stickers/stickers.json";
 import { AnimatePresence, motion } from "framer-motion";
@@ -17,6 +17,7 @@ type StickerItem = {
     id: string;
     name?: string;
     image?: string;
+    rarity?: string;
 };
 
 type StickerJson = {
@@ -34,6 +35,7 @@ type SelectedCard = {
     name: string;
     imageSrc: string;
     qty: number;
+    rarity?: string;
 };
 
 const ST = stickers as StickerJson;
@@ -96,6 +98,17 @@ function chunkSlots(slots: AlbumSlot[]) {
         chunks.push(slots.slice(i, i + SLOTS_PER_SPREAD));
     }
     return chunks;
+}
+
+function normalizeRarity(value: unknown) {
+    const v = String(value ?? "").trim().toLowerCase();
+    if (!v) return "";
+    return v;
+}
+
+function isHoloRarity(value: unknown) {
+    const rarity = normalizeRarity(value);
+    return rarity === "legendary" || rarity === "mythic";
 }
 
 function AlbumLeaf({
@@ -173,6 +186,12 @@ function AlbumLeaf({
                                                 name: slot.sticker?.name ?? `Sticker #${slot.slotNumber}`,
                                                 imageSrc,
                                                 qty,
+                                                rarity:
+                                                    slot.sticker?.rarity ??
+                                                    ST.items.find(
+                                                        (item) =>
+                                                            String(item.id) === String(slot.slotNumber)
+                                                    )?.rarity,
                                             })
                                         }
                                     >
@@ -209,6 +228,15 @@ export function AlbumGrid() {
     const [turnDirection, setTurnDirection] = useState<"idle" | "next" | "prev">("idle");
     const [selectedCard, setSelectedCard] = useState<SelectedCard | null>(null);
     const [mounted, setMounted] = useState(false);
+    const [holoPointer, setHoloPointer] = useState({
+        x: 50,
+        y: 50,
+        rx: 0,
+        ry: 0,
+        pointerFromCenter: 0,
+        backgroundX: 50,
+        backgroundY: 50,
+    });
     const turnTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
@@ -280,6 +308,18 @@ export function AlbumGrid() {
 
     const leftPageNumber = spreadIndex * 2 + 1;
     const rightPageNumber = leftPageNumber + 1;
+    const selectedRarity = normalizeRarity(selectedCard?.rarity);
+    const holoEnabled = isHoloRarity(selectedRarity);
+    const cardFxStyle: CSSProperties = {
+        "--card-pointer-x": `${holoPointer.x}%`,
+        "--card-pointer-y": `${holoPointer.y}%`,
+        "--card-rotate-x": `${holoPointer.rx}deg`,
+        "--card-rotate-y": `${holoPointer.ry}deg`,
+        "--pointer-from-center": `${holoPointer.pointerFromCenter}`,
+        "--background-x": `${holoPointer.backgroundX}%`,
+        "--background-y": `${holoPointer.backgroundY}%`,
+        transform: `perspective(1100px) rotateX(${holoPointer.rx}deg) rotateY(${holoPointer.ry}deg) scale(1.01)`,
+    } as CSSProperties;
 
     const moveTo = (nextIndex: number, direction: "next" | "prev") => {
         if (nextIndex < 0 || nextIndex >= spreads.length) return;
@@ -293,6 +333,54 @@ export function AlbumGrid() {
             setTurnDirection("idle");
             turnTimer.current = null;
         }, 420);
+    };
+
+    const updateHoloFromCoords = (
+        clientX: number,
+        clientY: number,
+        element: HTMLDivElement
+    ) => {
+        const rect = element.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+
+        const px = ((clientX - rect.left) / rect.width) * 100;
+        const py = ((clientY - rect.top) / rect.height) * 100;
+        const clampedX = Math.max(0, Math.min(100, px));
+        const clampedY = Math.max(0, Math.min(100, py));
+        const nx = (clampedX - 50) / 50;
+        const ny = (clampedY - 50) / 50;
+        const distance = Math.min(1, Math.sqrt(nx * nx + ny * ny));
+        const pointerFromCenter = 1 - distance;
+
+        setHoloPointer({
+            x: clampedX,
+            y: clampedY,
+            rx: -(ny * 18),
+            ry: nx * 18,
+            pointerFromCenter,
+            backgroundX: 50 + nx * 35,
+            backgroundY: 50 + ny * 35,
+        });
+    };
+
+    const updateHoloFromPointer = (event: React.PointerEvent<HTMLDivElement>) => {
+        updateHoloFromCoords(event.clientX, event.clientY, event.currentTarget);
+    };
+
+    const updateHoloFromMouse = (event: React.MouseEvent<HTMLDivElement>) => {
+        updateHoloFromCoords(event.clientX, event.clientY, event.currentTarget);
+    };
+
+    const resetHoloPointer = () => {
+        setHoloPointer({
+            x: 50,
+            y: 50,
+            rx: 0,
+            ry: 0,
+            pointerFromCenter: 0,
+            backgroundX: 50,
+            backgroundY: 50,
+        });
     };
 
     return (
@@ -390,13 +478,34 @@ export function AlbumGrid() {
                                     transition={{ type: "spring", stiffness: 260, damping: 24 }}
                                     onClick={(event) => event.stopPropagation()}
                                 >
-                                    <div className="album-card-zoom">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img
-                                            src={selectedCard.imageSrc}
-                                            alt={selectedCard.name}
-                                            className="album-card-zoom-image"
-                                        />
+                                    <div
+                                        className={cn(
+                                            "album-card-zoom",
+                                            "album-card-zoom-tilt",
+                                            holoEnabled && "album-card-zoom-holo",
+                                            selectedRarity === "legendary" && "album-card-zoom-holo-legendary",
+                                            selectedRarity === "mythic" && "album-card-zoom-holo-mythic"
+                                        )}
+                                        style={cardFxStyle}
+                                        onPointerMove={updateHoloFromPointer}
+                                        onMouseMove={updateHoloFromMouse}
+                                        onPointerLeave={resetHoloPointer}
+                                        onMouseLeave={resetHoloPointer}
+                                    >
+                                        <div className="album-card-zoom-media">
+                                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                                            <img
+                                                src={selectedCard.imageSrc}
+                                                alt={selectedCard.name}
+                                                className="album-card-zoom-image"
+                                            />
+                                        </div>
+                                        {holoEnabled ? (
+                                            <>
+                                                <span className="album-card-holo-glare" />
+                                                <span className="album-card-holo-sparkle" />
+                                            </>
+                                        ) : null}
                                     </div>
                                     {/* <div className="album-card-zoom-caption">
                                         <p className="album-card-zoom-title">{selectedCard.name}</p>

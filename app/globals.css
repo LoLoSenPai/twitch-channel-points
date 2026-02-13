@@ -141,8 +141,7 @@
   .album-hero {
     border-radius: 1.6rem;
     border: 1px solid color-mix(in oklab, var(--album-border), black 15%);
-    background:
-      radial-gradient(circle at 88% 12%, #fff7de 0%, transparent 38%),
+    background: radial-gradient(circle at 88% 12%, #fff7de 0%, transparent 38%),
       linear-gradient(140deg, #f7ecd6 0%, #f0dfbf 55%, #e8d0a7 100%);
     box-shadow:
       0 20px 45px rgb(0 0 0 / 20%),
@@ -215,9 +214,12 @@
     position: relative;
     border-radius: 1.7rem;
     border: 1px solid color-mix(in oklab, var(--album-border), black 18%);
-    background:
-      linear-gradient(180deg, #d0a775 0%, #b98b58 100%),
-      repeating-linear-gradient(90deg, rgb(255 255 255 / 6%) 0 1px, transparent 1px 10px);
+    background: linear-gradient(180deg, #d0a775 0%, #b98b58 100%),
+      repeating-linear-gradient(
+        90deg,
+        rgb(255 255 255 / 6%) 0 1px,
+        transparent 1px 10px
+      );
     box-shadow: 0 28px 60px rgb(0 0 0 / 35%);
     padding: clamp(0.8rem, 2vw, 1.1rem);
     display: grid;
@@ -232,9 +234,16 @@
     inset: 0.35rem;
     border-radius: 1.4rem;
     pointer-events: none;
-    background:
-      radial-gradient(circle at 14% 18%, rgb(255 255 255 / 12%) 0%, transparent 30%),
-      repeating-radial-gradient(circle at 20% 10%, rgb(74 47 25 / 10%) 0 1px, transparent 1px 5px);
+    background: radial-gradient(
+        circle at 14% 18%,
+        rgb(255 255 255 / 12%) 0%,
+        transparent 30%
+      ),
+      repeating-radial-gradient(
+        circle at 20% 10%,
+        rgb(74 47 25 / 10%) 0 1px,
+        transparent 1px 5px
+      );
     opacity: 0.5;
     z-index: 0;
   }
@@ -247,9 +256,16 @@
     position: relative;
     border-radius: 1.1rem;
     border: 1px solid color-mix(in oklab, var(--album-border), white 35%);
-    background:
-      radial-gradient(circle at 10% 0%, rgb(255 255 255 / 60%) 0%, transparent 35%),
-      linear-gradient(170deg, var(--album-paper) 0%, var(--album-paper-strong) 100%);
+    background: radial-gradient(
+        circle at 10% 0%,
+        rgb(255 255 255 / 60%) 0%,
+        transparent 35%
+      ),
+      linear-gradient(
+        170deg,
+        var(--album-paper) 0%,
+        var(--album-paper-strong) 100%
+      );
     box-shadow:
       inset 0 0 0 1px rgb(255 255 255 / 28%),
       0 12px 20px rgb(0 0 0 / 16%);
@@ -264,9 +280,17 @@
     position: absolute;
     inset: 0;
     pointer-events: none;
-    background:
-      linear-gradient(90deg, transparent 0%, rgb(126 89 52 / 12%) 48%, transparent 54%),
-      repeating-linear-gradient(0deg, rgb(86 59 33 / 5%) 0 1px, transparent 1px 4px);
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgb(126 89 52 / 12%) 48%,
+        transparent 54%
+      ),
+      repeating-linear-gradient(
+        0deg,
+        rgb(86 59 33 / 5%) 0 1px,
+        transparent 1px 4px
+      );
     opacity: 0.55;
     z-index: 1;
   }
@@ -289,8 +313,11 @@
   .album-slot {
     border-radius: 0.92rem;
     border: 1px solid color-mix(in oklab, var(--album-border), white 24%);
-    background:
-      linear-gradient(145deg, rgb(255 255 255 / 40%) 0%, rgb(223 198 153 / 26%) 100%);
+    background: linear-gradient(
+      145deg,
+      rgb(255 255 255 / 40%) 0%,
+      rgb(223 198 153 / 26%) 100%
+    );
     padding: 0.3rem;
     box-shadow:
       inset 0 0 0 1px rgb(255 255 255 / 45%),
@@ -306,15 +333,22 @@
 
   .album-slot-empty {
     opacity: 0.75;
-    background:
-      linear-gradient(145deg, rgb(255 255 255 / 26%) 0%, rgb(223 198 153 / 20%) 100%);
+    background: linear-gradient(
+      145deg,
+      rgb(255 255 255 / 26%) 0%,
+      rgb(223 198 153 / 20%) 100%
+    );
   }
 
   .album-slot-frame {
     position: relative;
     border-radius: 0.72rem;
     border: 1px solid rgb(172 141 95 / 65%);
-    background: linear-gradient(180deg, rgb(255 255 255 / 24%) 0%, rgb(215 190 145 / 28%) 100%);
+    background: linear-gradient(
+      180deg,
+      rgb(255 255 255 / 24%) 0%,
+      rgb(215 190 145 / 28%) 100%
+    );
     aspect-ratio: 3 / 4;
     overflow: hidden;
   }
@@ -324,9 +358,18 @@
     position: absolute;
     inset: 0;
     border-radius: inherit;
-    background:
-      linear-gradient(120deg, rgb(255 255 255 / 0%) 0%, rgb(255 255 255 / 20%) 24%, rgb(255 255 255 / 0%) 46%),
-      linear-gradient(180deg, rgb(255 255 255 / 16%) 0%, rgb(255 255 255 / 2%) 55%, rgb(255 255 255 / 12%) 100%);
+    background: linear-gradient(
+        120deg,
+        rgb(255 255 255 / 0%) 0%,
+        rgb(255 255 255 / 20%) 24%,
+        rgb(255 255 255 / 0%) 46%
+      ),
+      linear-gradient(
+        180deg,
+        rgb(255 255 255 / 16%) 0%,
+        rgb(255 255 255 / 2%) 55%,
+        rgb(255 255 255 / 12%) 100%
+      );
     pointer-events: none;
     z-index: 2;
   }
@@ -374,8 +417,11 @@
     display: grid;
     place-items: center;
     text-align: center;
-    background:
-      radial-gradient(circle at 30% 30%, rgb(255 255 255 / 26%) 0%, transparent 44%),
+    background: radial-gradient(
+        circle at 30% 30%,
+        rgb(255 255 255 / 26%) 0%,
+        transparent 44%
+      ),
       rgb(187 150 102 / 24%);
     padding: 0.35rem;
   }
@@ -463,13 +509,19 @@
   .album-control-btn {
     border-radius: 999px;
     border: 1px solid rgb(255 234 188 / 48%);
-    background: linear-gradient(180deg, rgb(123 78 39 / 94%) 0%, rgb(96 58 27 / 96%) 100%);
+    background: linear-gradient(
+      180deg,
+      rgb(123 78 39 / 94%) 0%,
+      rgb(96 58 27 / 96%) 100%
+    );
     color: #ffeccf;
     font-family: var(--album-title-font);
     font-size: 1rem;
     letter-spacing: 0.03em;
     padding: 0.5rem 1rem;
-    transition: transform 150ms ease, opacity 150ms ease;
+    transition:
+      transform 150ms ease,
+      opacity 150ms ease;
   }
 
   .album-control-btn:hover:not(:disabled) {
@@ -502,16 +554,13 @@
 
   .album-card-overlay-inner {
     width: min(92vw, 510px);
-    border-radius: 1.2rem;
-    border: 1px solid rgb(255 219 156 / 36%);
-    background:
-      linear-gradient(165deg, rgb(32 20 12 / 95%) 0%, rgb(22 13 8 / 95%) 100%);
-    box-shadow:
-      0 26px 60px rgb(0 0 0 / 52%),
-      inset 0 0 0 1px rgb(255 255 255 / 6%);
-    padding: 0.95rem;
+    border-radius: 0;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    padding: 0;
     display: grid;
-    gap: 0.65rem;
+    gap: 0;
   }
 
   .album-card-zoom {
@@ -521,12 +570,127 @@
     box-shadow: 0 12px 26px rgb(0 0 0 / 44%);
   }
 
+  .album-card-zoom-tilt {
+    position: relative;
+    isolation: isolate;
+    transform-style: preserve-3d;
+    transition:
+      transform 120ms ease,
+      box-shadow 180ms ease;
+    will-change: transform;
+    cursor: grab;
+    transform: perspective(1100px) rotateX(var(--card-rotate-x, 0deg))
+      rotateY(var(--card-rotate-y, 0deg));
+  }
+
+  .album-card-zoom-media {
+    position: relative;
+    z-index: 1;
+  }
+
+  .album-card-zoom-holo {
+    --holo-clip: inset(7% 10% 45% 10% round 0.14rem);
+    box-shadow:
+      0 16px 32px rgb(0 0 0 / 50%),
+      0 0 18px rgb(255 255 255 / 14%);
+  }
+
+  .album-card-holo-glare,
+  .album-card-holo-sparkle {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    border-radius: inherit;
+    z-index: 3;
+    opacity: 0;
+  }
+
+  .album-card-zoom-holo .album-card-holo-glare,
+  .album-card-zoom-holo .album-card-holo-sparkle {
+    clip-path: var(--holo-clip);
+  }
+
+  .album-card-zoom-holo .album-card-holo-glare {
+    background: linear-gradient(
+        118deg,
+        rgb(255 255 255 / 0%) 14%,
+        rgb(255 255 255 / 44%) 33%,
+        rgb(255 255 255 / 0%) 49%
+      ),
+      repeating-linear-gradient(
+        133deg,
+        rgb(248 14 53 / 22%) 0%,
+        rgb(238 223 16 / 24%) 16%,
+        rgb(33 233 133 / 22%) 32%,
+        rgb(13 189 233 / 23%) 48%,
+        rgb(201 41 241 / 24%) 64%,
+        rgb(248 14 53 / 22%) 80%
+      ),
+      radial-gradient(
+        farthest-corner circle at var(--card-pointer-x, 50%)
+          var(--card-pointer-y, 50%),
+        rgb(255 255 255 / 66%) 0%,
+        rgb(255 255 255 / 22%) 24%,
+        rgb(255 255 255 / 0%) 64%
+      );
+    background-position:
+      calc(var(--background-x, 50%) * 0.8) calc(var(--background-y, 50%) * 0.8),
+      0% var(--background-y, 50%),
+      var(--background-x, 50%) var(--background-y, 50%);
+    background-size:
+      220% 220%,
+      230% 220%,
+      cover;
+    background-blend-mode: screen, soft-light, screen;
+    mix-blend-mode: screen;
+    filter: brightness(calc((var(--pointer-from-center, 0) * 0.24) + 0.88))
+      contrast(1.12) saturate(1.45);
+    opacity: calc(0.2 + (var(--pointer-from-center, 0) * 0.52));
+    animation: holo-shift 4.8s linear infinite;
+  }
+
+  .album-card-zoom-holo .album-card-holo-sparkle {
+    background: radial-gradient(
+        farthest-corner circle at var(--card-pointer-x, 50%)
+          var(--card-pointer-y, 50%),
+        rgb(255 255 255 / 52%) 0%,
+        rgb(255 255 255 / 0%) 40%
+      ),
+      radial-gradient(
+        circle at calc(var(--card-pointer-x, 50%) + 12%)
+          calc(var(--card-pointer-y, 50%) - 8%),
+        rgb(255 235 165 / 20%) 0%,
+        rgb(255 235 165 / 0%) 28%
+      );
+    background-size: cover, cover;
+    background-position: center, center;
+    mix-blend-mode: color-dodge;
+    opacity: calc(0.04 + (var(--pointer-from-center, 0) * 0.22));
+    animation: holo-sparkle 1.8s linear infinite;
+  }
+
+  .album-card-zoom-holo-legendary .album-card-holo-glare {
+    opacity: calc(0.24 + (var(--pointer-from-center, 0) * 0.56));
+  }
+
+  .album-card-zoom-holo-mythic .album-card-holo-glare {
+    opacity: calc(0.34 + (var(--pointer-from-center, 0) * 0.62));
+  }
+
+  .album-card-zoom-holo-mythic .album-card-holo-sparkle {
+    opacity: calc(0.08 + (var(--pointer-from-center, 0) * 0.28));
+  }
+
   .album-card-zoom-image {
     display: block;
     width: 100%;
     height: auto;
     aspect-ratio: 3 / 4;
     object-fit: cover;
+  }
+
+  .album-card-zoom-holo .album-card-zoom-image {
+    filter: saturate(1.2) contrast(1.06);
   }
 
   .album-card-zoom-caption {
@@ -612,6 +776,36 @@
     .album-control-label {
       justify-self: center;
     }
+  }
+}
+
+@keyframes holo-shift {
+  0% {
+    background-position:
+      48% 52%,
+      20% 18%;
+  }
+  50% {
+    background-position:
+      54% 48%,
+      78% 82%;
+  }
+  100% {
+    background-position:
+      48% 52%,
+      20% 18%;
+  }
+}
+
+@keyframes holo-sparkle {
+  0% {
+    opacity: 0.28;
+  }
+  50% {
+    opacity: 0.46;
+  }
+  100% {
+    opacity: 0.28;
   }
 }
 

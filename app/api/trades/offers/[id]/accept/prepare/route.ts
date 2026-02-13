@@ -7,6 +7,33 @@ import { tradeDelegatePublicKeyBase58 } from "@/lib/solana/umi";
 
 type Params = { id: string };
 
+function sanitizeStickerId(value: unknown) {
+  return String(value ?? "").trim();
+}
+
+function sanitizeStickerIds(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    const unique = new Set<string>();
+    for (const entry of value) {
+      const id = sanitizeStickerId(entry);
+      if (!id) continue;
+      unique.add(id);
+    }
+    return [...unique];
+  }
+  const single = sanitizeStickerId(value);
+  return single ? [single] : [];
+}
+
+function wantedStickerIdsFromOffer(offer: {
+  wantedStickerIds?: unknown;
+  wantedStickerId?: unknown;
+}) {
+  const ids = sanitizeStickerIds(offer.wantedStickerIds);
+  if (ids.length) return ids;
+  return sanitizeStickerIds(offer.wantedStickerId);
+}
+
 async function unlockOfferOnError(offerId: string) {
   await TradeOffer.updateOne(
     { offerId, status: "LOCKED" },
@@ -76,7 +103,8 @@ export async function POST(
     if (!stickerId) {
       throw new Error("Cannot detect sticker_id on taker asset metadata");
     }
-    if (String(stickerId) !== String(lock.wantedStickerId)) {
+    const wantedStickerIds = wantedStickerIdsFromOffer(lock);
+    if (!wantedStickerIds.includes(String(stickerId))) {
       throw new Error("Taker asset sticker does not match wanted sticker");
     }
     if (String(takerAssetId) === String(lock.makerAssetId)) {

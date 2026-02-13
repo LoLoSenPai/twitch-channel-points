@@ -18,7 +18,7 @@ type TradeAsset = {
 type OpenOffer = {
   offerId: string;
   makerStickerId: string;
-  wantedStickerId: string;
+  wantedStickerIds: string[];
   status: string;
   expiresAt: string | null;
   createdAt: string;
@@ -27,7 +27,7 @@ type OpenOffer = {
 type MyOffer = {
   offerId: string;
   makerStickerId: string;
-  wantedStickerId: string;
+  wantedStickerIds: string[];
   makerAssetId: string;
   takerAssetId: string | null;
   status: string;
@@ -96,6 +96,7 @@ const SOLSCAN_CLUSTER = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "";
 const SALES_UI_ENABLED =
   (process.env.NEXT_PUBLIC_MARKET_ENABLE_SALES?.trim().toLowerCase() ?? "") === "1";
 const BOARD_GRID_STORAGE_KEY = "market.board.grid.cols";
+const MARKET_ACTIVE_TAB_STORAGE_KEY = "market.active.tab";
 
 function short(v: string, head = 5, tail = 5) {
   if (!v) return "";
@@ -153,6 +154,25 @@ function splitMarketSaleAmount(priceLamports: number, marketFeeBps: number) {
 
 function normalizeStickerFilter(value: string) {
   return value.trim().replace(/^#/, "");
+}
+
+function normalizeStickerId(value: string) {
+  return value.trim().replace(/^#/, "");
+}
+
+function normalizeStickerIds(values: string[]) {
+  const unique = new Set<string>();
+  for (const value of values) {
+    const id = normalizeStickerId(value);
+    if (!id) continue;
+    unique.add(id);
+  }
+  return [...unique];
+}
+
+function formatStickerList(ids: string[]) {
+  if (!ids.length) return "";
+  return ids.map((id) => `#${id}`).join(", ");
 }
 
 function toTimestamp(input: string) {
@@ -217,7 +237,8 @@ export function MarketplacePanel() {
   const [assets, setAssets] = useState<TradeAsset[]>([]);
 
   const [makerAssetId, setMakerAssetId] = useState("");
-  const [wantedStickerId, setWantedStickerId] = useState("");
+  const [wantedStickerSearch, setWantedStickerSearch] = useState("");
+  const [wantedStickerIds, setWantedStickerIds] = useState<string[]>([]);
   const [saleAssetId, setSaleAssetId] = useState("");
   const [salePriceSol, setSalePriceSol] = useState("0.05");
 
@@ -229,6 +250,8 @@ export function MarketplacePanel() {
   const [boardSort, setBoardSort] = useState<"recent" | "priceAsc" | "priceDesc">("recent");
   const [boardCols, setBoardCols] = useState<"2" | "3" | "4">("3");
   const [stickerFilter, setStickerFilter] = useState("");
+  const [activeTab, setActiveTab] = useState<"marketplace" | "create" | "mine">("marketplace");
+  const [showCreatePanel, setShowCreatePanel] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -262,6 +285,43 @@ export function MarketplacePanel() {
     }
     return map;
   }, [assets]);
+
+  const ownedStickerIds = useMemo(() => {
+    const unique = new Set<string>();
+    for (const asset of assets) {
+      unique.add(String(asset.stickerId));
+    }
+    return unique;
+  }, [assets]);
+
+  const missingStickerIds = useMemo(() => {
+    return (ST.items ?? [])
+      .map((item) => String(item.id))
+      .filter((id) => !ownedStickerIds.has(id));
+  }, [ownedStickerIds]);
+
+  const wantedStickerOptions = useMemo(() => {
+    const needle = wantedStickerSearch.trim().toLowerCase();
+    const selected = new Set(normalizeStickerIds(wantedStickerIds));
+    return [...(ST.items ?? [])]
+      .map((item) => ({
+        id: String(item.id),
+        name: String(item.name ?? ""),
+      }))
+      .filter((item) => {
+        if (!needle) return true;
+        return (
+          item.id.toLowerCase().includes(needle) ||
+          item.name.toLowerCase().includes(needle)
+        );
+      })
+      .sort((a, b) => {
+        const aSelected = selected.has(a.id);
+        const bSelected = selected.has(b.id);
+        if (aSelected !== bSelected) return aSelected ? -1 : 1;
+        return Number(a.id) - Number(b.id);
+      });
+  }, [wantedStickerSearch, wantedStickerIds]);
 
   const refresh = useCallback(
     async (options?: { clearNotice?: boolean }) => {
@@ -337,7 +397,17 @@ export function MarketplacePanel() {
     if (saved === "2" || saved === "3" || saved === "4") {
       setBoardCols(saved);
     }
+
+    const savedTab = window.localStorage.getItem(MARKET_ACTIVE_TAB_STORAGE_KEY);
+    if (savedTab === "marketplace" || savedTab === "create" || savedTab === "mine") {
+      setActiveTab(savedTab);
+    }
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(MARKET_ACTIVE_TAB_STORAGE_KEY, activeTab);
+  }, [activeTab]);
 
   const delegateWallet =
     offers?.delegateWallet ?? listings?.delegateWallet ?? "";
@@ -355,9 +425,10 @@ export function MarketplacePanel() {
     const src = offers?.open ?? [];
     const filtered = src.filter((offer) => {
       if (!stickerNeedle) return true;
+      const wanted = offer.wantedStickerIds ?? [];
       return (
         String(offer.makerStickerId) === stickerNeedle ||
-        String(offer.wantedStickerId) === stickerNeedle
+        wanted.some((id) => String(id) === stickerNeedle)
       );
     });
     return [...filtered].sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt));
@@ -426,14 +497,31 @@ export function MarketplacePanel() {
     }
   }
 
+  function removeWantedStickerId(idRaw: string) {
+    const id = normalizeStickerId(idRaw);
+    setWantedStickerIds((prev) => prev.filter((entry) => normalizeStickerId(entry) !== id));
+  }
+
+  function toggleWantedStickerId(idRaw: string) {
+    const id = normalizeStickerId(idRaw);
+    if (!id) return;
+    setWantedStickerIds((prev) => {
+      const normalized = normalizeStickerIds(prev);
+      if (normalized.includes(id)) {
+        return normalized.filter((entry) => entry !== id);
+      }
+      return [...normalized, id];
+    });
+  }
+
   async function createOffer() {
     if (loading) return;
     if (!walletPk) {
       setNotice("Connecte ton wallet");
       return;
     }
-    if (!makerAssetId || !wantedStickerId.trim()) {
-      setNotice("Choisis une carte et un sticker cible");
+    if (!makerAssetId || !wantedStickerIds.length) {
+      setNotice("Choisis une carte et au moins un sticker cible");
       return;
     }
 
@@ -448,7 +536,7 @@ export function MarketplacePanel() {
         body: JSON.stringify({
           walletPubkey: walletPk,
           makerAssetId,
-          wantedStickerId: wantedStickerId.trim(),
+          wantedStickerIds,
         }),
       });
       if (!prep.ok) throw new Error(await prep.text());
@@ -473,6 +561,8 @@ export function MarketplacePanel() {
           ? `Offre créée\nDelegation tx: ${subJson.tx}`
           : "Offre créée"
       );
+      setWantedStickerSearch("");
+      setWantedStickerIds([]);
       await refresh({ clearNotice: false });
       scheduleFollowupRefreshes();
     } catch (e) {
@@ -549,10 +639,12 @@ export function MarketplacePanel() {
     }
 
     const selected = acceptAssetByOffer[offer.offerId];
-    const fallback = assetsBySticker.get(String(offer.wantedStickerId))?.[0]?.assetId;
+    const compatibleAssets = normalizeStickerIds(offer.wantedStickerIds ?? [])
+      .flatMap((stickerId) => assetsBySticker.get(String(stickerId)) ?? []);
+    const fallback = compatibleAssets[0]?.assetId;
     const takerAssetId = selected || fallback;
     if (!takerAssetId) {
-      setNotice("Tu n'as pas la carte demandee");
+      setNotice("Tu n'as aucune des cartes demandées");
       return;
     }
 
@@ -710,10 +802,72 @@ export function MarketplacePanel() {
 
       {notice ? <div className="rounded-xl border p-3 text-sm whitespace-pre-line">{notice}</div> : null}
 
-      <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
-        <div className="rounded-2xl border p-4 space-y-3">
-          <div className="font-semibold">Proposer un échange (1 carte contre 1)</div>
-          <div className="grid gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex rounded-xl border p-1 text-sm">
+          <button
+            type="button"
+            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "marketplace" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+            onClick={() => setActiveTab("marketplace")}
+          >
+            Marketplace
+          </button>
+          <button
+            type="button"
+            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "create" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+            onClick={() => setActiveTab("create")}
+          >
+            Créer
+          </button>
+          <button
+            type="button"
+            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "mine" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+            onClick={() => setActiveTab("mine")}
+          >
+            Mes offres
+          </button>
+        </div>
+
+        {activeTab !== "create" ? (
+          <button
+            type="button"
+            className={buttonClass}
+            onClick={() => {
+              setActiveTab("create");
+              setShowCreatePanel(true);
+            }}
+            disabled={loading}
+          >
+            Nouvel échange
+          </button>
+        ) : null}
+      </div>
+
+      {activeTab === "create" ? (
+        <>
+          <div className="rounded-2xl border p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="font-semibold">Créer une offre</div>
+              <button
+                type="button"
+                className={buttonSmallClass}
+                disabled={loading}
+                onClick={() => setShowCreatePanel((prev) => !prev)}
+              >
+                {showCreatePanel ? "Masquer le formulaire" : "Afficher le formulaire"}
+              </button>
+            </div>
+            {!showCreatePanel ? (
+              <div className="text-sm opacity-70">
+                Clique sur « Afficher le formulaire » pour proposer un échange.
+              </div>
+            ) : null}
+          </div>
+
+          {showCreatePanel ? (
+            <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
+              <div className="rounded-2xl border p-4 space-y-3">
+                <div className="font-semibold">Proposer un échange (1 carte contre 1)</div>
+                <div className="grid gap-2">
             <select
               className="rounded-xl border px-3 py-2 bg-transparent"
               value={makerAssetId}
@@ -726,22 +880,86 @@ export function MarketplacePanel() {
                 </option>
               ))}
             </select>
-            <input
-              className="rounded-xl border px-3 py-2 bg-transparent"
-              placeholder="Sticker souhaité (id)"
-              value={wantedStickerId}
-              onChange={(e) => setWantedStickerId(e.target.value)}
-            />
-            <button className={buttonClass} disabled={loading} onClick={() => void createOffer()}>
-              {busyAction === "create-offer" ? "Création..." : "Créer l'offre"}
-            </button>
-          </div>
-        </div>
-
-        {SALES_UI_ENABLED ? (
-          <div className="rounded-2xl border p-4 space-y-3">
-            <div className="font-semibold">Mettre une carte en vente</div>
             <div className="grid gap-2">
+              <input
+                className="rounded-xl border px-3 py-2 bg-transparent text-sm"
+                placeholder="Rechercher une carte (#14, trader...)"
+                value={wantedStickerSearch}
+                onChange={(e) => setWantedStickerSearch(e.target.value)}
+              />
+              <div className="max-h-44 overflow-y-auto rounded-xl border p-2">
+                {wantedStickerOptions.length ? (
+                  <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
+                    {wantedStickerOptions.map((item) => {
+                      const checked = wantedStickerIds.includes(item.id);
+                      return (
+                        <label
+                          key={`wanted-option-${item.id}`}
+                          className="flex items-center gap-2 rounded-lg border px-2 py-1 text-xs cursor-pointer hover:bg-white/10"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleWantedStickerId(item.id)}
+                            className="h-3.5 w-3.5 accent-white"
+                          />
+                          <span className="truncate">#{item.id} - {item.name || "Sticker"}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs opacity-70">Aucune carte trouvée.</div>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <button
+                type="button"
+                className={buttonSmallClass}
+                disabled={loading || !assets.length}
+                onClick={() => setWantedStickerIds(normalizeStickerIds(missingStickerIds))}
+              >
+                Mes manquantes ({missingStickerIds.length})
+              </button>
+              <button
+                type="button"
+                className={buttonSmallClass}
+                disabled={loading || !wantedStickerIds.length}
+                onClick={() => setWantedStickerIds([])}
+              >
+                Vider
+              </button>
+              <span className="opacity-70">{wantedStickerIds.length} cible(s)</span>
+            </div>
+            {wantedStickerIds.length ? (
+              <div className="flex flex-wrap gap-1.5">
+                {wantedStickerIds.map((id) => (
+                  <button
+                    key={`wanted-${id}`}
+                    type="button"
+                    className="rounded-full border px-2 py-0.5 text-xs transition-all duration-150 enabled:cursor-pointer hover:bg-white/10"
+                    onClick={() => removeWantedStickerId(id)}
+                    title={`Retirer #${id}`}
+                    disabled={loading}
+                  >
+                    #{id} ×
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-xs opacity-70">Ajoute une ou plusieurs cartes acceptées.</div>
+            )}
+                  <button className={buttonClass} disabled={loading} onClick={() => void createOffer()}>
+                    {busyAction === "create-offer" ? "Création..." : "Créer l'offre"}
+                  </button>
+                </div>
+              </div>
+
+              {SALES_UI_ENABLED ? (
+                <div className="rounded-2xl border p-4 space-y-3">
+                  <div className="font-semibold">Mettre une carte en vente</div>
+                  <div className="grid gap-2">
               <select
                 className="rounded-xl border px-3 py-2 bg-transparent"
                 value={saleAssetId}
@@ -767,17 +985,21 @@ export function MarketplacePanel() {
                   {" · "}Frais: {lamportsToSol(salePricePreview.feeLamports)} SOL
                 </div>
               ) : null}
-              <button className={buttonClass} disabled={loading} onClick={() => void createListing()}>
-                {busyAction === "create-listing" ? "Publication..." : "Mettre en vente"}
-              </button>
-            </div>
-          </div>
-        ) : null}
-      </section>
+                    <button className={buttonClass} disabled={loading} onClick={() => void createListing()}>
+                      {busyAction === "create-listing" ? "Publication..." : "Mettre en vente"}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </section>
+          ) : null}
+        </>
+      ) : null}
 
-      <section className="rounded-2xl border p-4 space-y-3">
+      {activeTab === "marketplace" ? (
+        <section className="rounded-2xl border p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="font-semibold">Market board</div>
+          <div className="font-semibold">Marketplace</div>
           <div className="flex flex-wrap items-center gap-2">
             {SALES_UI_ENABLED ? (
               <div className="inline-flex rounded-xl border p-1 text-sm">
@@ -877,7 +1099,11 @@ export function MarketplacePanel() {
             openTrades.map((offer) => {
               const sticker = stickerById.get(String(offer.makerStickerId));
               const imageSrc = resolveStickerImageSrc(sticker?.image);
-              const compatible = assetsBySticker.get(String(offer.wantedStickerId)) ?? [];
+              const wantedIds = normalizeStickerIds(offer.wantedStickerIds ?? []);
+              const compatible = wantedIds
+                .flatMap((wantedId) => assetsBySticker.get(String(wantedId)) ?? [])
+                .filter((asset, index, array) => array.findIndex((entry) => entry.assetId === asset.assetId) === index);
+              const wantedLabel = formatStickerList(wantedIds);
               return (
                 <article key={`trade-${offer.offerId}`} className="rounded-2xl border p-3 space-y-3 bg-black/20">
                   <div className="flex items-center justify-between gap-2">
@@ -901,8 +1127,8 @@ export function MarketplacePanel() {
                   </div>
 
                   <div className="text-sm">
-                    <div className="font-semibold">#{offer.makerStickerId} contre #{offer.wantedStickerId}</div>
-                    <div className="opacity-70">Tu dois donner la carte #{offer.wantedStickerId}</div>
+                    <div className="font-semibold">#{offer.makerStickerId} contre {wantedLabel}</div>
+                    <div className="opacity-70">Tu dois donner une carte parmi: {wantedLabel}</div>
                   </div>
 
                   <div className="grid gap-2">
@@ -913,7 +1139,7 @@ export function MarketplacePanel() {
                         setAcceptAssetByOffer((prev) => ({ ...prev, [offer.offerId]: e.target.value }))
                       }
                     >
-                      <option value="" style={selectOptionStyle}>Choisir ta carte #{offer.wantedStickerId}</option>
+                      <option value="" style={selectOptionStyle}>Choisir ta carte ({wantedLabel})</option>
                       {compatible.map((asset) => (
                         <option key={asset.assetId} value={asset.assetId} style={selectOptionStyle}>
                           #{asset.stickerId} - {asset.name ?? short(asset.assetId)}
@@ -985,17 +1211,19 @@ export function MarketplacePanel() {
         {!visibleOpenCount ? (
           <div className="text-sm opacity-70">Aucune annonce correspondante.</div>
         ) : null}
-      </section>
+        </section>
+      ) : null}
 
-      <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
+      {activeTab === "mine" ? (
+        <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
         <div className="rounded-2xl border p-4 space-y-3">
-          <div className="font-semibold">Mes échanges</div>
+          <div className="font-semibold">Mes offres d’échange</div>
           {(offers?.mine ?? []).length ? (
             <div className="space-y-2">
               {offers!.mine.map((offer) => (
                 <div key={offer.offerId} className="rounded-xl border p-3 text-sm space-y-1">
                   <div className="flex items-center justify-between gap-2">
-                    <div>#{offer.makerStickerId} contre #{offer.wantedStickerId}</div>
+                    <div>#{offer.makerStickerId} contre {formatStickerList(normalizeStickerIds(offer.wantedStickerIds ?? []))}</div>
                     <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(offer.status)}`}>
                       {offer.status}
                     </span>
@@ -1163,7 +1391,8 @@ export function MarketplacePanel() {
             )}
           </div>
         ) : null}
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 }

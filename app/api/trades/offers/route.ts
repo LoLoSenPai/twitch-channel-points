@@ -20,6 +20,30 @@ function sanitizeStickerId(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function sanitizeStickerIds(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    const unique = new Set<string>();
+    for (const entry of value) {
+      const id = sanitizeStickerId(entry);
+      if (!id) continue;
+      unique.add(id);
+    }
+    return [...unique];
+  }
+
+  const single = sanitizeStickerId(value);
+  return single ? [single] : [];
+}
+
+function wantedStickerIdsFromOffer(offer: {
+  wantedStickerIds?: unknown;
+  wantedStickerId?: unknown;
+}) {
+  const ids = sanitizeStickerIds(offer.wantedStickerIds);
+  if (ids.length) return ids;
+  return sanitizeStickerIds(offer.wantedStickerId);
+}
+
 export async function GET() {
   const session = await auth();
   const twitchUserId = (session?.user as { id?: string })?.id;
@@ -54,7 +78,7 @@ export async function GET() {
     open: open.map((o) => ({
       offerId: o.offerId,
       makerStickerId: o.makerStickerId,
-      wantedStickerId: o.wantedStickerId,
+      wantedStickerIds: wantedStickerIdsFromOffer(o),
       status: o.status,
       expiresAt: o.expiresAt,
       createdAt: o.createdAt,
@@ -62,7 +86,7 @@ export async function GET() {
     mine: mine.map((o) => ({
       offerId: o.offerId,
       makerStickerId: o.makerStickerId,
-      wantedStickerId: o.wantedStickerId,
+      wantedStickerIds: wantedStickerIdsFromOffer(o),
       makerAssetId: o.makerAssetId,
       takerAssetId: o.takerAssetId,
       status: o.status,
@@ -85,9 +109,11 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const walletPubkey = String(body?.walletPubkey ?? "").trim();
   const makerAssetId = String(body?.makerAssetId ?? "").trim();
-  const wantedStickerId = sanitizeStickerId(body?.wantedStickerId);
+  const wantedStickerIds = sanitizeStickerIds(
+    body?.wantedStickerIds ?? body?.wantedStickerId
+  );
 
-  if (!walletPubkey || !makerAssetId || !wantedStickerId) {
+  if (!walletPubkey || !makerAssetId || !wantedStickerIds.length) {
     return new NextResponse("Missing params", { status: 400 });
   }
 
@@ -130,7 +156,8 @@ export async function POST(req: Request) {
     makerWallet: walletPubkey,
     makerAssetId,
     makerStickerId: stickerId,
-    wantedStickerId,
+    wantedStickerId: wantedStickerIds[0],
+    wantedStickerIds,
     preparedDelegationTxB64: txB64,
     status: "DRAFT",
     expiresAt,
@@ -140,7 +167,7 @@ export async function POST(req: Request) {
     offerId,
     txB64,
     makerStickerId: stickerId,
-    wantedStickerId,
+    wantedStickerIds,
     delegateWallet,
     expiresAt,
   });
