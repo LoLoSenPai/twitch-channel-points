@@ -402,13 +402,13 @@ export function MarketplacePanel() {
       const subJson = (await sub.json()) as { tx?: string };
       setNotice(
         subJson?.tx
-          ? `Offre creee\nDelegation tx: ${subJson.tx}`
-          : "Offre creee"
+          ? `Offre créée\nDelegation tx: ${subJson.tx}`
+          : "Offre créée"
       );
       await refresh({ clearNotice: false });
       scheduleFollowupRefreshes();
     } catch (e) {
-      setNotice((e as Error)?.message ?? "Erreur creation offre");
+      setNotice((e as Error)?.message ?? "Erreur création offre");
     } finally {
       setBusyAction((prev) => (prev === actionKey ? null : prev));
       setLoading(false);
@@ -460,13 +460,13 @@ export function MarketplacePanel() {
       const subJson = (await sub.json()) as { tx?: string };
       setNotice(
         subJson?.tx
-          ? `Vente creee\nDelegation tx: ${subJson.tx}`
-          : "Vente creee"
+          ? `Vente créée\nDelegation tx: ${subJson.tx}`
+          : "Vente créée"
       );
       await refresh({ clearNotice: false });
       scheduleFollowupRefreshes();
     } catch (e) {
-      setNotice((e as Error)?.message ?? "Erreur creation vente");
+      setNotice((e as Error)?.message ?? "Erreur création vente");
     } finally {
       setBusyAction((prev) => (prev === actionKey ? null : prev));
       setLoading(false);
@@ -587,7 +587,7 @@ export function MarketplacePanel() {
     try {
       const res = await fetch(`/api/trades/offers/${offerId}/cancel`, { method: "POST" });
       if (!res.ok) throw new Error(await res.text());
-      setNotice("Offre annulee");
+      setNotice("Offre annulée");
       await refresh({ clearNotice: false });
     } catch (e) {
       setNotice((e as Error)?.message ?? "Erreur annulation offre");
@@ -606,7 +606,7 @@ export function MarketplacePanel() {
     try {
       const res = await fetch(`/api/market/listings/${listingId}/cancel`, { method: "POST" });
       if (!res.ok) throw new Error(await res.text());
-      setNotice("Vente annulee");
+      setNotice("Vente annulée");
       await refresh({ clearNotice: false });
     } catch (e) {
       setNotice((e as Error)?.message ?? "Erreur annulation vente");
@@ -634,14 +634,14 @@ export function MarketplacePanel() {
 
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border p-4 space-y-3">
-          <div className="font-semibold">Proposer un echange (1 carte contre 1)</div>
+          <div className="font-semibold">Proposer un échange (1 carte contre 1)</div>
           <div className="grid gap-2">
             <select
               className="rounded-xl border px-3 py-2 bg-transparent"
               value={makerAssetId}
               onChange={(e) => setMakerAssetId(e.target.value)}
             >
-              <option value="" style={selectOptionStyle}>Choisis ta carte a proposer</option>
+              <option value="" style={selectOptionStyle}>Choisis ta carte à proposer</option>
               {assets.map((asset) => (
                 <option key={asset.assetId} value={asset.assetId} style={selectOptionStyle}>
                   #{asset.stickerId} - {asset.name ?? short(asset.assetId)}
@@ -650,25 +650,25 @@ export function MarketplacePanel() {
             </select>
             <input
               className="rounded-xl border px-3 py-2 bg-transparent"
-              placeholder="Sticker souhaite (id)"
+              placeholder="Sticker souhaité (id)"
               value={wantedStickerId}
               onChange={(e) => setWantedStickerId(e.target.value)}
             />
             <button className={buttonClass} disabled={loading} onClick={() => void createOffer()}>
-              {busyAction === "create-offer" ? "Creation..." : "Creer l&apos;offre"}
+              {busyAction === "create-offer" ? "Création..." : "Créer l'offre"}
             </button>
           </div>
         </div>
 
         <div className="rounded-2xl border p-4 space-y-3">
-          <div className="font-semibold">Mettre une carte en vente (prix fixe)</div>
+          <div className="font-semibold">Mettre une carte en vente</div>
           <div className="grid gap-2">
             <select
               className="rounded-xl border px-3 py-2 bg-transparent"
               value={saleAssetId}
               onChange={(e) => setSaleAssetId(e.target.value)}
             >
-              <option value="" style={selectOptionStyle}>Choisis ta carte a vendre</option>
+              <option value="" style={selectOptionStyle}>Choisis ta carte à vendre</option>
               {assets.map((asset) => (
                 <option key={asset.assetId} value={asset.assetId} style={selectOptionStyle}>
                   #{asset.stickerId} - {asset.name ?? short(asset.assetId)}
@@ -728,9 +728,9 @@ export function MarketplacePanel() {
                 setBoardSort(e.target.value as "recent" | "priceAsc" | "priceDesc")
               }
             >
-              <option value="recent" style={selectOptionStyle}>Tri: Plus recent</option>
+              <option value="recent" style={selectOptionStyle}>Tri: Plus récent</option>
               <option value="priceAsc" style={selectOptionStyle}>Tri: Prix croissant</option>
-              <option value="priceDesc" style={selectOptionStyle}>Tri: Prix decroissant</option>
+              <option value="priceDesc" style={selectOptionStyle}>Tri: Prix décroissant</option>
             </select>
           </div>
         </div>
@@ -745,7 +745,7 @@ export function MarketplacePanel() {
                 <article key={`trade-${offer.offerId}`} className="rounded-2xl border p-3 space-y-3 bg-black/20">
                   <div className="flex items-center justify-between gap-2">
                     <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-200">
-                      Echange
+                      Échange
                     </span>
                     <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(offer.status)}`}>
                       {offer.status}
@@ -788,7 +788,7 @@ export function MarketplacePanel() {
                       disabled={loading || !compatible.length}
                       onClick={() => void acceptOffer(offer)}
                     >
-                      {busyAction === `accept-${offer.offerId}` ? "Validation..." : "Accepter l&apos;echange"}
+                      {busyAction === `accept-${offer.offerId}` ? "Validation..." : "Accepter l'échange"}
                     </button>
                   </div>
                 </article>
@@ -845,7 +845,7 @@ export function MarketplacePanel() {
 
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border p-4 space-y-3">
-          <div className="font-semibold">Mes echanges</div>
+          <div className="font-semibold">Mes échanges</div>
           {(offers?.mine ?? []).length ? (
             <div className="space-y-2">
               {offers!.mine.map((offer) => (
@@ -859,7 +859,7 @@ export function MarketplacePanel() {
                   {offer.error ? <div className="opacity-70">erreur: {offer.error}</div> : null}
                   {offer.makerDelegationTxSig ? (
                     <div className="opacity-70 flex items-center gap-2 flex-wrap">
-                      delegation:{" "}
+                      délégation:{" "}
                       <a
                         className="underline hover:opacity-90"
                         href={solscanTxUrl(offer.makerDelegationTxSig)}
@@ -880,7 +880,7 @@ export function MarketplacePanel() {
                   ) : null}
                   {offer.takerDelegationTxSig ? (
                     <div className="opacity-70 flex items-center gap-2 flex-wrap">
-                      taker delegation:{" "}
+                      délégation taker:{" "}
                       <a
                         className="underline hover:opacity-90"
                         href={solscanTxUrl(offer.takerDelegationTxSig)}
