@@ -3,8 +3,8 @@ import {
   AssetWithProof,
   TokenProgramVersion,
   TokenStandard,
-  delegate,
-  transfer,
+  delegateV2,
+  transferV2,
 } from "@metaplex-foundation/mpl-bubblegum";
 import {
   createNoopSigner,
@@ -206,8 +206,19 @@ export async function prepareDelegateTxForAsset(params: {
     throw new Error("Asset owner mismatch");
   }
 
-  const builder = delegate(umi, {
-    ...asset,
+  const builder = delegateV2(umi, {
+    merkleTree: asset.merkleTree,
+    root: asset.root,
+    dataHash: asset.dataHash,
+    creatorHash: asset.creatorHash,
+    collectionHash: asset.collection_hash ?? none(),
+    assetDataHash: asset.asset_data_hash ?? none(),
+    flags:
+      typeof asset.flags === "number" ? some(asset.flags) : none(),
+    nonce: asset.nonce,
+    index: asset.index,
+    proof: asset.proof,
+    payer: ownerSigner,
     leafOwner: ownerSigner,
     previousLeafDelegate: asset.leafDelegate,
     newLeafDelegate: pk(params.newDelegateWallet),
@@ -304,18 +315,40 @@ export async function executeDelegatedSwap(params: {
 
   const builder = transactionBuilder()
     .add(
-      transfer(umi, {
-        ...makerAsset,
+      transferV2(umi, {
+        merkleTree: makerAsset.merkleTree,
+        root: makerAsset.root,
+        dataHash: makerAsset.dataHash,
+        creatorHash: makerAsset.creatorHash,
+        assetDataHash: makerAsset.asset_data_hash ?? none(),
+        flags:
+          typeof makerAsset.flags === "number" ? some(makerAsset.flags) : none(),
+        nonce: makerAsset.nonce,
+        index: makerAsset.index,
+        proof: makerAsset.proof,
+        payer: delegateSigner,
+        authority: delegateSigner,
         leafOwner: pk(params.makerWallet),
-        leafDelegate: delegateSigner,
+        leafDelegate: delegateSigner.publicKey,
         newLeafOwner: pk(params.takerWallet),
       })
     )
     .add(
-      transfer(umi, {
-        ...takerAsset,
+      transferV2(umi, {
+        merkleTree: takerAsset.merkleTree,
+        root: takerAsset.root,
+        dataHash: takerAsset.dataHash,
+        creatorHash: takerAsset.creatorHash,
+        assetDataHash: takerAsset.asset_data_hash ?? none(),
+        flags:
+          typeof takerAsset.flags === "number" ? some(takerAsset.flags) : none(),
+        nonce: takerAsset.nonce,
+        index: takerAsset.index,
+        proof: takerAsset.proof,
+        payer: delegateSigner,
+        authority: delegateSigner,
         leafOwner: pk(params.takerWallet),
-        leafDelegate: delegateSigner,
+        leafDelegate: delegateSigner.publicKey,
         newLeafOwner: pk(params.makerWallet),
       })
     );
