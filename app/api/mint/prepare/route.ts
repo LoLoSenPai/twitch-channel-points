@@ -3,7 +3,12 @@ import crypto from "crypto";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Redemption, MintIntent, Collection, Mint } from "@/lib/models";
-import { getSticker, pickRandomAvailableStickerId } from "@/lib/stickers";
+import {
+  getAvailableStickerIds,
+  getSticker,
+  pickUniformAvailableStickerIdFromHex,
+} from "@/lib/stickers";
+import { drawSwitchboardRandomness } from "@/lib/solana/randomness";
 
 import { umiServer } from "@/lib/solana/umi";
 import { mintV2 } from "@metaplex-foundation/mpl-bubblegum";
@@ -96,18 +101,25 @@ export async function POST(req: Request) {
       ]),
     ]);
 
-    const stickerId = pickRandomAvailableStickerId({
+    const availableStickerIds = getAvailableStickerIds({
       mintedCounts: toCountMap(mintedAgg),
       reservedCounts: toCountMap(reservedAgg),
     });
 
-    if (!stickerId) {
+    if (!availableStickerIds.length) {
       await Redemption.updateOne(
         { redemptionId: ticket.redemptionId },
         { $set: { lockedByIntentId: null } }
       );
       return new NextResponse("Collection sold out", { status: 409 });
     }
+
+    const randomnessProof = await drawSwitchboardRandomness();
+    const draw = pickUniformAvailableStickerIdFromHex(
+      availableStickerIds,
+      randomnessProof.randomHex,
+    );
+    const stickerId = draw.stickerId;
 
     const umi = umiServer();
     const ownerPk = publicKey(walletPubkey);
@@ -179,11 +191,36 @@ export async function POST(req: Request) {
       wallet: walletPubkey,
       redemptionId: ticket.redemptionId,
       stickerId,
+      randomnessProvider: randomnessProof.provider,
+      randomnessQueuePubkey: randomnessProof.queuePubkey,
+      randomnessAccount: randomnessProof.randomnessAccount,
+      randomnessCommitTx: randomnessProof.commitTx,
+      randomnessRevealTx: randomnessProof.revealTx,
+      randomnessCloseTx: randomnessProof.closeTx,
+      randomnessValueHex: randomnessProof.randomHex,
+      randomnessSeedSlot: randomnessProof.seedSlot,
+      randomnessRevealSlot: randomnessProof.revealSlot,
+      drawAvailableStickerIds: availableStickerIds,
+      drawIndex: draw.index,
       preparedTxB64: txB64,
       status: "PREPARED",
     });
 
-    return NextResponse.json({ intentId, txB64 });
+    return NextResponse.json({
+      intentId,
+      txB64,
+      proof: {
+        provider: randomnessProof.provider,
+        queuePubkey: randomnessProof.queuePubkey,
+        randomnessAccount: randomnessProof.randomnessAccount,
+        commitTx: randomnessProof.commitTx,
+        revealTx: randomnessProof.revealTx,
+        closeTx: randomnessProof.closeTx,
+        randomHex: randomnessProof.randomHex,
+        drawIndex: draw.index,
+        availableCount: availableStickerIds.length,
+      },
+    });
   } catch (e) {
     console.error("mint/prepare failed", e);
 

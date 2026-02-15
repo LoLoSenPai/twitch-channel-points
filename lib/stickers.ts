@@ -14,7 +14,6 @@ export type Sticker = {
   id: string;
   name?: string;
   image?: string; // ex: "000.png"
-  weight?: number; // rarity weight (higher = more common)
   rarity?: StickerRarity;
   maxSupply?: number | null;
 };
@@ -70,31 +69,10 @@ export function getSticker(id: string): Sticker | null {
   return STICKERS.find((s) => String(s.id) === String(id)) ?? null;
 }
 
-function pickWeighted(items: Sticker[]): Sticker {
-  const weights = items.map((s) => {
-    const w = typeof s.weight === "number" ? s.weight : 1;
-    return Number.isFinite(w) && w > 0 ? w : 1;
-  });
-
-  const sum = weights.reduce((a, b) => a + b, 0);
-  let r = Math.random() * sum;
-
-  for (let i = 0; i < items.length; i += 1) {
-    r -= weights[i];
-    if (r <= 0) return items[i];
-  }
-  return items[items.length - 1];
-}
-
-export function pickRandomStickerId(): string {
-  if (!STICKERS.length) return "0";
-  return String(pickWeighted(STICKERS).id);
-}
-
-export function pickRandomAvailableStickerId(params: {
+export function getAvailableStickerIds(params: {
   mintedCounts: Map<string, number>;
   reservedCounts?: Map<string, number>;
-}): string | null {
+}): string[] {
   const { mintedCounts, reservedCounts } = params;
 
   const available = STICKERS.filter((sticker) => {
@@ -105,8 +83,37 @@ export function pickRandomAvailableStickerId(params: {
 
     if (!maxSupply) return true;
     return minted + reserved < maxSupply;
-  });
+  }).map((sticker) => String(sticker.id));
 
-  if (!available.length) return null;
-  return String(pickWeighted(available).id);
+  // deterministic ordering for reproducible selection
+  return available.sort((a, b) => {
+    const aNum = Number(a);
+    const bNum = Number(b);
+    const aIsNum = Number.isFinite(aNum);
+    const bIsNum = Number.isFinite(bNum);
+
+    if (aIsNum && bIsNum) return aNum - bNum;
+    return a.localeCompare(b);
+  });
+}
+
+export function uniformIndexFromHex(randomHex: string, size: number): number {
+  if (!Number.isInteger(size) || size <= 0) {
+    throw new Error("uniformIndexFromHex: invalid size");
+  }
+  const clean = randomHex.replace(/^0x/i, "").trim();
+  if (!clean) throw new Error("uniformIndexFromHex: empty randomHex");
+  const n = BigInt(`0x${clean}`);
+  return Number(n % BigInt(size));
+}
+
+export function pickUniformAvailableStickerIdFromHex(
+  availableIds: string[],
+  randomHex: string,
+): { stickerId: string; index: number } {
+  if (!availableIds.length) {
+    throw new Error("pickUniformAvailableStickerIdFromHex: no available IDs");
+  }
+  const index = uniformIndexFromHex(randomHex, availableIds.length);
+  return { stickerId: String(availableIds[index]), index };
 }

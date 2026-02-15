@@ -48,7 +48,6 @@ export async function GET() {
       id,
       name: sticker.name ?? `Sticker #${id}`,
       rarity: sticker.rarity ?? null,
-      weight: typeof sticker.weight === "number" ? sticker.weight : null,
       maxSupply,
       minted,
       reserved,

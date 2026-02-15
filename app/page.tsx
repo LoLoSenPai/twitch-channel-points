@@ -1,11 +1,38 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { Mint } from "@/lib/models";
 import { MintPanel } from "@/components/mint-panel";
+import { FairnessPanel } from "@/components/fairness-panel";
 import PageShell from "@/components/page-shell";
 
 interface ExtendedUser {
+    id?: string | null;
     name?: string | null;
     displayName?: string | null;
+}
+
+type LatestMintProof = {
+    stickerId?: string;
+    mintTx?: string;
+    createdAt?: string | Date;
+    randomnessProvider?: string | null;
+    randomnessQueuePubkey?: string | null;
+    randomnessAccount?: string | null;
+    randomnessCommitTx?: string | null;
+    randomnessRevealTx?: string | null;
+    randomnessCloseTx?: string | null;
+    randomnessValueHex?: string | null;
+    drawIndex?: number | null;
+    drawAvailableStickerIds?: string[];
+} | null;
+
+function solscanTxUrl(signature?: string | null) {
+    const sig = String(signature ?? "").trim();
+    if (!sig) return null;
+    const cluster = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "devnet";
+    const suffix = cluster ? `?cluster=${encodeURIComponent(cluster)}` : "";
+    return `https://solscan.io/tx/${sig}${suffix}`;
 }
 
 export default async function HomePage() {
@@ -65,6 +92,46 @@ export default async function HomePage() {
     }
 
     const user = session.user as ExtendedUser;
+    const twitchUserId = String(user.id ?? "").trim();
+    let latestMintProof: LatestMintProof = null;
+
+    if (twitchUserId) {
+        try {
+            await db();
+            latestMintProof = (await Mint.findOne({ twitchUserId })
+                .sort({ createdAt: -1 })
+                .select({
+                    stickerId: 1,
+                    mintTx: 1,
+                    createdAt: 1,
+                    randomnessProvider: 1,
+                    randomnessQueuePubkey: 1,
+                    randomnessAccount: 1,
+                    randomnessCommitTx: 1,
+                    randomnessRevealTx: 1,
+                    randomnessCloseTx: 1,
+                    randomnessValueHex: 1,
+                    drawIndex: 1,
+                    drawAvailableStickerIds: 1,
+                })
+                .lean()) as LatestMintProof;
+        } catch (error) {
+            console.error("home fairness block failed", error);
+        }
+    }
+
+    const latestMintTx = String(latestMintProof?.mintTx ?? "").trim();
+    const hasProof = Boolean(
+        latestMintProof?.randomnessProvider &&
+        latestMintProof?.randomnessValueHex &&
+        latestMintTx,
+    );
+
+    const commitUrl = solscanTxUrl(latestMintProof?.randomnessCommitTx);
+    const revealUrl = solscanTxUrl(latestMintProof?.randomnessRevealTx);
+    const closeUrl = solscanTxUrl(latestMintProof?.randomnessCloseTx);
+    const mintUrl = solscanTxUrl(latestMintTx);
+    const proofPath = hasProof ? `/api/mint/proof/${latestMintTx}` : null;
 
     return (
         <PageShell>
@@ -77,6 +144,55 @@ export default async function HomePage() {
                             Ouvre des boosters, recupere des cartes rares et avance dans ton album.
                         </p>
                     </div>
+                </section>
+
+                <section className="rounded-3xl border border-emerald-300/20 bg-emerald-950/20 p-5 backdrop-blur md:p-6">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                            <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/70">Fair mint</p>
+                            <h2 className="text-xl font-semibold">Random verifiable (Switchboard)</h2>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                            <Link
+                                className="rounded-xl border border-white/20 px-3 py-2 text-sm transition hover:bg-white/10"
+                                href="/fairness"
+                            >
+                                Page fairness
+                            </Link>
+                            <a
+                                className="rounded-xl border border-white/20 px-3 py-2 text-sm transition hover:bg-white/10"
+                                href="https://docs.switchboard.xyz/docs-by-chain/solana-svm/randomness/randomness-tutorial"
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                Doc Switchboard
+                            </a>
+                        </div>
+                    </div>
+
+                    <p className="mt-3 text-sm text-white/80">
+                        Le tirage utilise une random on-chain verifiable. La carte est choisie de facon uniforme
+                        parmi les IDs encore mintables, puis stockee avec sa preuve.
+                    </p>
+
+                    <FairnessPanel
+                        hasProof={hasProof}
+                        stickerId={latestMintProof?.stickerId ?? null}
+                        mintTx={latestMintTx}
+                        queuePubkey={latestMintProof?.randomnessQueuePubkey ?? null}
+                        randomnessAccount={latestMintProof?.randomnessAccount ?? null}
+                        drawIndex={latestMintProof?.drawIndex ?? null}
+                        availableCount={
+                            Array.isArray(latestMintProof?.drawAvailableStickerIds)
+                                ? latestMintProof.drawAvailableStickerIds.length
+                                : null
+                        }
+                        proofPath={proofPath}
+                        mintUrl={mintUrl}
+                        commitUrl={commitUrl}
+                        revealUrl={revealUrl}
+                        closeUrl={closeUrl}
+                    />
                 </section>
 
                 <MintPanel />

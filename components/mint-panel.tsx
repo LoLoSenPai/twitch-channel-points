@@ -37,6 +37,15 @@ const stickerRarityMap = new Map(
     (stickers as StickerJson).items.map((item) => [String(item.id), item.rarity])
 );
 
+const SOLSCAN_CLUSTER = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "devnet";
+
+function solscanTxUrl(signature: string) {
+    const sig = String(signature ?? "").trim();
+    if (!sig) return "#";
+    const suffix = SOLSCAN_CLUSTER ? `?cluster=${encodeURIComponent(SOLSCAN_CLUSTER)}` : "";
+    return `https://solscan.io/tx/${sig}${suffix}`;
+}
+
 function rarityFromStickerId(id: string): Rarity {
     const configured = normalizeRarity(stickerRarityMap.get(String(id)));
     if (configured) return configured;
@@ -70,7 +79,7 @@ export function MintPanel() {
     const [loading, setLoading] = useState(false);
     const [reveal, setReveal] = useState<Reveal | null>(null);
     const [phase, setPhase] = useState<PullPhase>("idle");
-    const [glow, setGlow] = useState(0); // 0..1 pour booster + lumiÃƒÂ¨re
+    const [glow, setGlow] = useState(0); // 0..1 pour booster + lumiÃƒÆ’Ã‚Â¨re
     const [pendingReveal, setPendingReveal] = useState<Reveal | null>(null);
     const [rarity, setRarity] = useState<Rarity | null>(null);
     const [resetOrbitKey, setResetOrbitKey] = useState(0);
@@ -133,7 +142,7 @@ export function MintPanel() {
             const r = rarityFromStickerId(String(stickerId));
             setRarity(r);
 
-            // 4) on prÃƒÂ©pare un reveal immÃƒÂ©diat (ne bloque jamais lÃ¢â‚¬â„¢anim)
+            // 4) on prÃƒÆ’Ã‚Â©pare un reveal immÃƒÆ’Ã‚Â©diat (ne bloque jamais lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢anim)
             const baseReveal: Reveal = {
                 id: String(stickerId),
                 name: `Panini #${String(stickerId)}`,
@@ -161,12 +170,12 @@ export function MintPanel() {
                         image: meta?.image ?? baseReveal.image,
                     };
 
-                    // si le reveal est encore en attente, on le met ÃƒÂ  jour
+                    // si le reveal est encore en attente, on le met ÃƒÆ’Ã‚Â  jour
                     setPendingReveal((prev) =>
                         prev && prev.id === baseReveal.id ? { ...prev, ...patch } : prev
                     );
 
-                    // si le reveal a dÃƒÂ©jÃƒÂ  ÃƒÂ©tÃƒÂ© affichÃƒÂ©, on le met ÃƒÂ  jour aussi
+                    // si le reveal a dÃƒÆ’Ã‚Â©jÃƒÆ’Ã‚Â  ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© affichÃƒÆ’Ã‚Â©, on le met ÃƒÆ’Ã‚Â  jour aussi
                     setReveal((prev) =>
                         prev && prev.id === baseReveal.id ? { ...prev, ...patch } : prev
                     );
@@ -177,7 +186,7 @@ export function MintPanel() {
 
             return baseReveal;
         } catch (e) {
-            // cancel uniquement si on nÃ¢â‚¬â„¢a PAS dÃƒÂ©jÃƒÂ  soumis
+            // cancel uniquement si on nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢a PAS dÃƒÆ’Ã‚Â©jÃƒÆ’Ã‚Â  soumis
             if (intentId && !mintSubmitted) {
                 try {
                     await fetch("/api/mint/cancel", {
@@ -198,15 +207,15 @@ export function MintPanel() {
         if (loading || phase !== "idle") return;
 
         if (!walletOk) {
-            setHint("Ã°Å¸â€Å’ Connecte ton wallet Solana pour ouvrir un booster.");
+            setHint("Connecte ton wallet Solana pour ouvrir un booster.");
             return;
         }
         if (!ticketsKnown) {
-            setHint("Ã¢ÂÂ³ Chargement des ticketsÃ¢â‚¬Â¦");
+            setHint("Chargement des tickets...");
             return;
         }
         if (!ticketsOk) {
-            setHint("Ã°Å¸Å½Å¸Ã¯Â¸Â Aucun ticket. RÃƒÂ©cupÃƒÂ¨re-en via les rewards Twitch.");
+            setHint("Aucun ticket. Recupere-en via les rewards Twitch.");
             return;
         }
 
@@ -268,7 +277,7 @@ export function MintPanel() {
                     <div className="text-sm opacity-70 flex items-center gap-2">
                         Tickets:{" "}
                         <span className="font-medium">
-                            {tickets === undefined ? "Ã¢â‚¬Â¦" : tickets}
+                            {tickets === undefined ? "..." : tickets}
                         </span>
                         {refreshingUi ? (
                             <span className="inline-block h-2 w-2 rounded-full bg-current opacity-50" />
@@ -386,7 +395,7 @@ export function MintPanel() {
 
             {reveal ? (
                 <div className="rounded-2xl border p-4 space-y-3">
-                    <div className="text-sm opacity-70">Ã°Å¸Å½â€° Nouveau sticker !</div>
+                    <div className="text-sm opacity-70">Nouveau sticker !</div>
 
                     {reveal.image ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -411,18 +420,26 @@ export function MintPanel() {
                         </button>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
                         <a className="rounded-xl border px-3 py-2 text-sm cursor-pointer" href="/album">
-                            Voir dans lÃ¢â‚¬â„¢album Ã¢â€ â€™
+                            Voir dans l album
                         </a>
 
                         <a
                             className="rounded-xl border px-3 py-2 text-sm opacity-80 cursor-pointer"
-                            href={`https://solscan.io/tx/${reveal.tx}?cluster=devnet`}
+                            href={solscanTxUrl(reveal.tx)}
                             target="_blank"
                             rel="noreferrer"
                         >
                             Voir la tx
+                        </a>
+                        <a
+                            className="rounded-xl border px-3 py-2 text-sm opacity-80 cursor-pointer"
+                            href={`/api/mint/proof/${reveal.tx}`}
+                            target="_blank"
+                            rel="noreferrer"
+                        >
+                            Voir la preuve
                         </a>
                     </div>
                 </div>
@@ -452,7 +469,7 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx }: {
                 className="absolute right-4 top-4 rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-sm cursor-pointer"
                 onClick={onSkip}
             >
-                Skip
+                Passer
             </button>
 
             {/* flash blanc */}
@@ -470,7 +487,7 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx }: {
 
             {/* carte */}
             {showCard ? (
-                <div className="relative">
+                <div className="relative mx-auto flex w-full max-w-[min(92vw,420px)] flex-col items-center">
                     <div className="[perspective:1200px]">
                         <button
                             className="relative h-[420px] w-[300px] cursor-pointer select-none rounded-2xl"
@@ -490,7 +507,7 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx }: {
                                         className="h-full w-full object-cover"
                                     />
                                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 text-center text-sm text-white/90">
-                                        Clique pour rÃƒÂ©vÃƒÂ©ler
+                                        Clique pour reveler
                                     </div>
                                 </div>
 
@@ -510,23 +527,36 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx }: {
                     </div>
 
                     {/* fermer */}
-                    <div className="mt-4 flex justify-center gap-2">
-                        <a className="rounded-xl border px-3 py-2 text-sm cursor-pointer" href="/album">
-                            Voir dans lÃ¢â‚¬â„¢album Ã¢â€ â€™
+                    <div className="mt-4 grid w-full grid-cols-2 gap-2 sm:grid-cols-4">
+                        <a
+                            className="rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
+                            href="/album"
+                        >
+                            Album
                         </a>
 
                         {tx ? (
                             <a
-                                className="rounded-xl border border-white/20 bg-black/40 px-4 py-2 text-sm cursor-pointer"
-                                href={`https://solscan.io/tx/${tx}?cluster=devnet`}
+                                className="rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
+                                href={solscanTxUrl(tx)}
                                 target="_blank"
                                 rel="noreferrer"
                             >
-                                Voir la tx
+                                Tx
+                            </a>
+                        ) : null}
+                        {tx ? (
+                            <a
+                                className="rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
+                                href={`/api/mint/proof/${tx}`}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                Preuve
                             </a>
                         ) : null}
                         <button
-                            className="rounded-xl border border-white/20 bg-black/40 px-4 py-2 text-sm cursor-pointer"
+                            className="rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
                             onClick={onClose}
                         >
                             Fermer
@@ -549,7 +579,7 @@ function Step({
     pending?: boolean;
     detail?: string;
 }) {
-    const icon = pending ? "Ã¢ÂÂ³" : ok ? "Ã¢Å“â€¦" : "Ã¢Â¬Å“";
+    const icon = pending ? "ÃƒÂ¢Ã‚ÂÃ‚Â³" : ok ? "ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦" : "ÃƒÂ¢Ã‚Â¬Ã…â€œ";
     const text = pending ? "opacity-90" : ok ? "opacity-90" : "opacity-60";
 
     return (

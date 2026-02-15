@@ -7,7 +7,6 @@
       "id": "1",
       "name": "Couille en titane",
       "image": "001.png",
-      "weight": 60,
       "rarity": "legendary",
       "maxSupply": 10
     },
@@ -15,7 +14,6 @@
       "id": "2",
       "name": "Celui-qui-ne-doute-jamais",
       "image": "002.png",
-      "weight": 60,
       "rarity": "legendary",
       "maxSupply": 10
     },
@@ -23,7 +21,6 @@
       "id": "3",
       "name": "Chair fraîche",
       "image": "003.png",
-      "weight": 60,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -31,7 +28,6 @@
       "id": "4",
       "name": "Hodler éternel",
       "image": "004.png",
-      "weight": 60,
       "rarity": "uncommon",
       "maxSupply": 35
     },
@@ -39,7 +35,6 @@
       "id": "5",
       "name": "Excès de confiance",
       "image": "005.png",
-      "weight": 60,
       "rarity": "rare",
       "maxSupply": 20
     },
@@ -47,7 +42,6 @@
       "id": "6",
       "name": "Hodler d'Alt Déchu",
       "image": "006.png",
-      "weight": 60,
       "rarity": "rare",
       "maxSupply": 20
     },
@@ -55,7 +49,6 @@
       "id": "7",
       "name": "Hibernation",
       "image": "007.png",
-      "weight": 60,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -63,7 +56,6 @@
       "id": "8",
       "name": "Trader inouït",
       "image": "008.png",
-      "weight": 60,
       "rarity": "rare",
       "maxSupply": 20
     },
@@ -71,7 +63,6 @@
       "id": "9",
       "name": "Purge foudroyante",
       "image": "009.png",
-      "weight": 60,
       "rarity": "legendary",
       "maxSupply": 10
     },
@@ -79,7 +70,6 @@
       "id": "10",
       "name": "Prêt non officiel",
       "image": "010.png",
-      "weight": 60,
       "rarity": "uncommon",
       "maxSupply": 35
     },
@@ -87,7 +77,6 @@
       "id": "11",
       "name": "Prendre l'air",
       "image": "011.png",
-      "weight": 60,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -95,7 +84,6 @@
       "id": "12",
       "name": "Recette du churros",
       "image": "012.png",
-      "weight": 60,
       "rarity": "mythic",
       "maxSupply": 4
     },
@@ -103,7 +91,6 @@
       "id": "13",
       "name": "Churrosserie",
       "image": "013.png",
-      "weight": 60,
       "rarity": "rare",
       "maxSupply": 20
     },
@@ -111,7 +98,6 @@
       "id": "14",
       "name": "Trader junior",
       "image": "014.png",
-      "weight": 60,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -119,7 +105,6 @@
       "id": "15",
       "name": "Bon père de famille",
       "image": "015.png",
-      "weight": 60,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -127,7 +112,6 @@
       "id": "16",
       "name": "Guerrier intrépide",
       "image": "016.png",
-      "weight": 60,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -135,7 +119,6 @@
       "id": "17",
       "name": "Logique imparable",
       "image": "017.png",
-      "weight": 30,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -143,7 +126,6 @@
       "id": "18",
       "name": "Coup de maître",
       "image": "018.png",
-      "weight": 30,
       "rarity": "uncommon",
       "maxSupply": 35
     },
@@ -151,7 +133,6 @@
       "id": "19",
       "name": "Mon gros PNL",
       "image": "019.png",
-      "weight": 30,
       "rarity": "uncommon",
       "maxSupply": 35
     },
@@ -159,7 +140,6 @@
       "id": "20",
       "name": "Le grand casino des memecoins",
       "image": "020.png",
-      "weight": 30,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -167,7 +147,6 @@
       "id": "21",
       "name": "Liquidé !",
       "image": "021.png",
-      "weight": 30,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -175,7 +154,6 @@
       "id": "22",
       "name": "Boubou, l'inquisiteur",
       "image": "022.png",
-      "weight": 30,
       "rarity": "legendary",
       "maxSupply": 10
     },
@@ -183,7 +161,6 @@
       "id": "23",
       "name": "Hasheur, le Messie",
       "image": "023.png",
-      "weight": 30,
       "rarity": "legendary",
       "maxSupply": 10
     },
@@ -191,7 +168,6 @@
       "id": "24",
       "name": "Julien, le Redoutable",
       "image": "024.png",
-      "weight": 30,
       "rarity": "legendary",
       "maxSupply": 10
     },
@@ -199,7 +175,6 @@
       "id": "25",
       "name": "Copy trading",
       "image": "025.png",
-      "weight": 30,
       "rarity": "uncommon",
       "maxSupply": 35
     },
@@ -207,7 +182,6 @@
       "id": "26",
       "name": "Mur de silence",
       "image": "026.png",
-      "weight": 30,
       "rarity": "uncommon",
       "maxSupply": 35
     },
@@ -215,7 +189,6 @@
       "id": "27",
       "name": "Avion pour Dubaï",
       "image": "027.png",
-      "weight": 30,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -223,7 +196,6 @@
       "id": "28",
       "name": "Tony crypto",
       "image": "028.png",
-      "weight": 12,
       "rarity": "uncommon",
       "maxSupply": 35
     },
@@ -231,7 +203,6 @@
       "id": "29",
       "name": "Discipline",
       "image": "029.png",
-      "weight": 12,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -239,7 +210,6 @@
       "id": "30",
       "name": "DCA a vie",
       "image": "030.png",
-      "weight": 12,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -247,7 +217,6 @@
       "id": "31",
       "name": "Planctorisation",
       "image": "031.png",
-      "weight": 12,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -255,7 +224,6 @@
       "id": "32",
       "name": "FOMO !!",
       "image": "032.png",
-      "weight": 12,
       "rarity": "rare",
       "maxSupply": 20
     },
@@ -263,7 +231,6 @@
       "id": "33",
       "name": "Retour à la réalité",
       "image": "033.png",
-      "weight": 12,
       "rarity": "uncommon",
       "maxSupply": 35
     },
@@ -271,7 +238,6 @@
       "id": "34",
       "name": "Fou du bus",
       "image": "034.png",
-      "weight": 12,
       "rarity": "uncommon",
       "maxSupply": 35
     },
@@ -279,7 +245,6 @@
       "id": "35",
       "name": "Break even miraculeux",
       "image": "035.png",
-      "weight": 12,
       "rarity": "rare",
       "maxSupply": 20
     },
@@ -287,7 +252,6 @@
       "id": "36",
       "name": "Hodler de Solana",
       "image": "036.png",
-      "weight": 12,
       "rarity": "rare",
       "maxSupply": 20
     },
@@ -295,7 +259,6 @@
       "id": "37",
       "name": "Expert macro-économique",
       "image": "037.png",
-      "weight": 12,
       "rarity": "rare",
       "maxSupply": 20
     },
@@ -303,7 +266,6 @@
       "id": "38",
       "name": "Stratégie douteuse",
       "image": "038.png",
-      "weight": 4,
       "rarity": "rare",
       "maxSupply": 20
     },
@@ -311,7 +273,6 @@
       "id": "39",
       "name": "Hodler d'EGLD",
       "image": "039.png",
-      "weight": 4,
       "rarity": "rare",
       "maxSupply": 20
     },
@@ -319,7 +280,6 @@
       "id": "40",
       "name": "Mes EGLD et mon couteau",
       "image": "040.png",
-      "weight": 4,
       "rarity": "uncommon",
       "maxSupply": 35
     },
@@ -327,7 +287,6 @@
       "id": "41",
       "name": "Buy the dip",
       "image": "041.png",
-      "weight": 4,
       "rarity": "uncommon",
       "maxSupply": 35
     },
@@ -335,7 +294,6 @@
       "id": "42",
       "name": "Retournement de veste",
       "image": "042.png",
-      "weight": 4,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -343,7 +301,6 @@
       "id": "43",
       "name": "It's so over !",
       "image": "043.png",
-      "weight": 4,
       "rarity": "common",
       "maxSupply": 50
     },
@@ -351,7 +308,6 @@
       "id": "44",
       "name": "We are so back !",
       "image": "044.png",
-      "weight": 4,
       "rarity": "common",
       "maxSupply": 50
     }

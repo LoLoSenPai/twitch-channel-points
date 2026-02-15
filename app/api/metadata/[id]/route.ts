@@ -29,10 +29,6 @@ export async function GET(
     { trait_type: "series", value: "v0" },
   ];
 
-  if (typeof sticker?.weight === "number") {
-    attributes.push({ trait_type: "rarity_weight", value: sticker.weight });
-  }
-
   if (sticker?.rarity) {
     attributes.push({ trait_type: "rarity", value: sticker.rarity });
   }

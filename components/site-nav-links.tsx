@@ -13,6 +13,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Accueil" },
   { href: "/album", label: "Album" },
   { href: "/marketplace", label: "Marketplace" },
+  { href: "/fairness", label: "Fairness" },
 ];
 
 function isActivePath(pathname: string, href: string) {
@@ -46,4 +47,3 @@ export function SiteNavLinks() {
     </nav>
   );
 }
-

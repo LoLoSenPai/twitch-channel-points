@@ -21,6 +21,17 @@ type IntentDoc = {
   redemptionId: string;
   status: "PREPARED" | "DONE" | "FAILED";
   preparedTxB64: string;
+  randomnessProvider?: string | null;
+  randomnessQueuePubkey?: string | null;
+  randomnessAccount?: string | null;
+  randomnessCommitTx?: string | null;
+  randomnessRevealTx?: string | null;
+  randomnessCloseTx?: string | null;
+  randomnessValueHex?: string | null;
+  randomnessSeedSlot?: number | null;
+  randomnessRevealSlot?: number | null;
+  drawAvailableStickerIds?: string[];
+  drawIndex?: number | null;
 };
 
 type NotifyPayload = {
@@ -134,6 +145,25 @@ export async function POST(req: Request) {
       wallet: intent.wallet,
       stickerId: String(intent.stickerId),
       mintTx: sig,
+      randomnessProvider: intent.randomnessProvider ?? null,
+      randomnessQueuePubkey: intent.randomnessQueuePubkey ?? null,
+      randomnessAccount: intent.randomnessAccount ?? null,
+      randomnessCommitTx: intent.randomnessCommitTx ?? null,
+      randomnessRevealTx: intent.randomnessRevealTx ?? null,
+      randomnessCloseTx: intent.randomnessCloseTx ?? null,
+      randomnessValueHex: intent.randomnessValueHex ?? null,
+      randomnessSeedSlot:
+        typeof intent.randomnessSeedSlot === "number"
+          ? intent.randomnessSeedSlot
+          : null,
+      randomnessRevealSlot:
+        typeof intent.randomnessRevealSlot === "number"
+          ? intent.randomnessRevealSlot
+          : null,
+      drawAvailableStickerIds: Array.isArray(intent.drawAvailableStickerIds)
+        ? intent.drawAvailableStickerIds.map(String)
+        : [],
+      drawIndex: typeof intent.drawIndex === "number" ? intent.drawIndex : null,
     });
 
     await Redemption.updateOne(
@@ -186,6 +216,19 @@ export async function POST(req: Request) {
       ok: true,
       tx: sig,
       stickerId: String(intent.stickerId),
+      proof: {
+        provider: intent.randomnessProvider ?? null,
+        queuePubkey: intent.randomnessQueuePubkey ?? null,
+        randomnessAccount: intent.randomnessAccount ?? null,
+        commitTx: intent.randomnessCommitTx ?? null,
+        revealTx: intent.randomnessRevealTx ?? null,
+        closeTx: intent.randomnessCloseTx ?? null,
+        randomHex: intent.randomnessValueHex ?? null,
+        drawIndex: typeof intent.drawIndex === "number" ? intent.drawIndex : null,
+        availableCount: Array.isArray(intent.drawAvailableStickerIds)
+          ? intent.drawAvailableStickerIds.length
+          : null,
+      },
     });
   } catch (e) {
     console.error("mint/submit failed", e);

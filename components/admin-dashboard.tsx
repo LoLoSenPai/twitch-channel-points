@@ -68,7 +68,6 @@ type SupplyItem = {
     | "SR"
     | "SSR"
     | null;
-    weight: number | null;
     maxSupply: number | null;
     minted: number;
     reserved: number;
@@ -341,7 +340,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                     #{item.id} {item.name}
                                 </div>
                                 <div className="opacity-70">
-                                    rarete: {item.rarity ?? "-"} | weight: {item.weight ?? "-"} | max: {item.maxSupply ?? "infini"}
+                                    rarete: {item.rarity ?? "-"} | max: {item.maxSupply ?? "infini"}
                                 </div>
                             </div>
                             <div className="text-right shrink-0">
