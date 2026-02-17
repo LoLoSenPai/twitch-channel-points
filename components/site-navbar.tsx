@@ -27,7 +27,7 @@ export default async function SiteNavbar() {
           {session?.user ? (
             <>
               <span className="hidden text-white/70 sm:inline">
-                Connecte: <span className="font-medium text-white">{displayName}</span>
+                Connecté : <span className="font-medium text-white">{displayName}</span>
               </span>
               <LogoutButton />
             </>

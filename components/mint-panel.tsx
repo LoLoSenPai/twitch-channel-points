@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { VersionedTransaction } from "@solana/web3.js";
@@ -79,7 +79,7 @@ export function MintPanel() {
     const [loading, setLoading] = useState(false);
     const [reveal, setReveal] = useState<Reveal | null>(null);
     const [phase, setPhase] = useState<PullPhase>("idle");
-    const [glow, setGlow] = useState(0); // 0..1 pour booster + lumiÃƒÆ’Ã‚Â¨re
+    const [glow, setGlow] = useState(0); // 0..1 pour booster + lumière
     const [pendingReveal, setPendingReveal] = useState<Reveal | null>(null);
     const [rarity, setRarity] = useState<Rarity | null>(null);
     const [resetOrbitKey, setResetOrbitKey] = useState(0);
@@ -88,11 +88,6 @@ export function MintPanel() {
         enabled: !loading,
         intervalMs: 3000,
     });
-
-    const canMint = useMemo(
-        () => !!wallet.publicKey && (tickets ?? 0) > 0,
-        [wallet.publicKey, tickets]
-    );
 
     const walletOk = !!wallet.publicKey;
     const ticketsKnown = tickets !== undefined;
@@ -142,7 +137,7 @@ export function MintPanel() {
             const r = rarityFromStickerId(String(stickerId));
             setRarity(r);
 
-            // 4) on prÃƒÆ’Ã‚Â©pare un reveal immÃƒÆ’Ã‚Â©diat (ne bloque jamais lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢anim)
+            // 4) on prépare un reveal immédiat (ne bloque jamais l'animation)
             const baseReveal: Reveal = {
                 id: String(stickerId),
                 name: `Panini #${String(stickerId)}`,
@@ -170,12 +165,10 @@ export function MintPanel() {
                         image: meta?.image ?? baseReveal.image,
                     };
 
-                    // si le reveal est encore en attente, on le met ÃƒÆ’Ã‚Â  jour
                     setPendingReveal((prev) =>
                         prev && prev.id === baseReveal.id ? { ...prev, ...patch } : prev
                     );
 
-                    // si le reveal a dÃƒÆ’Ã‚Â©jÃƒÆ’Ã‚Â  ÃƒÆ’Ã‚Â©tÃƒÆ’Ã‚Â© affichÃƒÆ’Ã‚Â©, on le met ÃƒÆ’Ã‚Â  jour aussi
                     setReveal((prev) =>
                         prev && prev.id === baseReveal.id ? { ...prev, ...patch } : prev
                     );
@@ -186,7 +179,6 @@ export function MintPanel() {
 
             return baseReveal;
         } catch (e) {
-            // cancel uniquement si on nÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢a PAS dÃƒÆ’Ã‚Â©jÃƒÆ’Ã‚Â  soumis
             if (intentId && !mintSubmitted) {
                 try {
                     await fetch("/api/mint/cancel", {
@@ -215,7 +207,7 @@ export function MintPanel() {
             return;
         }
         if (!ticketsOk) {
-            setHint("Aucun ticket. Recupere-en via les rewards Twitch.");
+            setHint("Aucun ticket. Récupère-en via les rewards Twitch.");
             return;
         }
 
@@ -262,7 +254,6 @@ export function MintPanel() {
         }
     }
 
-    const baseBodyColor = "#1F2430";
     const glowColor = rarity ? rarityColor(rarity) : "#ffffff";
 
     const chargingIntensity =
@@ -272,7 +263,7 @@ export function MintPanel() {
         <div className="rounded-2xl border p-4 space-y-4 bg-linear-to-br from-zinc-900/70 via-black/60 to-zinc-900/70">
             <div className="flex items-center justify-between gap-4">
                 <div>
-                    <div className="text-lg font-semibold">Mint Panini (V0)</div>
+                    <div className="text-lg font-semibold">Collection #1 (devnet)</div>
 
                     <div className="text-sm opacity-70 flex items-center gap-2">
                         Tickets:{" "}
@@ -292,10 +283,11 @@ export function MintPanel() {
                 {/* LEFT */}
                 <div className="rounded-2xl border p-4">
                     <BoosterScene
-                        labelUrl="/preview.png"
+                        labelUrl="/booster-front.png?v=1"
+                        backLabelUrl="/booster-back.png?v=1"
                         onOpen={openBooster}
                         canOpen={!loading && phase === "idle"} // pas de canMint ici
-                        theme={{ body: { color: baseBodyColor, metalness: 0.55, roughness: 0.18, ...(phase === "charging" ? { emissive: glowColor, emissiveIntensity: chargingIntensity } : {}), }, }}
+                        theme={{ body: { color: "#eef3fa", metalness: 0.88, roughness: 0.16, ...(phase === "charging" ? { emissive: glowColor, emissiveIntensity: chargingIntensity } : {}), }, }}
                         shake={phase === "charging" ? glow : 0}
                         resetOrbitKey={resetOrbitKey}
                         lockControls={phase !== "idle"}
@@ -309,9 +301,9 @@ export function MintPanel() {
                         ) : tickets === undefined ? (
                             <div>Chargement des tickets...</div>
                         ) : tickets <= 0 ? (
-                            <div>Tu n as aucun ticket. Recupere en via les rewards Twitch.</div>
+                            <div>Tu n&apos;as aucun ticket. Récupère-en via les rewards Twitch.</div>
                         ) : (
-                            <div>Clique sur le booster pour mint (1 ticket consomme).</div>
+                            <div>Clique sur le booster pour mint (1 ticket consommé).</div>
                         )}
                     </div>
 
@@ -332,16 +324,24 @@ export function MintPanel() {
                             {ready ? "OK Ready" : "Ready"}
                         </span>
                     </div>
-                    <div className="text-lg font-semibold">Comment ca marche ?</div>
+                    <div className="text-lg font-semibold">Comment ça marche ?</div>
                     <ol className="mt-3 space-y-2 text-sm opacity-80 list-decimal pl-5">
-                        <li>Recupere un ticket via le reward Twitch.</li>
+                        <li>Récupère un ticket via le reward Twitch.</li>
                         <li>Connecte ton wallet Solana.</li>
-                        <li>Clique sur le booster, signe la transaction, puis revele ta carte.</li>
+                        <li>Clique sur le booster, signe la transaction, puis révèle ta carte.</li>
                     </ol>
+                    <p className="mt-3 text-xs opacity-75">
+                        Tirage vérifiable: la preuve de ton dernier mint est visible dans la preview,
+                        puis consultable dans{" "}
+                        <Link href="/fairness" className="underline underline-offset-4 hover:opacity-100">
+                            la page fairness
+                        </Link>
+                        .
+                    </p>
 
                     <div className="mt-5 space-y-3 text-sm">
                         <div className="rounded-xl border p-3">
-                            <div className="font-medium">Ou trouver mes tickets ?</div>
+                            <div className="font-medium">Où trouver mes tickets ?</div>
                             <div className="opacity-70 mt-1">
                                 Les tickets viennent des rewards Twitch dispo sur
                                 <Link href="https://www.twitch.tv/nylstv" target="_blank" rel="noopener noreferrer" className="text-fuchsia-400 font-bold"> ma chaine</Link>
@@ -350,15 +350,15 @@ export function MintPanel() {
                         </div>
 
                         <div className="rounded-xl border p-3">
-                            <div className="font-medium">Ca coute quoi ?</div>
+                            <div className="font-medium">Ça coûte quoi ?</div>
                             <div className="opacity-70 mt-1">
-                                1 ticket + les frais reseau Solana.
+                                1 ticket + les frais réseau Solana.
                             </div>
                         </div>
 
                         <div className="rounded-xl border p-3">
-                            <div className="font-medium">Ou je vois mes cartes ?</div>
-                            <div className="opacity-70 mt-1">Dans album, et tu peux aussi les echanger sur le marketplace.</div>
+                            <div className="font-medium">Où je vois mes cartes ?</div>
+                            <div className="opacity-70 mt-1">Dans l&apos;album, et tu peux aussi les échanger sur le marketplace.</div>
                         </div>
                     </div>
                 </div>
