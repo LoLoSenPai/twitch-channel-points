@@ -611,24 +611,6 @@ export function MarketplacePanel() {
   const showTrades = !SALES_UI_ENABLED || marketMode === "all" || marketMode === "trade";
   const showSales = SALES_UI_ENABLED && (marketMode === "all" || marketMode === "sale");
   const marketGridClass = boardGridClass(boardCols);
-  const marketFilterStickerIds = useMemo(() => {
-    const ids = new Set<string>();
-    if (showTrades) {
-      for (const offer of openTrades) {
-        ids.add(String(offer.makerStickerId));
-        for (const wantedId of normalizeStickerIds(offer.wantedStickerIds ?? [])) {
-          ids.add(String(wantedId));
-        }
-      }
-    }
-    if (showSales) {
-      for (const listing of openSales) {
-        ids.add(String(listing.sellerStickerId));
-      }
-    }
-    if (stickerNeedle) ids.add(stickerNeedle);
-    return [...ids].sort((a, b) => compareStickerIds(a, b));
-  }, [openSales, openTrades, showSales, showTrades, stickerNeedle]);
   const visibleOpenCount =
     (showTrades ? openTrades.length : 0) +
     (showSales ? openSales.length : 0);
@@ -1337,73 +1319,6 @@ export function MarketplacePanel() {
           </div>
         </div>
 
-        {marketFilterStickerIds.length ? (
-          <div className="space-y-2">
-            <div className="text-[11px] uppercase tracking-[0.12em] opacity-60">
-              Raccourcis cartes
-            </div>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              <button
-                type="button"
-                className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-xs transition-all duration-150 cursor-pointer ${
-                  !stickerNeedle
-                    ? "border-emerald-300/50 bg-emerald-500/15 text-emerald-100"
-                    : "border-white/20 bg-black/20 hover:bg-white/10"
-                }`}
-                onClick={() => setStickerFilter("")}
-              >
-                Tout
-              </button>
-              {marketFilterStickerIds.map((id) => {
-                const sticker = stickerById.get(String(id));
-                const imageSrc = resolveStickerImageSrc(sticker?.image);
-                const rarity = rarityBadgeMeta(sticker?.rarity);
-                const selected = stickerNeedle === String(id);
-                return (
-                  <button
-                    key={`quick-filter-${id}`}
-                    type="button"
-                    className={`shrink-0 rounded-lg border px-1.5 py-1 transition-all duration-150 cursor-pointer ${
-                      selected
-                        ? "border-emerald-300/50 bg-emerald-500/15"
-                        : "border-white/20 bg-black/20 hover:bg-white/10"
-                    }`}
-                    title={`Filtrer #${id}`}
-                    onClick={() => setStickerFilter(String(id))}
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="h-8 w-6 overflow-hidden rounded border border-white/15 bg-black/30">
-                        {imageSrc ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={imageSrc}
-                            alt={`Sticker #${id}`}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="grid h-full w-full place-items-center text-[9px] opacity-70">
-                            #{id}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-start">
-                        <span className="text-xs leading-tight">#{id}</span>
-                        {rarity ? (
-                          <span
-                            className={`rounded-full border px-1.5 py-0 text-[10px] leading-tight ${rarity.chipClass}`}
-                          >
-                            {rarity.label}
-                          </span>
-                        ) : null}
-                      </div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-
         <div className={marketGridClass}>
           {showTrades &&
             openTrades.map((offer) => {
@@ -1435,23 +1350,13 @@ export function MarketplacePanel() {
                 .sort((a, b) => compareStickerIds(a.stickerId, b.stickerId));
               return (
                 <article key={`trade-${offer.offerId}`} className="rounded-2xl border border-white/20 p-3 space-y-3 bg-black/30 backdrop-blur-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-cyan-300/35">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-200">
-                        Échange
-                      </span>
-                      {rarity ? (
-                        <span className={`rounded-full border px-2 py-0.5 text-xs ${rarity.chipClass}`}>
-                          {rarity.label}
-                        </span>
-                      ) : null}
-                    </div>
-                    <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(offer.status)}`}>
-                      {offer.status}
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-200">
+                      Échange
                     </span>
                   </div>
 
-                  <div className="rounded-xl border border-white/15 overflow-hidden bg-black/30 aspect-[3/4]">
+                  <div className="relative rounded-xl border border-white/15 overflow-hidden bg-black/30 aspect-[3/4]">
                     {imageSrc ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={imageSrc} alt={sticker?.name ?? `Sticker #${offer.makerStickerId}`} className="h-full w-full object-cover" />
@@ -1460,6 +1365,13 @@ export function MarketplacePanel() {
                         Sticker #{offer.makerStickerId}
                       </div>
                     )}
+                    {rarity ? (
+                      <div className="pointer-events-none absolute bottom-2 left-2">
+                        <span className={`rounded-full border px-2 py-0.5 text-xs shadow-sm backdrop-blur ${rarity.chipClass}`}>
+                          {rarity.label}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="text-sm">
@@ -1517,23 +1429,13 @@ export function MarketplacePanel() {
               const split = splitMarketSaleAmount(listing.priceLamports, marketFeeBps);
               return (
                 <article key={`sale-${listing.listingId}`} className="rounded-2xl border border-white/20 p-3 space-y-3 bg-black/30 backdrop-blur-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-fuchsia-300/35">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-2 py-0.5 text-xs text-fuchsia-200">
-                        Vente
-                      </span>
-                      {rarity ? (
-                        <span className={`rounded-full border px-2 py-0.5 text-xs ${rarity.chipClass}`}>
-                          {rarity.label}
-                        </span>
-                      ) : null}
-                    </div>
-                    <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(listing.status)}`}>
-                      {listing.status}
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-2 py-0.5 text-xs text-fuchsia-200">
+                      Vente
                     </span>
                   </div>
 
-                  <div className="rounded-xl border border-white/15 overflow-hidden bg-black/30 aspect-[3/4]">
+                  <div className="relative rounded-xl border border-white/15 overflow-hidden bg-black/30 aspect-[3/4]">
                     {imageSrc ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={imageSrc} alt={sticker?.name ?? `Sticker #${listing.sellerStickerId}`} className="h-full w-full object-cover" />
@@ -1542,6 +1444,13 @@ export function MarketplacePanel() {
                         Sticker #{listing.sellerStickerId}
                       </div>
                     )}
+                    {rarity ? (
+                      <div className="pointer-events-none absolute bottom-2 left-2">
+                        <span className={`rounded-full border px-2 py-0.5 text-xs shadow-sm backdrop-blur ${rarity.chipClass}`}>
+                          {rarity.label}
+                        </span>
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="text-sm">
