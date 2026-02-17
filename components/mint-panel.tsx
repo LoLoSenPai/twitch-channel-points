@@ -261,7 +261,7 @@ export function MintPanel() {
 
     return (
         <div className="rounded-2xl border p-4 space-y-4 bg-linear-to-br from-zinc-900/70 via-black/60 to-zinc-900/70">
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
                 <div>
                     <div className="text-lg font-semibold">Collection #1 (devnet)</div>
 
@@ -276,7 +276,9 @@ export function MintPanel() {
                     </div>
                 </div>
 
-                <WalletMultiButton />
+                <div className="shrink-0">
+                    <WalletMultiButton className="!min-w-[170px] !justify-center !whitespace-nowrap" />
+                </div>
             </div>
 
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
