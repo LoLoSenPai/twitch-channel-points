@@ -2,6 +2,7 @@
 import { auth } from "@/lib/auth";
 import { LogoutButton } from "@/components/logout-button";
 import { SiteNavLinks } from "@/components/site-nav-links";
+import Image from "next/image";
 
 type SessionUser = {
   name?: string | null;
@@ -18,7 +19,7 @@ export default async function SiteNavbar() {
       <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-4">
           <Link href="/" className="text-sm font-semibold tracking-wide text-white/95">
-            Panini Mint
+            <Image src="/nyls-pfp.png" alt="Nyls PFP" width={24} height={24} className="inline-block mr-2" />
           </Link>
           <SiteNavLinks />
         </div>

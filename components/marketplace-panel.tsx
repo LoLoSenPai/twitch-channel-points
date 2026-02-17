@@ -137,30 +137,30 @@ function rarityBadgeMeta(value?: string | null) {
     case "mythic":
       return {
         label: "Mythic",
-        chipClass: "border-rose-300/50 bg-rose-500/15 text-rose-100",
+        chipClass: "border-rose-300/35 bg-black/45 text-rose-100/90",
       };
     case "legendary":
     case "SSR":
       return {
         label: "Legendary",
-        chipClass: "border-amber-300/50 bg-amber-500/15 text-amber-100",
+        chipClass: "border-amber-300/35 bg-black/45 text-amber-100/90",
       };
     case "rare":
     case "SR":
       return {
         label: "Rare",
-        chipClass: "border-sky-300/50 bg-sky-500/15 text-sky-100",
+        chipClass: "border-sky-300/35 bg-black/45 text-sky-100/90",
       };
     case "uncommon":
       return {
         label: "Uncommon",
-        chipClass: "border-emerald-300/50 bg-emerald-500/15 text-emerald-100",
+        chipClass: "border-emerald-300/35 bg-black/45 text-emerald-100/90",
       };
     case "common":
     case "R":
       return {
         label: "Common",
-        chipClass: "border-zinc-300/35 bg-zinc-500/15 text-zinc-100",
+        chipClass: "border-zinc-300/30 bg-black/45 text-zinc-100/85",
       };
     default:
       return null;
@@ -1367,7 +1367,7 @@ export function MarketplacePanel() {
                     )}
                     {rarity ? (
                       <div className="pointer-events-none absolute bottom-2 left-2">
-                        <span className={`rounded-full border px-2 py-0.5 text-xs shadow-sm backdrop-blur ${rarity.chipClass}`}>
+                        <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium tracking-wide backdrop-blur-[1px] ${rarity.chipClass}`}>
                           {rarity.label}
                         </span>
                       </div>
@@ -1446,7 +1446,7 @@ export function MarketplacePanel() {
                     )}
                     {rarity ? (
                       <div className="pointer-events-none absolute bottom-2 left-2">
-                        <span className={`rounded-full border px-2 py-0.5 text-xs shadow-sm backdrop-blur ${rarity.chipClass}`}>
+                        <span className={`rounded-full border px-2 py-0.5 text-[11px] font-medium tracking-wide backdrop-blur-[1px] ${rarity.chipClass}`}>
                           {rarity.label}
                         </span>
                       </div>
