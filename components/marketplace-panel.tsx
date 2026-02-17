@@ -320,7 +320,9 @@ export function MarketplacePanel() {
 
   const walletPk = wallet.publicKey?.toBase58() ?? "";
   const refreshTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
-  const selectOptionStyle = { color: "#111827", backgroundColor: "#f8fafc" };
+  const selectOptionStyle = { color: "#e5e7eb", backgroundColor: "#0b1020" };
+  const selectClass =
+    "rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none transition-all duration-150 cursor-pointer focus:border-emerald-300/45 focus:ring-2 focus:ring-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60";
   const buttonClass =
     "rounded-xl border px-3 py-2 text-sm transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-white/10 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
   const buttonPrimaryClass =
@@ -1188,7 +1190,7 @@ export function MarketplacePanel() {
               <div className="font-semibold">Mettre une carte en vente</div>
               <div className="grid gap-2">
                 <select
-                  className="rounded-xl border border-white/20 px-3 py-2 bg-black/25"
+                  className={selectClass}
                   value={saleAssetId}
                   onChange={(e) => setSaleAssetId(e.target.value)}
                 >
@@ -1306,7 +1308,7 @@ export function MarketplacePanel() {
               onChange={(e) => setStickerFilter(e.target.value)}
             />
             <select
-              className="rounded-xl border px-3 py-2 text-sm bg-transparent"
+              className={selectClass}
               value={boardSort}
               onChange={(e) =>
                 setBoardSort(e.target.value as "recent" | "priceAsc" | "priceDesc")
@@ -1393,25 +1395,31 @@ export function MarketplacePanel() {
                   </div>
 
                   <div className="grid gap-2">
-                    <select
-                      className="rounded-xl border px-3 py-2 bg-transparent text-sm"
-                      value={acceptAssetByOffer[offer.offerId] ?? ""}
-                      onChange={(e) =>
-                        setAcceptAssetByOffer((prev) => ({ ...prev, [offer.offerId]: e.target.value }))
-                      }
-                    >
-                      <option value="" style={selectOptionStyle}>
-                        Choisir ta carte ({compatibleGroups.length} option{compatibleGroups.length > 1 ? "s" : ""})
-                      </option>
-                      {compatibleGroups.map((group) => (
-                        <option key={`${offer.offerId}-${group.stickerId}`} value={group.primaryAssetId} style={selectOptionStyle}>
-                          #{group.stickerId} - {group.name} (x{group.count})
+                    {compatibleGroups.length ? (
+                      <select
+                        className={selectClass}
+                        value={acceptAssetByOffer[offer.offerId] ?? ""}
+                        onChange={(e) =>
+                          setAcceptAssetByOffer((prev) => ({ ...prev, [offer.offerId]: e.target.value }))
+                        }
+                      >
+                        <option value="" style={selectOptionStyle}>
+                          Choisir ta carte ({compatibleGroups.length} option{compatibleGroups.length > 1 ? "s" : ""})
                         </option>
-                      ))}
-                    </select>
+                        {compatibleGroups.map((group) => (
+                          <option key={`${offer.offerId}-${group.stickerId}`} value={group.primaryAssetId} style={selectOptionStyle}>
+                            #{group.stickerId} - {group.name} (x{group.count})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="rounded-xl border border-white/20 bg-black/25 px-3 py-2 text-sm opacity-70">
+                        Aucune carte compatible dans ton wallet.
+                      </div>
+                    )}
                     <button
                       className={buttonClass}
-                      disabled={loading || !compatible.length}
+                      disabled={loading || !compatibleGroups.length}
                       onClick={() => void acceptOffer(offer)}
                     >
                       {busyAction === `accept-${offer.offerId}` ? "Validation..." : "Accepter l'échange"}
