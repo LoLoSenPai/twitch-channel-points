@@ -18,7 +18,7 @@ export default async function HomePage() {
                     <section className="grid gap-6 rounded-3xl border border-white/10 bg-black/30 p-6 shadow-[0_20px_80px_rgba(0,0,0,.35)] backdrop-blur md:p-8 lg:grid-cols-[1.15fr_0.85fr] lg:gap-10">
                         <div className="space-y-4">
                             <p className="text-xs uppercase tracking-[0.2em] text-white/60">Collection Twitch</p>
-                            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Mint tes cartes et complete ton album</h1>
+                            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Mint tes cartes et complète ton album</h1>
                             <p className="max-w-xl text-sm text-white/75 sm:text-base">
                                 Gagne des tickets via les points de chaine Twitch, connecte ton compte,
                                 ouvre des boosters et collectionne les 44 cartes.

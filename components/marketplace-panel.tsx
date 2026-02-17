@@ -89,6 +89,15 @@ type StickerJson = {
   items: StickerItem[];
 };
 
+type OwnedStickerGroup = {
+  stickerId: string;
+  name: string;
+  imageSrc: string | null;
+  count: number;
+  primaryAssetId: string;
+  assetIds: string[];
+};
+
 const ST = stickers as StickerJson;
 const IMAGE_BASE =
   process.env.NEXT_PUBLIC_STICKERS_IMAGE_BASE?.trim() || "/stickers/";
@@ -170,9 +179,23 @@ function normalizeStickerIds(values: string[]) {
   return [...unique];
 }
 
+function compareStickerIds(a: string, b: string) {
+  const na = Number(a);
+  const nb = Number(b);
+  if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+  return a.localeCompare(b, "fr");
+}
+
 function formatStickerList(ids: string[]) {
   if (!ids.length) return "";
   return ids.map((id) => `#${id}`).join(", ");
+}
+
+function formatStickerListPreview(ids: string[], max = 4) {
+  if (!ids.length) return "";
+  const values = ids.slice(0, max).map((id) => `#${id}`);
+  const remaining = ids.length - values.length;
+  return remaining > 0 ? `${values.join(", ")} +${remaining}` : values.join(", ");
 }
 
 function toTimestamp(input: string) {
@@ -237,6 +260,7 @@ export function MarketplacePanel() {
   const [assets, setAssets] = useState<TradeAsset[]>([]);
 
   const [makerAssetId, setMakerAssetId] = useState("");
+  const [makerAssetSearch, setMakerAssetSearch] = useState("");
   const [wantedStickerSearch, setWantedStickerSearch] = useState("");
   const [wantedStickerIds, setWantedStickerIds] = useState<string[]>([]);
   const [saleAssetId, setSaleAssetId] = useState("");
@@ -284,6 +308,56 @@ export function MarketplacePanel() {
     }
     return map;
   }, [assets]);
+
+  const ownedStickerGroups = useMemo<OwnedStickerGroup[]>(() => {
+    const grouped = new Map<string, TradeAsset[]>();
+    for (const asset of assets) {
+      const key = String(asset.stickerId);
+      const list = grouped.get(key) ?? [];
+      list.push(asset);
+      grouped.set(key, list);
+    }
+
+    return [...grouped.entries()]
+      .map(([stickerId, list]) => {
+        const sticker = stickerById.get(stickerId);
+        const imageSrc =
+          resolveStickerImageSrc(list[0]?.image ?? null) ??
+          resolveStickerImageSrc(sticker?.image);
+        return {
+          stickerId,
+          name: String(sticker?.name ?? list[0]?.name ?? `Sticker #${stickerId}`),
+          imageSrc,
+          count: list.length,
+          primaryAssetId: list[0].assetId,
+          assetIds: list.map((asset) => asset.assetId),
+        };
+      })
+      .sort((a, b) => compareStickerIds(a.stickerId, b.stickerId));
+  }, [assets, stickerById]);
+
+  const makerAssetOptions = useMemo(() => {
+    const needle = makerAssetSearch.trim().toLowerCase();
+    if (!needle) return ownedStickerGroups;
+    return ownedStickerGroups.filter((group) => {
+      return (
+        group.stickerId.toLowerCase().includes(needle) ||
+        group.name.toLowerCase().includes(needle)
+      );
+    });
+  }, [ownedStickerGroups, makerAssetSearch]);
+
+  const makerSelectedStickerId = useMemo(() => {
+    if (!makerAssetId) return "";
+    return String(assets.find((asset) => asset.assetId === makerAssetId)?.stickerId ?? "");
+  }, [assets, makerAssetId]);
+
+  const makerSelectedGroup = useMemo(() => {
+    if (!makerSelectedStickerId) return null;
+    return (
+      ownedStickerGroups.find((group) => group.stickerId === makerSelectedStickerId) ?? null
+    );
+  }, [ownedStickerGroups, makerSelectedStickerId]);
 
   const ownedStickerIds = useMemo(() => {
     const unique = new Set<string>();
@@ -389,6 +463,34 @@ export function MarketplacePanel() {
       refreshTimersRef.current = [];
     };
   }, [refresh]);
+
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 8000);
+    return () => clearTimeout(timer);
+  }, [notice]);
+
+  useEffect(() => {
+    if (!ownedStickerGroups.length) {
+      setMakerAssetId("");
+      setSaleAssetId("");
+      return;
+    }
+
+    const hasMaker = makerAssetId
+      ? assets.some((asset) => asset.assetId === makerAssetId)
+      : false;
+    if (!hasMaker) {
+      setMakerAssetId(ownedStickerGroups[0].primaryAssetId);
+    }
+
+    const hasSale = saleAssetId
+      ? assets.some((asset) => asset.assetId === saleAssetId)
+      : false;
+    if (!hasSale) {
+      setSaleAssetId(ownedStickerGroups[0].primaryAssetId);
+    }
+  }, [assets, makerAssetId, ownedStickerGroups, saleAssetId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -799,7 +901,20 @@ export function MarketplacePanel() {
         </div>
       </div>
 
-      {notice ? <div className="rounded-xl border p-3 text-sm whitespace-pre-line">{notice}</div> : null}
+      {notice ? (
+        <div className="rounded-xl border p-3 text-sm whitespace-pre-line">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 break-words">{notice}</div>
+            <button
+              type="button"
+              className="rounded-md border px-2 py-0.5 text-xs opacity-80 transition hover:opacity-100"
+              onClick={() => setNotice("")}
+            >
+              Fermer
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="inline-flex rounded-xl border p-1 text-sm">
@@ -845,18 +960,63 @@ export function MarketplacePanel() {
               <div className="rounded-2xl border p-4 space-y-3">
                 <div className="font-semibold">Proposer un échange (1 carte contre 1)</div>
                 <div className="grid gap-2">
-            <select
-              className="rounded-xl border px-3 py-2 bg-transparent"
-              value={makerAssetId}
-              onChange={(e) => setMakerAssetId(e.target.value)}
-            >
-              <option value="" style={selectOptionStyle}>Choisis ta carte à proposer</option>
-              {assets.map((asset) => (
-                <option key={asset.assetId} value={asset.assetId} style={selectOptionStyle}>
-                  #{asset.stickerId} - {asset.name ?? short(asset.assetId)}
-                </option>
-              ))}
-            </select>
+            <input
+              className="rounded-xl border px-3 py-2 bg-transparent text-sm"
+              placeholder="Filtrer ta carte (#14, trader...)"
+              value={makerAssetSearch}
+              onChange={(e) => setMakerAssetSearch(e.target.value)}
+            />
+            <div className="max-h-52 overflow-y-auto rounded-xl border p-2">
+              {makerAssetOptions.length ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {makerAssetOptions.map((group) => {
+                    const selected = makerSelectedStickerId === group.stickerId;
+                    return (
+                      <button
+                        key={`maker-group-${group.stickerId}`}
+                        type="button"
+                        className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition-all duration-150 cursor-pointer ${
+                          selected ? "bg-white/15 border-white/60" : "hover:bg-white/10"
+                        }`}
+                        onClick={() => setMakerAssetId(group.primaryAssetId)}
+                        title={`Sélectionner #${group.stickerId}`}
+                      >
+                        <div className="h-10 w-8 shrink-0 overflow-hidden rounded border bg-black/30">
+                          {group.imageSrc ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={group.imageSrc}
+                              alt={`Sticker #${group.stickerId}`}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="grid h-full w-full place-items-center text-[10px] opacity-60">
+                              #{group.stickerId}
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-sm">
+                            #{group.stickerId} - {group.name}
+                          </div>
+                          <div className="text-xs opacity-70">Doublons: x{group.count}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-xs opacity-70">Aucune carte trouvée.</div>
+              )}
+            </div>
+            {makerSelectedGroup ? (
+              <div className="text-xs opacity-80">
+                Carte proposée: #{makerSelectedGroup.stickerId} - {makerSelectedGroup.name}
+                {" · "}x{makerSelectedGroup.count}
+              </div>
+            ) : (
+              <div className="text-xs opacity-70">Choisis une carte à proposer.</div>
+            )}
             <div className="grid gap-2">
               <input
                 className="rounded-xl border px-3 py-2 bg-transparent text-sm"
@@ -943,9 +1103,9 @@ export function MarketplacePanel() {
                 onChange={(e) => setSaleAssetId(e.target.value)}
               >
                 <option value="" style={selectOptionStyle}>Choisis ta carte à vendre</option>
-                {assets.map((asset) => (
-                  <option key={asset.assetId} value={asset.assetId} style={selectOptionStyle}>
-                    #{asset.stickerId} - {asset.name ?? short(asset.assetId)}
+                {ownedStickerGroups.map((group) => (
+                  <option key={`sale-group-${group.stickerId}`} value={group.primaryAssetId} style={selectOptionStyle}>
+                    #{group.stickerId} - {group.name} (x{group.count})
                   </option>
                 ))}
               </select>
@@ -1075,10 +1235,28 @@ export function MarketplacePanel() {
               const sticker = stickerById.get(String(offer.makerStickerId));
               const imageSrc = resolveStickerImageSrc(sticker?.image);
               const wantedIds = normalizeStickerIds(offer.wantedStickerIds ?? []);
+              const wantedCount = wantedIds.length;
+              const wantedListFull = formatStickerList(wantedIds);
+              const wantedListPreview = formatStickerListPreview(wantedIds, 4);
               const compatible = wantedIds
                 .flatMap((wantedId) => assetsBySticker.get(String(wantedId)) ?? [])
                 .filter((asset, index, array) => array.findIndex((entry) => entry.assetId === asset.assetId) === index);
-              const wantedLabel = formatStickerList(wantedIds);
+              const groupedCompatible = new Map<string, TradeAsset[]>();
+              for (const asset of compatible) {
+                const key = String(asset.stickerId);
+                const list = groupedCompatible.get(key) ?? [];
+                list.push(asset);
+                groupedCompatible.set(key, list);
+              }
+              const compatibleGroups = [...groupedCompatible.entries()]
+                .map(([stickerId, list]) => ({
+                  stickerId,
+                  count: list.length,
+                  primaryAssetId: list[0]?.assetId ?? "",
+                  name: stickerById.get(stickerId)?.name ?? list[0]?.name ?? `Sticker #${stickerId}`,
+                }))
+                .filter((group) => Boolean(group.primaryAssetId))
+                .sort((a, b) => compareStickerIds(a.stickerId, b.stickerId));
               return (
                 <article key={`trade-${offer.offerId}`} className="rounded-2xl border p-3 space-y-3 bg-black/20">
                   <div className="flex items-center justify-between gap-2">
@@ -1102,8 +1280,21 @@ export function MarketplacePanel() {
                   </div>
 
                   <div className="text-sm">
-                    <div className="font-semibold">#{offer.makerStickerId} contre {wantedLabel}</div>
-                    <div className="opacity-70">Tu dois donner une carte parmi: {wantedLabel}</div>
+                    <div className="font-semibold">
+                      #{offer.makerStickerId} contre{" "}
+                      {wantedCount <= 1 ? wantedListPreview : `${wantedCount} cartes`}
+                    </div>
+                    <div className="opacity-70 text-xs">
+                      Cartes demandées: {wantedListPreview || "Aucune"}
+                    </div>
+                    {wantedCount > 4 ? (
+                      <details className="mt-2 rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-xs">
+                        <summary className="cursor-pointer select-none opacity-80">
+                          Voir la liste complète ({wantedCount})
+                        </summary>
+                        <div className="mt-1 break-words opacity-80">{wantedListFull}</div>
+                      </details>
+                    ) : null}
                   </div>
 
                   <div className="grid gap-2">
@@ -1114,10 +1305,12 @@ export function MarketplacePanel() {
                         setAcceptAssetByOffer((prev) => ({ ...prev, [offer.offerId]: e.target.value }))
                       }
                     >
-                      <option value="" style={selectOptionStyle}>Choisir ta carte ({wantedLabel})</option>
-                      {compatible.map((asset) => (
-                        <option key={asset.assetId} value={asset.assetId} style={selectOptionStyle}>
-                          #{asset.stickerId} - {asset.name ?? short(asset.assetId)}
+                      <option value="" style={selectOptionStyle}>
+                        Choisir ta carte ({compatibleGroups.length} option{compatibleGroups.length > 1 ? "s" : ""})
+                      </option>
+                      {compatibleGroups.map((group) => (
+                        <option key={`${offer.offerId}-${group.stickerId}`} value={group.primaryAssetId} style={selectOptionStyle}>
+                          #{group.stickerId} - {group.name} (x{group.count})
                         </option>
                       ))}
                     </select>
@@ -1195,14 +1388,31 @@ export function MarketplacePanel() {
           <div className="font-semibold">Mes offres d’échange</div>
           {(offers?.mine ?? []).length ? (
             <div className="space-y-2">
-              {offers!.mine.map((offer) => (
-                <div key={offer.offerId} className="rounded-xl border p-3 text-sm space-y-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <div>#{offer.makerStickerId} contre {formatStickerList(normalizeStickerIds(offer.wantedStickerIds ?? []))}</div>
-                    <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(offer.status)}`}>
-                      {offer.status}
-                    </span>
-                  </div>
+              {offers!.mine.map((offer) => {
+                const wantedIds = normalizeStickerIds(offer.wantedStickerIds ?? []);
+                const wantedCount = wantedIds.length;
+                const wantedListFull = formatStickerList(wantedIds);
+                const wantedListPreview = formatStickerListPreview(wantedIds, 4);
+                return (
+                  <div key={offer.offerId} className="rounded-xl border p-3 text-sm space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        #{offer.makerStickerId} contre{" "}
+                        {wantedCount <= 1 ? wantedListPreview : `${wantedCount} cartes`}
+                      </div>
+                      <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(offer.status)}`}>
+                        {offer.status}
+                      </span>
+                    </div>
+                    <div className="opacity-70 text-xs">Demandées: {wantedListPreview || "Aucune"}</div>
+                    {wantedCount > 4 ? (
+                      <details className="rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-xs">
+                        <summary className="cursor-pointer select-none opacity-80">
+                          Voir la liste complète ({wantedCount})
+                        </summary>
+                        <div className="mt-1 break-words opacity-80">{wantedListFull}</div>
+                      </details>
+                    ) : null}
                   {offer.error ? <div className="opacity-70">erreur: {offer.error}</div> : null}
                   {offer.makerDelegationTxSig ? (
                     <div className="opacity-70 flex items-center gap-2 flex-wrap">
@@ -1277,7 +1487,8 @@ export function MarketplacePanel() {
                     </button>
                   ) : null}
                 </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <div className="text-sm opacity-70">Aucun echange.</div>
