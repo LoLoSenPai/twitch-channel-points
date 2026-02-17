@@ -16,7 +16,7 @@ export default async function SiteNavbar() {
 
   return (
     <header className="border-b border-white/10 bg-black/25 backdrop-blur-xl">
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
+      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-2 sm:px-6 lg:px-8">
         <div className="flex items-center gap-4">
           <Link href="/" className="text-sm font-semibold tracking-wide text-white/95">
             <Image src="/nyls-pfp.jpg" alt="Nyls PFP" width={40} height={40} className="inline-block mr-2 rounded-full" />

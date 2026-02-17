@@ -119,11 +119,20 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
     const [twitchMsg, setTwitchMsg] = useState<string>("");
 
     const webhookCallback = useMemo(() => {
-        // juste informatif: lâ€™endpoint public webhook
-        // (câ€™est /api/twitch/eventsub dans ton projet)
+        // juste informatif: l'endpoint public webhook
+        // (c'est /api/twitch/eventsub dans ton projet)
         if (typeof window === "undefined") return "/api/twitch/eventsub";
         return `${window.location.origin}/api/twitch/eventsub`;
     }, []);
+
+    const panelClass = "rounded-2xl border border-white/20 bg-black/30 p-4 space-y-3 backdrop-blur-sm";
+    const itemClass = "rounded-xl border border-white/15 bg-black/25 p-3";
+    const buttonClass =
+        "rounded-xl border border-white/25 bg-black/35 px-3 py-2 text-sm text-zinc-100 transition hover:border-white/40 hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50";
+    const inputClass =
+        "rounded-xl border border-white/25 bg-black/35 px-3 py-2 text-zinc-100 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-emerald-400/40";
+    const selectClass =
+        "w-full rounded-xl border border-white/25 bg-black/35 px-3 py-2 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-400/40";
 
     const refresh = useCallback(async () => {
         const [s, t, i, c, supply] = await Promise.all([
@@ -260,7 +269,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                 return;
             }
 
-            setTwitchMsg("âœ… Subscription crÃ©Ã©e.");
+            setTwitchMsg("OK: Subscription créée.");
             await fetchSubscriptions();
         } catch (e) {
             setTwitchMsg(`Erreur subscribe: ${(e as Error).message}`);
@@ -282,7 +291,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                 setTwitchMsg(text);
                 return;
             }
-            setTwitchMsg("ðŸ§¹ Subscription supprimÃ©e.");
+            setTwitchMsg("Subscription supprimée.");
             await fetchSubscriptions();
         } catch (e) {
             setTwitchMsg(`Erreur delete: ${(e as Error).message}`);
@@ -294,69 +303,67 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
     async function copyToClipboard(v: string) {
         try {
             await navigator.clipboard.writeText(v);
-            setTwitchMsg("CopiÃ© âœ…");
+            setTwitchMsg("Copié.");
         } catch {
             setTwitchMsg("Copie impossible (permissions navigateur).");
         }
     }
 
     return (
-        <div className="space-y-6">
-            {/* refresh */}
-            <button className="rounded-xl border px-3 py-2" onClick={refresh}>
+        <div className="space-y-6 text-zinc-100">
+            <button className={buttonClass} onClick={refresh}>
                 Refresh
             </button>
 
-            <section className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                <Card title="Tickets PENDING" value={data.stats?.ticketsPending ?? "â€”"} />
-                <Card title="Tickets CONSUMED" value={data.stats?.ticketsConsumed ?? "â€”"} />
-                <Card title="Mints total" value={data.stats?.mintsTotal ?? "â€”"} />
-                <Card title="Intents PREPARED" value={data.stats?.intentsPrepared ?? "â€”"} />
-                <Card title="Intents FAILED" value={data.stats?.intentsFailed ?? "â€”"} />
-                <Card title="Collections" value={data.stats?.collections ?? "â€”"} />
+            <section className="grid grid-cols-2 gap-3 md:grid-cols-3">
+                <Card title="Tickets PENDING" value={data.stats?.ticketsPending ?? "-"} />
+                <Card title="Tickets CONSUMED" value={data.stats?.ticketsConsumed ?? "-"} />
+                <Card title="Mints total" value={data.stats?.mintsTotal ?? "-"} />
+                <Card title="Intents PREPARED" value={data.stats?.intentsPrepared ?? "-"} />
+                <Card title="Intents FAILED" value={data.stats?.intentsFailed ?? "-"} />
+                <Card title="Collections" value={data.stats?.collections ?? "-"} />
             </section>
-            <section className="rounded-2xl border p-4 space-y-3">
+
+            <section className={panelClass}>
                 <div className="font-semibold">Supply collection</div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                    <div className="rounded-xl border p-2">
-                        Mintes: <span className="font-semibold">{data.supply?.summary.mintedTotal ?? "..."}</span>
+                <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
+                    <div className="rounded-xl border border-white/15 bg-black/25 p-2">
+                        Mints: <span className="font-semibold">{data.supply?.summary.mintedTotal ?? "..."}</span>
                     </div>
-                    <div className="rounded-xl border p-2">
+                    <div className="rounded-xl border border-white/15 bg-black/25 p-2">
                         Reserves: <span className="font-semibold">{data.supply?.summary.reservedTotal ?? "..."}</span>
                     </div>
-                    <div className="rounded-xl border p-2">
+                    <div className="rounded-xl border border-white/15 bg-black/25 p-2">
                         Restants (caps): <span className="font-semibold">{data.supply?.summary.cappedRemainingTotal ?? "..."}</span>
                     </div>
-                    <div className="rounded-xl border p-2">
+                    <div className="rounded-xl border border-white/15 bg-black/25 p-2">
                         Sold out: <span className="font-semibold">{data.supply?.summary.soldOutCount ?? "..."}</span>
                     </div>
                 </div>
 
-                <div className="space-y-2 max-h-80 overflow-auto pr-1">
+                <div className="max-h-80 space-y-2 overflow-auto pr-1">
                     {(data.supply?.items ?? []).map((item) => (
-                        <div key={item.id} className="rounded-xl border p-3 text-xs flex items-start justify-between gap-3">
+                        <div key={item.id} className={`${itemClass} flex items-start justify-between gap-3 text-xs`}>
                             <div className="min-w-0">
-                                <div className="font-medium text-sm truncate">
+                                <div className="truncate text-sm font-medium">
                                     #{item.id} {item.name}
                                 </div>
                                 <div className="opacity-70">
-                                    rarete: {item.rarity ?? "-"} | max: {item.maxSupply ?? "infini"}
+                                    rareté: {item.rarity ?? "-"} | max: {item.maxSupply ?? "infini"}
                                 </div>
                             </div>
-                            <div className="text-right shrink-0">
-                                <div>mintes: {item.minted}</div>
+                            <div className="shrink-0 text-right">
+                                <div>mints: {item.minted}</div>
                                 <div>reserves: {item.reserved}</div>
                                 <div>restants: {item.remaining ?? "infini"}</div>
-                                <div className={item.soldOut ? "text-red-400" : "opacity-70"}>
-                                    {item.soldOut ? "SOLD OUT" : "mintable"}
-                                </div>
+                                <div className={item.soldOut ? "text-red-400" : "opacity-70"}>{item.soldOut ? "SOLD OUT" : "mintable"}</div>
                             </div>
                         </div>
                     ))}
                 </div>
             </section>
 
-            <section className="rounded-2xl border p-4 space-y-2">
+            <section className={panelClass}>
                 <div className="font-semibold">Collection active</div>
                 <div className="text-sm opacity-80">
                     {data.stats?.activeCollection ? (
@@ -368,88 +375,66 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                 <span className="opacity-70">Tree:</span> {data.stats.activeCollection.merkleTreePubkey}
                             </div>
                             <div className="break-all">
-                                <span className="opacity-70">Core:</span> {data.stats.activeCollection.coreCollectionPubkey ?? "â€”"}
+                                <span className="opacity-70">Core:</span> {data.stats.activeCollection.coreCollectionPubkey ?? "-"}
                             </div>
                         </>
                     ) : (
-                        <span className="opacity-70">Aucune (fallback sur .env si prÃ©sent)</span>
+                        <span className="opacity-70">Aucune (fallback sur .env si présent)</span>
                     )}
                 </div>
             </section>
 
-            {/* --- TWITCH SECTION --- */}
-            <section className="rounded-2xl border p-4 space-y-3">
+            <section className={panelClass}>
                 <div className="font-semibold">Twitch (Rewards + EventSub)</div>
 
-                <div className="text-xs opacity-70 break-all">
+                <div className="break-all text-xs opacity-70">
                     Webhook callback attendu: <span className="font-mono">{webhookCallback}</span>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                    <button
-                        className="rounded-xl border px-3 py-2"
-                        onClick={fetchRewards}
-                        disabled={twitchBusy !== null}
-                    >
-                        {twitchBusy === "rewards" ? "Chargement rewardsâ€¦" : "Lister rewards"}
+                    <button className={buttonClass} onClick={fetchRewards} disabled={twitchBusy !== null}>
+                        {twitchBusy === "rewards" ? "Chargement rewards..." : "Lister rewards"}
                     </button>
 
-                    <button
-                        className="rounded-xl border px-3 py-2"
-                        onClick={fetchSubscriptions}
-                        disabled={twitchBusy !== null}
-                    >
-                        {twitchBusy === "subs" ? "Chargement subsâ€¦" : "Lister subscriptions"}
+                    <button className={buttonClass} onClick={fetchSubscriptions} disabled={twitchBusy !== null}>
+                        {twitchBusy === "subs" ? "Chargement subs..." : "Lister subscriptions"}
                     </button>
 
-                    <button
-                        className="rounded-xl border px-3 py-2"
-                        onClick={subscribeEventSub}
-                        disabled={twitchBusy !== null || !selectedRewardId}
-                    >
-                        {twitchBusy === "subscribe" ? "Subscribeâ€¦" : "CrÃ©er subscription EventSub"}
+                    <button className={buttonClass} onClick={subscribeEventSub} disabled={twitchBusy !== null || !selectedRewardId}>
+                        {twitchBusy === "subscribe" ? "Subscribe..." : "Créer subscription EventSub"}
                     </button>
                 </div>
 
                 {twitchMsg ? (
                     <div
-                        className={`rounded-xl border px-3 py-2 text-sm wrap-break-word ${isHttpErrorText(twitchMsg) ? "opacity-90" : "opacity-80"
+                        className={`break-words rounded-xl border border-white/20 bg-black/35 px-3 py-2 text-sm ${isHttpErrorText(twitchMsg) ? "opacity-90" : "opacity-80"
                             }`}
                     >
                         {twitchMsg}
                     </div>
                 ) : null}
 
-                <div className="grid md:grid-cols-2 gap-3">
-                    {/* rewards list */}
-                    <div className="rounded-xl border p-3 space-y-2">
+                <div className="grid gap-3 md:grid-cols-2">
+                    <div className={`${itemClass} space-y-2`}>
                         <div className="text-sm font-medium">Rewards</div>
 
                         {rewards.length ? (
                             <>
-                                <select
-                                    className="w-full rounded-xl border px-3 py-2 bg-transparent"
-                                    value={selectedRewardId}
-                                    onChange={(e) => setSelectedRewardId(e.target.value)}
-                                >
+                                <select className={selectClass} value={selectedRewardId} onChange={(e) => setSelectedRewardId(e.target.value)}>
                                     {rewards.map((rw) => (
                                         <option key={rw.id} value={rw.id}>
-                                            {rw.title} â€” {rw.cost} pts {rw.is_enabled ? "" : "(disabled)"}
+                                            {rw.title} - {rw.cost} pts {rw.is_enabled ? "" : "(disabled)"}
                                         </option>
                                     ))}
                                 </select>
 
-                                <div className="text-xs opacity-70 break-all">
+                                <div className="break-all text-xs opacity-70">
                                     rewardId: <span className="font-mono">{selectedRewardId}</span>
                                 </div>
 
                                 <div className="flex gap-2">
-                                    <button
-                                        className="rounded-xl border px-3 py-2 text-sm"
-                                        onClick={() => copyToClipboard(selectedRewardId)}
-                                        disabled={twitchBusy !== null}
-                                    >
-                                        Copier lâ€™ID
+                                    <button className={buttonClass} onClick={() => copyToClipboard(selectedRewardId)} disabled={twitchBusy !== null}>
+                                        Copier l&apos;ID
                                     </button>
                                 </div>
 
@@ -458,23 +443,17 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                 </div>
                             </>
                         ) : (
-                            <div className="text-xs opacity-70">
-                                Clique â€œLister rewardsâ€ (tu dois Ãªtre loggÃ© admin + scopes OK).
-                            </div>
+                            <div className="text-xs opacity-70">Clique &quot;Lister rewards&quot; (tu dois être loggé admin + scopes OK).</div>
                         )}
                     </div>
 
-                    {/* subscriptions list */}
-                    <div className="rounded-xl border p-3 space-y-2">
+                    <div className={`${itemClass} space-y-2`}>
                         <div className="text-sm font-medium">Subscriptions</div>
 
                         {subs.length ? (
                             <div className="space-y-2">
                                 {subs.map((s) => (
-                                    <div
-                                        key={s.id}
-                                        className="rounded-xl border p-2 text-xs flex items-start justify-between gap-3"
-                                    >
+                                    <div key={s.id} className="flex items-start justify-between gap-3 rounded-xl border border-white/15 bg-black/25 p-2 text-xs">
                                         <div className="space-y-1">
                                             <div className="break-all">
                                                 <span className="opacity-70">id:</span> {s.id}
@@ -488,7 +467,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                         </div>
 
                                         <button
-                                            className="rounded-xl border px-3 py-2 text-xs cursor-pointer"
+                                            className={`${buttonClass} px-3 py-2 text-xs`}
                                             onClick={() => deleteSub(s.id)}
                                             disabled={twitchBusy !== null}
                                             title="Supprimer cette subscription"
@@ -499,78 +478,65 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                 ))}
                             </div>
                         ) : (
-                            <div className="text-xs opacity-70">Clique â€œLister subscriptionsâ€.</div>
+                            <div className="text-xs opacity-70">Clique &quot;Lister subscriptions&quot;.</div>
                         )}
                     </div>
                 </div>
             </section>
 
-            {/* seed */}
-            <section className="rounded-2xl border p-4 space-y-3">
+            <section className={panelClass}>
                 <div className="font-semibold">Seed tickets (test)</div>
-                <div className="grid md:grid-cols-3 gap-2">
+                <div className="grid gap-2 md:grid-cols-3">
                     <input
-                        className="rounded-xl border px-3 py-2"
+                        className={inputClass}
                         placeholder="twitchUserId (viewer)"
                         value={seedUserId}
                         onChange={(e) => setSeedUserId(e.target.value)}
                     />
-                    <input
-                        className="rounded-xl border px-3 py-2"
-                        type="number"
-                        value={seedCount}
-                        onChange={(e) => setSeedCount(Number(e.target.value))}
-                    />
-                    <button className="rounded-xl border px-4 py-2" onClick={seedTickets}>
+                    <input className={inputClass} type="number" value={seedCount} onChange={(e) => setSeedCount(Number(e.target.value))} />
+                    <button className={buttonClass} onClick={seedTickets}>
                         Ajouter
                     </button>
                 </div>
-                <div className="text-xs opacity-70">Astuce: rÃ©cupÃ¨re ton twitchUserId via /api/me (en Ã©tant loggÃ©)</div>
+                <div className="text-xs opacity-70">Astuce: récupère ton twitchUserId via /api/me (en étant loggé).</div>
             </section>
 
-            {/* collections */}
-            <section className="rounded-2xl border p-4 space-y-3">
+            <section className={panelClass}>
                 <div className="font-semibold">Collections</div>
-                <div className="grid md:grid-cols-4 gap-2">
+                <div className={`${itemClass} text-xs opacity-80`}>
+                    <div>
+                        <span className="font-medium">Créer + activer</span> ajoute une collection en base et la passe active immediatement.
+                    </div>
+                    <div className="mt-1">Conséquence: les prochains mints utiliseront ce Merkle Tree/Core Collection (priorité sur la config `.env`).</div>
+                    <div className="mt-1 opacity-70">Les mints déjà créés ne changent pas.</div>
+                </div>
+                <div className="grid gap-2 md:grid-cols-4">
+                    <input className={inputClass} placeholder="Nom" value={newColName} onChange={(e) => setNewColName(e.target.value)} />
+                    <input className={inputClass} placeholder="Merkle Tree pubkey" value={newTree} onChange={(e) => setNewTree(e.target.value)} />
                     <input
-                        className="rounded-xl border px-3 py-2"
-                        placeholder="Nom"
-                        value={newColName}
-                        onChange={(e) => setNewColName(e.target.value)}
-                    />
-                    <input
-                        className="rounded-xl border px-3 py-2"
-                        placeholder="Merkle Tree pubkey"
-                        value={newTree}
-                        onChange={(e) => setNewTree(e.target.value)}
-                    />
-                    <input
-                        className="rounded-xl border px-3 py-2"
+                        className={inputClass}
                         placeholder="Core Collection pubkey (optionnel)"
                         value={newCore}
                         onChange={(e) => setNewCore(e.target.value)}
                     />
-                    <button className="rounded-xl border px-4 py-2" onClick={createCollection}>
-                        CrÃ©er + activer
+                    <button className={buttonClass} onClick={createCollection}>
+                        Créer + activer
                     </button>
                 </div>
 
                 <div className="space-y-2">
                     {data.collections.map((c) => (
-                        <div
-                            key={c._id}
-                            className="rounded-xl border p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-2"
-                        >
+                        <div key={c._id} className={`${itemClass} flex flex-col gap-2 md:flex-row md:items-center md:justify-between`}>
                             <div className="text-sm">
                                 <div className="font-medium">
                                     {c.name} {c.isActive ? <span className="opacity-70">(active)</span> : null}
                                 </div>
-                                <div className="opacity-70 break-all">Tree: {c.merkleTreePubkey}</div>
-                                <div className="opacity-70 break-all">Core: {c.coreCollectionPubkey ?? "â€”"}</div>
+                                <div className="break-all opacity-70">Tree: {c.merkleTreePubkey}</div>
+                                <div className="break-all opacity-70">Core: {c.coreCollectionPubkey ?? "-"}</div>
                             </div>
                             <div className="flex gap-2">
                                 {!c.isActive ? (
-                                    <button className="rounded-xl border px-3 py-2" onClick={() => setActive(c._id)}>
+                                    <button className={buttonClass} onClick={() => setActive(c._id)}>
                                         Set active
                                     </button>
                                 ) : null}
@@ -580,13 +546,12 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                 </div>
             </section>
 
-            {/* tickets pending */}
-            <section className="rounded-2xl border p-4 space-y-3">
+            <section className={panelClass}>
                 <div className="font-semibold">Tickets PENDING (30 derniers)</div>
                 <div className="space-y-2">
                     {data.pendingTickets.map((t) => (
-                        <div key={t.redemptionId} className="rounded-xl border p-3 flex items-center justify-between gap-3">
-                            <div className="text-xs break-all">
+                        <div key={t.redemptionId} className={`${itemClass} flex items-center justify-between gap-3`}>
+                            <div className="break-all text-xs">
                                 <div>
                                     <span className="opacity-70">user:</span> {t.twitchUserId}
                                 </div>
@@ -594,10 +559,10 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                     <span className="opacity-70">redemption:</span> {t.redemptionId}
                                 </div>
                                 <div>
-                                    <span className="opacity-70">locked:</span> {t.lockedByIntentId ?? "â€”"}
+                                    <span className="opacity-70">locked:</span> {t.lockedByIntentId ?? "-"}
                                 </div>
                             </div>
-                            <button className="rounded-xl border px-3 py-2" onClick={() => forceUnlockTicket(t.redemptionId)}>
+                            <button className={buttonClass} onClick={() => forceUnlockTicket(t.redemptionId)}>
                                 Unlock
                             </button>
                         </div>
@@ -605,13 +570,12 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                 </div>
             </section>
 
-            {/* intents prepared */}
-            <section className="rounded-2xl border p-4 space-y-3">
+            <section className={panelClass}>
                 <div className="font-semibold">Intents PREPARED (30 derniers)</div>
                 <div className="space-y-2">
                     {data.preparedIntents.map((i) => (
-                        <div key={i.intentId} className="rounded-xl border p-3 flex items-center justify-between gap-3">
-                            <div className="text-xs break-all">
+                        <div key={i.intentId} className={`${itemClass} flex items-center justify-between gap-3`}>
+                            <div className="break-all text-xs">
                                 <div>
                                     <span className="opacity-70">intent:</span> {i.intentId}
                                 </div>
@@ -625,7 +589,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                     <span className="opacity-70">ticket:</span> {i.redemptionId}
                                 </div>
                             </div>
-                            <button className="rounded-xl border px-3 py-2" onClick={() => unlockIntent(i.intentId)}>
+                            <button className={buttonClass} onClick={() => unlockIntent(i.intentId)}>
                                 Unlock + fail
                             </button>
                         </div>
@@ -635,12 +599,13 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
         </div>
     );
 }
-
 function Card({ title, value }: { title: string; value: string | number }) {
     return (
-        <div className="rounded-2xl border p-4">
+        <div className="rounded-2xl border border-white/20 bg-black/30 p-4 backdrop-blur-sm">
             <div className="text-sm opacity-70">{title}</div>
             <div className="text-2xl font-semibold">{value}</div>
         </div>
     );
 }
+
+

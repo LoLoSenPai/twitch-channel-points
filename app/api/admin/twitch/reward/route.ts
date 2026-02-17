@@ -34,10 +34,28 @@ export async function GET() {
     }
   );
 
-  const j = await r.json();
-  if (!r.ok) return new NextResponse(JSON.stringify(j), { status: r.status });
+  const text = await r.text();
+  let j: unknown = null;
+  try {
+    j = JSON.parse(text);
+  } catch {
+    j = text;
+  }
+  if (!r.ok) {
+    if (r.status === 401) {
+      return new NextResponse(
+        "Token Twitch invalide/expire. Deconnecte-toi puis reconnecte-toi avec Twitch.",
+        { status: 401 }
+      );
+    }
+    return new NextResponse(
+      typeof j === "string" ? j : JSON.stringify(j),
+      { status: r.status }
+    );
+  }
 
-  const items = (j.data ?? []).map((x: TwitchReward) => ({
+  const payload = j as { data?: TwitchReward[] };
+  const items = (payload.data ?? []).map((x: TwitchReward) => ({
     id: x.id,
     title: x.title,
     cost: x.cost,

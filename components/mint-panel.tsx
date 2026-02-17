@@ -422,7 +422,7 @@ export function MintPanel() {
 
                     <div className="flex flex-wrap gap-2">
                         <a className="rounded-xl border px-3 py-2 text-sm cursor-pointer" href="/album">
-                            Voir dans l album
+                            Voir dans l&apos;album
                         </a>
 
                         <a
