@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { VersionedTransaction } from "@solana/web3.js";
+import { normalizeRarity } from "@/lib/stickers";
 import stickers from "@/stickers/stickers.json";
 
 type TradeAsset = {
@@ -83,6 +84,7 @@ type StickerItem = {
   id: string;
   name?: string;
   image?: string;
+  rarity?: string;
 };
 
 type StickerJson = {
@@ -126,6 +128,42 @@ function statusBadgeClass(status: string) {
       return "border-zinc-400/40 bg-zinc-500/10 text-zinc-200";
     default:
       return "border-zinc-400/40 bg-zinc-500/10 text-zinc-200";
+  }
+}
+
+function rarityBadgeMeta(value?: string | null) {
+  const rarity = normalizeRarity(value);
+  switch (rarity) {
+    case "mythic":
+      return {
+        label: "Mythic",
+        chipClass: "border-rose-300/50 bg-rose-500/15 text-rose-100",
+      };
+    case "legendary":
+    case "SSR":
+      return {
+        label: "Legendary",
+        chipClass: "border-amber-300/50 bg-amber-500/15 text-amber-100",
+      };
+    case "rare":
+    case "SR":
+      return {
+        label: "Rare",
+        chipClass: "border-sky-300/50 bg-sky-500/15 text-sky-100",
+      };
+    case "uncommon":
+      return {
+        label: "Uncommon",
+        chipClass: "border-emerald-300/50 bg-emerald-500/15 text-emerald-100",
+      };
+    case "common":
+    case "R":
+      return {
+        label: "Common",
+        chipClass: "border-zinc-300/35 bg-zinc-500/15 text-zinc-100",
+      };
+    default:
+      return null;
   }
 }
 
@@ -285,8 +323,12 @@ export function MarketplacePanel() {
   const selectOptionStyle = { color: "#111827", backgroundColor: "#f8fafc" };
   const buttonClass =
     "rounded-xl border px-3 py-2 text-sm transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-white/10 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
+  const buttonPrimaryClass =
+    "rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100 transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-emerald-500/20 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
   const buttonWideClass =
     "w-full rounded-xl border px-3 py-2 text-sm transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-white/10 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
+  const buttonPrimaryWideClass =
+    "w-full rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100 transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-emerald-500/20 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
   const buttonSmallClass =
     "rounded-md border px-2 py-0.5 text-xs transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-white/10 active:scale-[0.98]";
 
@@ -358,6 +400,10 @@ export function MarketplacePanel() {
       ownedStickerGroups.find((group) => group.stickerId === makerSelectedStickerId) ?? null
     );
   }, [ownedStickerGroups, makerSelectedStickerId]);
+
+  const duplicateCopiesCount = useMemo(() => {
+    return ownedStickerGroups.reduce((sum, group) => sum + Math.max(0, group.count - 1), 0);
+  }, [ownedStickerGroups]);
 
   const ownedStickerIds = useMemo(() => {
     const unique = new Set<string>();
@@ -565,6 +611,24 @@ export function MarketplacePanel() {
   const showTrades = !SALES_UI_ENABLED || marketMode === "all" || marketMode === "trade";
   const showSales = SALES_UI_ENABLED && (marketMode === "all" || marketMode === "sale");
   const marketGridClass = boardGridClass(boardCols);
+  const marketFilterStickerIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (showTrades) {
+      for (const offer of openTrades) {
+        ids.add(String(offer.makerStickerId));
+        for (const wantedId of normalizeStickerIds(offer.wantedStickerIds ?? [])) {
+          ids.add(String(wantedId));
+        }
+      }
+    }
+    if (showSales) {
+      for (const listing of openSales) {
+        ids.add(String(listing.sellerStickerId));
+      }
+    }
+    if (stickerNeedle) ids.add(stickerNeedle);
+    return [...ids].sort((a, b) => compareStickerIds(a, b));
+  }, [openSales, openTrades, showSales, showTrades, stickerNeedle]);
   const visibleOpenCount =
     (showTrades ? openTrades.length : 0) +
     (showSales ? openSales.length : 0);
@@ -902,12 +966,12 @@ export function MarketplacePanel() {
       </div>
 
       {notice ? (
-        <div className="rounded-xl border p-3 text-sm whitespace-pre-line">
+        <div className="rounded-xl border border-emerald-300/35 bg-emerald-500/10 p-3 text-sm whitespace-pre-line">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 break-words">{notice}</div>
             <button
               type="button"
-              className="rounded-md border px-2 py-0.5 text-xs opacity-80 transition hover:opacity-100"
+              className="rounded-md border border-emerald-200/35 px-2 py-0.5 text-xs opacity-90 transition hover:bg-emerald-500/20"
               onClick={() => setNotice("")}
             >
               Fermer
@@ -917,24 +981,24 @@ export function MarketplacePanel() {
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="inline-flex rounded-xl border p-1 text-sm">
+        <div className="inline-flex rounded-xl border border-white/20 bg-black/20 p-1 text-sm">
           <button
             type="button"
-            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "marketplace" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "marketplace" ? "bg-emerald-500/20 text-emerald-100" : "opacity-70 hover:bg-white/10"}`}
             onClick={() => setActiveTab("marketplace")}
           >
             Marketplace
           </button>
           <button
             type="button"
-            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "create" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "create" ? "bg-emerald-500/20 text-emerald-100" : "opacity-70 hover:bg-white/10"}`}
             onClick={() => setActiveTab("create")}
           >
             Créer
           </button>
           <button
             type="button"
-            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "mine" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "mine" ? "bg-emerald-500/20 text-emerald-100" : "opacity-70 hover:bg-white/10"}`}
             onClick={() => setActiveTab("mine")}
           >
             Mes offres
@@ -944,7 +1008,7 @@ export function MarketplacePanel() {
         {activeTab !== "create" ? (
           <button
             type="button"
-            className={buttonClass}
+            className={buttonPrimaryClass}
             onClick={() => {
               setActiveTab("create");
             }}
@@ -956,183 +1020,227 @@ export function MarketplacePanel() {
       </div>
 
       {activeTab === "create" ? (
-        <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
-              <div className="rounded-2xl border p-4 space-y-3">
-                <div className="font-semibold">Proposer un échange (1 carte contre 1)</div>
-                <div className="grid gap-2">
-            <input
-              className="rounded-xl border px-3 py-2 bg-transparent text-sm"
-              placeholder="Filtrer ta carte (#14, trader...)"
-              value={makerAssetSearch}
-              onChange={(e) => setMakerAssetSearch(e.target.value)}
-            />
-            <div className="max-h-52 overflow-y-auto rounded-xl border p-2">
-              {makerAssetOptions.length ? (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {makerAssetOptions.map((group) => {
-                    const selected = makerSelectedStickerId === group.stickerId;
-                    return (
-                      <button
-                        key={`maker-group-${group.stickerId}`}
-                        type="button"
-                        className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition-all duration-150 cursor-pointer ${
-                          selected ? "bg-white/15 border-white/60" : "hover:bg-white/10"
-                        }`}
-                        onClick={() => setMakerAssetId(group.primaryAssetId)}
-                        title={`Sélectionner #${group.stickerId}`}
-                      >
-                        <div className="h-10 w-8 shrink-0 overflow-hidden rounded border bg-black/30">
-                          {group.imageSrc ? (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={group.imageSrc}
-                              alt={`Sticker #${group.stickerId}`}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="grid h-full w-full place-items-center text-[10px] opacity-60">
-                              #{group.stickerId}
-                            </div>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-sm">
-                            #{group.stickerId} - {group.name}
-                          </div>
-                          <div className="text-xs opacity-70">Doublons: x{group.count}</div>
-                        </div>
-                      </button>
-                    );
-                  })}
+        <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-[1.25fr_0.75fr]" : "grid gap-4"}>
+          <div className="rounded-2xl border border-white/20 bg-black/25 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] space-y-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-lg font-semibold">Proposer un échange</div>
+                <div className="text-xs opacity-70">
+                  Choisis 1 carte à offrir, puis les cartes que tu acceptes en retour.
                 </div>
-              ) : (
-                <div className="text-xs opacity-70">Aucune carte trouvée.</div>
-              )}
-            </div>
-            {makerSelectedGroup ? (
-              <div className="text-xs opacity-80">
-                Carte proposée: #{makerSelectedGroup.stickerId} - {makerSelectedGroup.name}
-                {" · "}x{makerSelectedGroup.count}
               </div>
-            ) : (
-              <div className="text-xs opacity-70">Choisis une carte à proposer.</div>
-            )}
-            <div className="grid gap-2">
-              <input
-                className="rounded-xl border px-3 py-2 bg-transparent text-sm"
-                placeholder="Rechercher une carte (#14, trader...)"
-                value={wantedStickerSearch}
-                onChange={(e) => setWantedStickerSearch(e.target.value)}
-              />
-              <div className="max-h-44 overflow-y-auto rounded-xl border p-2">
-                {wantedStickerOptions.length ? (
-                  <div className="grid gap-1.5 sm:grid-cols-2 lg:grid-cols-3">
-                    {wantedStickerOptions.map((item) => {
-                      const checked = wantedStickerIds.includes(item.id);
-                      return (
-                        <label
-                          key={`wanted-option-${item.id}`}
-                          className="flex items-center gap-2 rounded-lg border px-2 py-1 text-xs cursor-pointer hover:bg-white/10"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={checked}
-                            onChange={() => toggleWantedStickerId(item.id)}
-                            className="h-3.5 w-3.5 accent-white"
-                          />
-                          <span className="truncate">#{item.id} - {item.name || "Sticker"}</span>
-                        </label>
-                      );
-                    })}
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-1">
+                  Total: {assets.length}
+                </span>
+                <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-1">
+                  Distinctes: {ownedStickerGroups.length}
+                </span>
+                <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-1">
+                  Doublons: {duplicateCopiesCount}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid gap-4 xl:grid-cols-[0.9fr_1.1fr]">
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.14em] opacity-60">Ta carte proposée</div>
+                <input
+                  className="rounded-xl border border-white/20 px-3 py-2 bg-black/25 text-sm"
+                  placeholder="Filtrer ta carte (#14, trader...)"
+                  value={makerAssetSearch}
+                  onChange={(e) => setMakerAssetSearch(e.target.value)}
+                />
+                <div className="max-h-64 overflow-y-auto rounded-xl border border-white/20 bg-black/20 p-2">
+                  {makerAssetOptions.length ? (
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {makerAssetOptions.map((group) => {
+                        const selected = makerSelectedStickerId === group.stickerId;
+                        return (
+                          <button
+                            key={`maker-group-${group.stickerId}`}
+                            type="button"
+                            className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition-all duration-150 cursor-pointer ${
+                              selected
+                                ? "bg-emerald-500/15 border-emerald-300/60 shadow-[0_0_0_1px_rgba(52,211,153,.15)]"
+                                : "border-white/15 bg-black/20 hover:bg-white/10"
+                            }`}
+                            onClick={() => setMakerAssetId(group.primaryAssetId)}
+                            title={`Sélectionner #${group.stickerId}`}
+                          >
+                            <div className="h-10 w-8 shrink-0 overflow-hidden rounded border border-white/15 bg-black/30">
+                              {group.imageSrc ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={group.imageSrc}
+                                  alt={`Sticker #${group.stickerId}`}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="grid h-full w-full place-items-center text-[10px] opacity-60">
+                                  #{group.stickerId}
+                                </div>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="truncate text-sm">
+                                #{group.stickerId} - {group.name}
+                              </div>
+                              <div className="text-[11px] opacity-70">x{group.count}</div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-xs opacity-70">Aucune carte trouvée.</div>
+                  )}
+                </div>
+                {makerSelectedGroup ? (
+                  <div className="rounded-lg border border-emerald-300/25 bg-emerald-500/10 px-2.5 py-1.5 text-xs">
+                    Carte proposée: <span className="font-medium">#{makerSelectedGroup.stickerId} - {makerSelectedGroup.name}</span>
+                    {" · "}x{makerSelectedGroup.count}
                   </div>
                 ) : (
-                  <div className="text-xs opacity-70">Aucune carte trouvée.</div>
+                  <div className="text-xs opacity-70">Choisis une carte à proposer.</div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <div className="text-xs uppercase tracking-[0.14em] opacity-60">Cartes acceptées en retour</div>
+                <input
+                  className="rounded-xl border border-white/20 px-3 py-2 bg-black/25 text-sm"
+                  placeholder="Rechercher une carte (#14, trader...)"
+                  value={wantedStickerSearch}
+                  onChange={(e) => setWantedStickerSearch(e.target.value)}
+                />
+                <div className="max-h-64 overflow-y-auto rounded-xl border border-white/20 bg-black/20 p-2">
+                  {wantedStickerOptions.length ? (
+                    <div className="grid gap-1.5 sm:grid-cols-2">
+                      {wantedStickerOptions.map((item) => {
+                        const checked = wantedStickerIds.includes(item.id);
+                        return (
+                          <label
+                            key={`wanted-option-${item.id}`}
+                            className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-xs cursor-pointer transition-all duration-150 ${
+                              checked
+                                ? "border-cyan-300/60 bg-cyan-500/10"
+                                : "border-white/15 bg-black/20 hover:bg-white/10"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleWantedStickerId(item.id)}
+                              className="h-3.5 w-3.5 accent-cyan-300"
+                            />
+                            <span className="truncate">#{item.id} - {item.name || "Sticker"}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-xs opacity-70">Aucune carte trouvée.</div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    className={buttonSmallClass}
+                    disabled={loading || !assets.length}
+                    onClick={() => setWantedStickerIds(normalizeStickerIds(missingStickerIds))}
+                  >
+                    Mes manquantes ({missingStickerIds.length})
+                  </button>
+                  <button
+                    type="button"
+                    className={buttonSmallClass}
+                    disabled={loading || !wantedStickerIds.length}
+                    onClick={() => setWantedStickerIds([])}
+                  >
+                    Vider
+                  </button>
+                  <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5">
+                    {wantedStickerIds.length} cible(s)
+                  </span>
+                </div>
+
+                {wantedStickerIds.length ? (
+                  <div className="rounded-lg border border-white/15 bg-black/20 p-2">
+                    <div className="mb-1 text-[11px] uppercase tracking-[0.12em] opacity-60">
+                      Sélection actuelle
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {wantedStickerIds.map((id) => (
+                        <button
+                          key={`wanted-${id}`}
+                          type="button"
+                          className="rounded-full border border-cyan-300/30 bg-cyan-500/10 px-2 py-0.5 text-xs transition-all duration-150 enabled:cursor-pointer hover:bg-cyan-500/20"
+                          onClick={() => removeWantedStickerId(id)}
+                          title={`Retirer #${id}`}
+                          disabled={loading}
+                        >
+                          #{id} ×
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-xs opacity-70">Ajoute une ou plusieurs cartes acceptées.</div>
                 )}
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <button
-                type="button"
-                className={buttonSmallClass}
-                disabled={loading || !assets.length}
-                onClick={() => setWantedStickerIds(normalizeStickerIds(missingStickerIds))}
-              >
-                Mes manquantes ({missingStickerIds.length})
-              </button>
-              <button
-                type="button"
-                className={buttonSmallClass}
-                disabled={loading || !wantedStickerIds.length}
-                onClick={() => setWantedStickerIds([])}
-              >
-                Vider
-              </button>
-              <span className="opacity-70">{wantedStickerIds.length} cible(s)</span>
-            </div>
-            {wantedStickerIds.length ? (
-              <div className="flex flex-wrap gap-1.5">
-                {wantedStickerIds.map((id) => (
-                  <button
-                    key={`wanted-${id}`}
-                    type="button"
-                    className="rounded-full border px-2 py-0.5 text-xs transition-all duration-150 enabled:cursor-pointer hover:bg-white/10"
-                    onClick={() => removeWantedStickerId(id)}
-                    title={`Retirer #${id}`}
-                    disabled={loading}
-                  >
-                    #{id} ×
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <div className="text-xs opacity-70">Ajoute une ou plusieurs cartes acceptées.</div>
-            )}
-                  <button className={buttonClass} disabled={loading} onClick={() => void createOffer()}>
-                    {busyAction === "create-offer" ? "Création..." : "Créer l'offre"}
-                  </button>
-                </div>
-              </div>
 
-              {SALES_UI_ENABLED ? (
-                <div className="rounded-2xl border p-4 space-y-3">
-                  <div className="font-semibold">Mettre une carte en vente</div>
-                  <div className="grid gap-2">
-              <select
-                className="rounded-xl border px-3 py-2 bg-transparent"
-                value={saleAssetId}
-                onChange={(e) => setSaleAssetId(e.target.value)}
-              >
-                <option value="" style={selectOptionStyle}>Choisis ta carte à vendre</option>
-                {ownedStickerGroups.map((group) => (
-                  <option key={`sale-group-${group.stickerId}`} value={group.primaryAssetId} style={selectOptionStyle}>
-                    #{group.stickerId} - {group.name} (x{group.count})
-                  </option>
-                ))}
-              </select>
-              <input
-                className="rounded-xl border px-3 py-2 bg-transparent"
-                placeholder="Prix en SOL (ex: 0.05)"
-                value={salePriceSol}
-                onChange={(e) => setSalePriceSol(e.target.value)}
-              />
-              {salePricePreview ? (
-                <div className="text-xs opacity-70">
-                  Total acheteur: {lamportsToSol(salePricePreview.totalLamports)} SOL
-                  {" · "}Tu reçois: {lamportsToSol(salePricePreview.sellerLamports)} SOL
-                  {" · "}Frais: {lamportsToSol(salePricePreview.feeLamports)} SOL
-                </div>
-              ) : null}
-                    <button className={buttonClass} disabled={loading} onClick={() => void createListing()}>
-                      {busyAction === "create-listing" ? "Publication..." : "Mettre en vente"}
-                    </button>
+            <button
+              className={buttonPrimaryWideClass}
+              disabled={loading}
+              onClick={() => void createOffer()}
+            >
+              {busyAction === "create-offer" ? "Création..." : "Créer l'offre"}
+            </button>
+          </div>
+
+          {SALES_UI_ENABLED ? (
+            <div className="rounded-2xl border border-white/20 bg-black/25 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] space-y-3">
+              <div className="font-semibold">Mettre une carte en vente</div>
+              <div className="grid gap-2">
+                <select
+                  className="rounded-xl border border-white/20 px-3 py-2 bg-black/25"
+                  value={saleAssetId}
+                  onChange={(e) => setSaleAssetId(e.target.value)}
+                >
+                  <option value="" style={selectOptionStyle}>Choisis ta carte à vendre</option>
+                  {ownedStickerGroups.map((group) => (
+                    <option key={`sale-group-${group.stickerId}`} value={group.primaryAssetId} style={selectOptionStyle}>
+                      #{group.stickerId} - {group.name} (x{group.count})
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="rounded-xl border border-white/20 px-3 py-2 bg-black/25"
+                  placeholder="Prix en SOL (ex: 0.05)"
+                  value={salePriceSol}
+                  onChange={(e) => setSalePriceSol(e.target.value)}
+                />
+                {salePricePreview ? (
+                  <div className="rounded-lg border border-white/15 bg-black/20 p-2 text-xs opacity-80">
+                    Total acheteur: {lamportsToSol(salePricePreview.totalLamports)} SOL
+                    {" · "}Tu reçois: {lamportsToSol(salePricePreview.sellerLamports)} SOL
+                    {" · "}Frais: {lamportsToSol(salePricePreview.feeLamports)} SOL
                   </div>
-                </div>
-              ) : null}
-            </section>
+                ) : null}
+                <button className={buttonClass} disabled={loading} onClick={() => void createListing()}>
+                  {busyAction === "create-listing" ? "Publication..." : "Mettre en vente"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </section>
       ) : null}
 
       {activeTab === "marketplace" ? (
-        <section className="rounded-2xl border p-4 space-y-3">
+        <section className="rounded-2xl border border-white/20 bg-black/25 p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="font-semibold">Marketplace</div>
           <div className="flex flex-wrap items-center gap-2">
@@ -1229,10 +1337,78 @@ export function MarketplacePanel() {
           </div>
         </div>
 
+        {marketFilterStickerIds.length ? (
+          <div className="space-y-2">
+            <div className="text-[11px] uppercase tracking-[0.12em] opacity-60">
+              Raccourcis cartes
+            </div>
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              <button
+                type="button"
+                className={`shrink-0 rounded-lg border px-2.5 py-1.5 text-xs transition-all duration-150 cursor-pointer ${
+                  !stickerNeedle
+                    ? "border-emerald-300/50 bg-emerald-500/15 text-emerald-100"
+                    : "border-white/20 bg-black/20 hover:bg-white/10"
+                }`}
+                onClick={() => setStickerFilter("")}
+              >
+                Tout
+              </button>
+              {marketFilterStickerIds.map((id) => {
+                const sticker = stickerById.get(String(id));
+                const imageSrc = resolveStickerImageSrc(sticker?.image);
+                const rarity = rarityBadgeMeta(sticker?.rarity);
+                const selected = stickerNeedle === String(id);
+                return (
+                  <button
+                    key={`quick-filter-${id}`}
+                    type="button"
+                    className={`shrink-0 rounded-lg border px-1.5 py-1 transition-all duration-150 cursor-pointer ${
+                      selected
+                        ? "border-emerald-300/50 bg-emerald-500/15"
+                        : "border-white/20 bg-black/20 hover:bg-white/10"
+                    }`}
+                    title={`Filtrer #${id}`}
+                    onClick={() => setStickerFilter(String(id))}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-6 overflow-hidden rounded border border-white/15 bg-black/30">
+                        {imageSrc ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={imageSrc}
+                            alt={`Sticker #${id}`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="grid h-full w-full place-items-center text-[9px] opacity-70">
+                            #{id}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex flex-col items-start">
+                        <span className="text-xs leading-tight">#{id}</span>
+                        {rarity ? (
+                          <span
+                            className={`rounded-full border px-1.5 py-0 text-[10px] leading-tight ${rarity.chipClass}`}
+                          >
+                            {rarity.label}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
+
         <div className={marketGridClass}>
           {showTrades &&
             openTrades.map((offer) => {
               const sticker = stickerById.get(String(offer.makerStickerId));
+              const rarity = rarityBadgeMeta(sticker?.rarity);
               const imageSrc = resolveStickerImageSrc(sticker?.image);
               const wantedIds = normalizeStickerIds(offer.wantedStickerIds ?? []);
               const wantedCount = wantedIds.length;
@@ -1258,17 +1434,24 @@ export function MarketplacePanel() {
                 .filter((group) => Boolean(group.primaryAssetId))
                 .sort((a, b) => compareStickerIds(a.stickerId, b.stickerId));
               return (
-                <article key={`trade-${offer.offerId}`} className="rounded-2xl border p-3 space-y-3 bg-black/20">
+                <article key={`trade-${offer.offerId}`} className="rounded-2xl border border-white/20 p-3 space-y-3 bg-black/30 backdrop-blur-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-cyan-300/35">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-200">
-                      Échange
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-200">
+                        Échange
+                      </span>
+                      {rarity ? (
+                        <span className={`rounded-full border px-2 py-0.5 text-xs ${rarity.chipClass}`}>
+                          {rarity.label}
+                        </span>
+                      ) : null}
+                    </div>
                     <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(offer.status)}`}>
                       {offer.status}
                     </span>
                   </div>
 
-                  <div className="rounded-xl border overflow-hidden bg-black/30 aspect-[3/4]">
+                  <div className="rounded-xl border border-white/15 overflow-hidden bg-black/30 aspect-[3/4]">
                     {imageSrc ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={imageSrc} alt={sticker?.name ?? `Sticker #${offer.makerStickerId}`} className="h-full w-full object-cover" />
@@ -1329,20 +1512,28 @@ export function MarketplacePanel() {
           {showSales &&
             openSales.map((listing) => {
               const sticker = stickerById.get(String(listing.sellerStickerId));
+              const rarity = rarityBadgeMeta(sticker?.rarity);
               const imageSrc = resolveStickerImageSrc(sticker?.image);
               const split = splitMarketSaleAmount(listing.priceLamports, marketFeeBps);
               return (
-                <article key={`sale-${listing.listingId}`} className="rounded-2xl border p-3 space-y-3 bg-black/20">
+                <article key={`sale-${listing.listingId}`} className="rounded-2xl border border-white/20 p-3 space-y-3 bg-black/30 backdrop-blur-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-fuchsia-300/35">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-2 py-0.5 text-xs text-fuchsia-200">
-                      Vente
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-2 py-0.5 text-xs text-fuchsia-200">
+                        Vente
+                      </span>
+                      {rarity ? (
+                        <span className={`rounded-full border px-2 py-0.5 text-xs ${rarity.chipClass}`}>
+                          {rarity.label}
+                        </span>
+                      ) : null}
+                    </div>
                     <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(listing.status)}`}>
                       {listing.status}
                     </span>
                   </div>
 
-                  <div className="rounded-xl border overflow-hidden bg-black/30 aspect-[3/4]">
+                  <div className="rounded-xl border border-white/15 overflow-hidden bg-black/30 aspect-[3/4]">
                     {imageSrc ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={imageSrc} alt={sticker?.name ?? `Sticker #${listing.sellerStickerId}`} className="h-full w-full object-cover" />
@@ -1384,7 +1575,7 @@ export function MarketplacePanel() {
 
       {activeTab === "mine" ? (
         <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
-        <div className="rounded-2xl border p-4 space-y-3">
+        <div className="rounded-2xl border border-white/20 bg-black/25 p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
           <div className="font-semibold">Mes offres d’échange</div>
           {(offers?.mine ?? []).length ? (
             <div className="space-y-2">
@@ -1394,7 +1585,7 @@ export function MarketplacePanel() {
                 const wantedListFull = formatStickerList(wantedIds);
                 const wantedListPreview = formatStickerListPreview(wantedIds, 4);
                 return (
-                  <div key={offer.offerId} className="rounded-xl border p-3 text-sm space-y-1">
+                  <div key={offer.offerId} className="rounded-xl border border-white/15 bg-black/25 p-3 text-sm space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         #{offer.makerStickerId} contre{" "}
@@ -1496,14 +1687,14 @@ export function MarketplacePanel() {
         </div>
 
         {SALES_UI_ENABLED ? (
-          <div className="rounded-2xl border p-4 space-y-3">
+          <div className="rounded-2xl border border-white/20 bg-black/25 p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
             <div className="font-semibold">Mes ventes</div>
             {(listings?.mine ?? []).length ? (
               <div className="space-y-2">
                 {listings!.mine.map((listing) => {
                   const split = splitMarketSaleAmount(listing.priceLamports, marketFeeBps);
                   return (
-                    <div key={listing.listingId} className="rounded-xl border p-3 text-sm space-y-1">
+                    <div key={listing.listingId} className="rounded-xl border border-white/15 bg-black/25 p-3 text-sm space-y-1">
                       <div className="flex items-center justify-between gap-2">
                         <div>#{listing.sellerStickerId} - {lamportsToSol(split.totalLamports)} SOL</div>
                         <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(listing.status)}`}>
