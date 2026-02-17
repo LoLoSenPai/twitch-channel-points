@@ -1,8 +1,7 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { LogoutButton } from "@/components/logout-button";
-import { SiteNavLinks } from "@/components/site-nav-links";
 import Image from "next/image";
+import { SiteNavbarControls } from "@/components/site-navbar-controls";
 
 type SessionUser = {
   name?: string | null;
@@ -13,34 +12,18 @@ export default async function SiteNavbar() {
   const session = await auth();
   const user = session?.user as SessionUser | undefined;
   const displayName = user?.displayName ?? user?.name ?? "viewer";
+  const isAuthenticated = Boolean(session?.user);
 
   return (
     <header className="border-b border-white/10 bg-black/25 backdrop-blur-xl">
-      <div className="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-2 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-4">
+      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-3 px-4 py-2 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center">
           <Link href="/" className="text-sm font-semibold tracking-wide text-white/95">
-            <Image src="/nyls-pfp.jpg" alt="Nyls PFP" width={40} height={40} className="inline-block mr-2 rounded-full" />
+            <Image src="/nyls-pfp.jpg" alt="Nyls PFP" width={40} height={40} className="inline-block rounded-full" />
           </Link>
-          <SiteNavLinks />
         </div>
 
-        <div className="flex items-center gap-2 text-sm">
-          {session?.user ? (
-            <>
-              <span className="hidden text-white/70 sm:inline">
-                Connecté : <span className="font-medium text-white">{displayName}</span>
-              </span>
-              <LogoutButton />
-            </>
-          ) : (
-            <Link
-              href="/api/auth/signin/twitch?callbackUrl=%2F"
-              className="inline-flex items-center justify-center rounded-xl border border-white/20 bg-white/90 px-3 py-2 text-zinc-900 transition hover:bg-white"
-            >
-              Se connecter
-            </Link>
-          )}
-        </div>
+        <SiteNavbarControls isAuthenticated={isAuthenticated} displayName={displayName} />
       </div>
     </header>
   );
