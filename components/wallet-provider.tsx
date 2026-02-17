@@ -14,13 +14,19 @@ const WalletModalProvider = dynamic(
 
 export function SolanaWalletProvider({ children }: { children: React.ReactNode }) {
     const endpoint = useMemo(() => "https://api.devnet.solana.com", []);
-    const wallets = useMemo(() => [new PhantomWalletAdapter()], []);
+    const isMobile = useMemo(
+        () => (typeof navigator !== "undefined" ? /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent) : false),
+        []
+    );
+    const wallets = useMemo(() => (isMobile ? [] : [new PhantomWalletAdapter()]), [isMobile]);
+    const localStorageKey = useMemo(() => (isMobile ? "walletName_mobile" : "walletName"), [isMobile]);
 
     return (
         <ConnectionProvider endpoint={endpoint}>
             <WalletProvider
                 wallets={wallets}
                 autoConnect={false}
+                localStorageKey={localStorageKey}
                 onError={(e) => {
                     console.error("WalletAdapter error:", e);
                 }}
