@@ -79,7 +79,7 @@ export default async function FairnessPage() {
             Vérifier le tirage de mint
           </h1>
           <p className="mt-3 text-sm text-white/80 sm:text-base">
-            Les mints utilisent une random vérifiable (Switchboard). Le sticker
+            Les mints utilisent une random vérifiable (Switchboard). Le NFT
             est ensuite choisi uniformément parmi les IDs encore mintables.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
@@ -91,12 +91,6 @@ export default async function FairnessPage() {
             >
               Doc Switchboard
             </a>
-            <Link
-              className="rounded-xl border border-white/20 px-3 py-2 text-sm transition hover:bg-white/10"
-              href="/"
-            >
-              Retour accueil
-            </Link>
           </div>
         </section>
 

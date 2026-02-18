@@ -128,7 +128,7 @@ export function FairnessPanel({
             {hasProof ? (
                 <div className="space-y-3">
                     <div className="text-sm text-white/80">
-                        Dernier mint prouve: sticker #{String(stickerId ?? "?")} ({short(mintTx)})
+                        Dernier mint prouvé: sticker #{String(stickerId ?? "?")} ({short(mintTx)})
                     </div>
                     <div className="text-xs text-white/65">
                         Queue: {short(queuePubkey, 8, 8)} | Randomness account:{" "}
@@ -220,13 +220,13 @@ export function FairnessPanel({
                             <div className="text-sm font-medium">Resultat verification (1 clic)</div>
                             <ul className="space-y-1 text-sm text-white/85">
                                 <li>
-                                    {verifyResult.checks.randomPresent ? "OK" : "KO"} - Random Switchboard presente
+                                    {verifyResult.checks.randomPresent ? "OK" : "KO"} - Random Switchboard présente
                                 </li>
                                 <li>
-                                    {verifyResult.checks.algorithmMatches ? "OK" : "KO"} - Calcul index et sticker coherent
+                                    {verifyResult.checks.algorithmMatches ? "OK" : "KO"} - Calcul index et sticker cohérent
                                 </li>
                                 <li>
-                                    {verifyResult.checks.requiredTxOk ? "OK" : "KO"} - Tx mint/commit/reveal confirmees
+                                    {verifyResult.checks.requiredTxOk ? "OK" : "KO"} - Tx mint/commit/reveal confirmées
                                 </li>
                             </ul>
                             <div
