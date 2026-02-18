@@ -7,6 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:core": "node ./node_modules/tsx/dist/cli.mjs ./tests/core-randomness.test.ts",
+    "test:quick": "npm run test:core && npx tsc --noEmit",
     "tree:create": "node ./node_modules/tsx/dist/cli.mjs ./scripts/create-tree.ts",
     "authority:print": "node ./node_modules/tsx/dist/cli.mjs ./scripts/print-authority.ts"
   },

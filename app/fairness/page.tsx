@@ -76,12 +76,11 @@ export default async function FairnessPage() {
             Fairness
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
-            Verifier le tirage de mint
+            Vérifier le tirage de mint
           </h1>
           <p className="mt-3 text-sm text-white/80 sm:text-base">
-            Les mints utilisent une random verifiable (Switchboard). Le sticker
-            est ensuite choisi uniformement parmi les IDs encore mintables. Il
-            n y a plus de poids de rarete.
+            Les mints utilisent une random vérifiable (Switchboard). Le sticker
+            est ensuite choisi uniformément parmi les IDs encore mintables.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <a
@@ -108,7 +107,7 @@ export default async function FairnessPage() {
         ) : null}
 
         <section className="rounded-3xl border border-white/10 bg-black/25 p-5 md:p-6">
-          <h2 className="text-xl font-semibold">Derniere preuve</h2>
+          <h2 className="text-xl font-semibold">Dernière preuve</h2>
           <FairnessPanel
             hasProof={hasProof}
             stickerId={latestMintProof?.stickerId ?? null}
@@ -130,16 +129,15 @@ export default async function FairnessPage() {
         </section>
 
         <section className="rounded-3xl border border-white/10 bg-black/20 p-5 md:p-6">
-          <h2 className="text-xl font-semibold">Comment verifier</h2>
+          <h2 className="text-xl font-semibold">Comment vérifier</h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-white/80">
-            <li>Ouvre la preuve JSON.</li>
-            <li>Recupere `randomHex` et la liste `availableStickerIds`.</li>
+            <li>Clique d&apos;abord sur &quot;Vérifier automatiquement&quot; dans le bloc &quot;Dernière preuve&quot;.</li>
+            <li>Si les 3 checks sont &quot;OK&quot;, le mint est cohérent (random + calcul + tx).</li>
+            <li>Tu peux ensuite ouvrir Mint tx / Commit tx / Reveal tx pour un audit manuel.</li>
             <li>
-              Applique la regle: `index = BigInt(randomHex) %
-              availableStickerIds.length`.
+              Pour les curieux, l&apos;algorithme détaillé reste visible dans &quot;détails techniques&quot;
+              et dans le JSON de preuve.
             </li>
-            <li>Verifie que `availableStickerIds[index]` correspond au sticker mint.</li>
-            <li>Controle les tx `commit` et `reveal` sur Solscan.</li>
           </ol>
           <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-3 font-mono text-xs text-white/75">
             GET /api/mint/proof/{`{mintTx}`}

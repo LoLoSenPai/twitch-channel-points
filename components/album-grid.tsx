@@ -393,17 +393,17 @@ export function AlbumGrid() {
                         {loading
                             ? "Chargement de ton album..."
                             : me?.user?.displayName
-                                ? `${me.user.displayName}, complete la collection en mintant chaque case.`
+                                ? `${me.user.displayName}, complète la collection en mintant chaque case.`
                                 : "Connecte Twitch pour afficher ton avancement complet."}
                     </p>
                 </div>
 
                 <div className="album-stats">
                     <p>
-                        Possedes <strong>{uniqueOwnedCount}</strong> / <strong>{totalSlots}</strong>
+                        Possedés <strong>{uniqueOwnedCount}</strong> / <strong>{totalSlots}</strong>
                     </p>
                     <p>
-                        Stickers mintes <strong>{mintedTotal}</strong>
+                        Stickers mintés <strong>{mintedTotal}</strong>
                     </p>
                     <p>
                         Doubles <strong>{duplicates}</strong>
