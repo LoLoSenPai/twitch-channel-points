@@ -18,7 +18,7 @@ export function SiteNavbarControls({ isAuthenticated, displayName }: SiteNavbarC
 
   return (
     <>
-      <div className="ml-auto hidden items-center gap-4 md:flex">
+      <div className="hidden min-w-0 flex-1 items-center justify-between gap-4 md:flex">
         <SiteNavLinks />
 
         <div className="flex items-center gap-2 text-sm">
