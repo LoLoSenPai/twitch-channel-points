@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Mint } from "@/lib/models";
