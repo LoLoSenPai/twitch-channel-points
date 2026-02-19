@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { PublicKey } from "@solana/web3.js";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { Collection, Redemption, Mint } from "@/lib/models";
+import { Collection, Redemption, Mint, UserWallet } from "@/lib/models";
 import { STICKERS_TOTAL } from "@/lib/stickers";
 
 interface TwitchUser {
@@ -102,12 +103,32 @@ async function fetchOwnerCollectionAssets(params: {
   return result;
 }
 
-export async function GET() {
+function normalizeWallet(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  try {
+    return new PublicKey(raw).toBase58();
+  } catch {
+    return null;
+  }
+}
+
+export async function GET(req: Request) {
   const session = await auth();
   const twitchUserId = (session?.user as TwitchUser | undefined)?.id;
   if (!twitchUserId) return new NextResponse("Unauthorized", { status: 401 });
 
   await db();
+
+  const { searchParams } = new URL(req.url);
+  const connectedWallet = normalizeWallet(searchParams.get("walletPubkey"));
+  if (connectedWallet) {
+    await UserWallet.updateOne(
+      { twitchUserId, wallet: connectedWallet },
+      { $set: { lastSeenAt: new Date() } },
+      { upsert: true }
+    );
+  }
 
   const rewardId = process.env.TWITCH_REWARD_ID;
 
@@ -135,9 +156,19 @@ export async function GET() {
   ).trim();
   const rpcUrl = String(process.env.HELIUS_RPC_URL ?? "").trim();
 
-  const wallets = (await Mint.distinct("wallet", { twitchUserId }))
-    .map((w) => String(w ?? "").trim())
-    .filter(Boolean);
+  const [walletsFromMint, walletRows] = await Promise.all([
+    Mint.distinct("wallet", { twitchUserId }),
+    UserWallet.find({ twitchUserId }).select({ wallet: 1 }).lean(),
+  ]);
+  const wallets = [
+    ...new Set(
+      [
+        ...walletsFromMint.map((w) => String(w ?? "").trim()),
+        ...walletRows.map((row) => String((row as { wallet?: string }).wallet ?? "").trim()),
+        connectedWallet ?? "",
+      ].filter(Boolean)
+    ),
+  ];
 
   let mints: Array<{ stickerId: string; mintTx: string }> = [];
   const canUseOnchain = Boolean(collectionPubkey && rpcUrl && wallets.length);

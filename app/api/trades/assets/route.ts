@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { PublicKey } from "@solana/web3.js";
 import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { UserWallet } from "@/lib/models";
 
 type DasAsset = {
   id: string;
@@ -45,16 +48,33 @@ function stickerIdFromAsset(asset: DasAsset): string | null {
   return String(stickerAttr.value ?? "").trim() || null;
 }
 
+function normalizeWallet(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  try {
+    return new PublicKey(raw).toBase58();
+  } catch {
+    return null;
+  }
+}
+
 export async function GET(req: Request) {
   const session = await auth();
   const twitchUserId = (session?.user as { id?: string })?.id;
   if (!twitchUserId) return new NextResponse("Unauthorized", { status: 401 });
 
   const { searchParams } = new URL(req.url);
-  const walletPubkey = String(searchParams.get("walletPubkey") ?? "").trim();
+  const walletPubkey = normalizeWallet(searchParams.get("walletPubkey"));
   if (!walletPubkey) {
     return new NextResponse("Missing walletPubkey query param", { status: 400 });
   }
+
+  await db();
+  await UserWallet.updateOne(
+    { twitchUserId, wallet: walletPubkey },
+    { $set: { lastSeenAt: new Date() } },
+    { upsert: true }
+  );
 
   const rpc = process.env.HELIUS_RPC_URL;
   if (!rpc) return new NextResponse("Missing HELIUS_RPC_URL", { status: 500 });

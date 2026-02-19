@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import { VersionedTransaction } from "@solana/web3.js";
+import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { normalizeRarity } from "@/lib/stickers";
 import stickers from "@/stickers/stickers.json";
 
@@ -106,6 +106,14 @@ type AssetsResponse = {
   wallet: string;
   count: number;
   items: TradeAsset[];
+};
+
+type TransferPrepareResponse = {
+  intentId: string;
+  txB64: string;
+  stickerId: string | null;
+  assetId: string;
+  recipientWallet: string;
 };
 
 type StickerItem = {
@@ -332,6 +340,16 @@ async function copyText(value: string) {
   throw new Error("Clipboard API indisponible");
 }
 
+function normalizeWallet(value: string) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  try {
+    return new PublicKey(raw).toBase58();
+  } catch {
+    return null;
+  }
+}
+
 export function MarketplacePanel() {
   const wallet = useWallet();
 
@@ -355,7 +373,11 @@ export function MarketplacePanel() {
   const [boardSort, setBoardSort] = useState<"recent" | "priceAsc" | "priceDesc">("recent");
   const [boardCols, setBoardCols] = useState<"2" | "3" | "4">("3");
   const [stickerFilter, setStickerFilter] = useState("");
-  const [activeTab, setActiveTab] = useState<"marketplace" | "history" | "create" | "mine">("marketplace");
+  const [activeTab, setActiveTab] = useState<
+    "marketplace" | "history" | "create" | "send" | "mine"
+  >("marketplace");
+  const [sendRecipientWallet, setSendRecipientWallet] = useState("");
+  const [sendSelectedAssetIds, setSendSelectedAssetIds] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -433,6 +455,19 @@ export function MarketplacePanel() {
       );
     });
   }, [ownedStickerGroups, makerAssetSearch]);
+
+  const sendAssetOptions = useMemo(() => {
+    return [...assets].sort((a, b) => {
+      const bySticker = compareStickerIds(String(a.stickerId), String(b.stickerId));
+      if (bySticker !== 0) return bySticker;
+      return String(a.assetId).localeCompare(String(b.assetId), "fr");
+    });
+  }, [assets]);
+
+  const selectedSendAssets = useMemo(() => {
+    const selected = new Set(sendSelectedAssetIds);
+    return sendAssetOptions.filter((asset) => selected.has(asset.assetId));
+  }, [sendAssetOptions, sendSelectedAssetIds]);
 
   const makerSelectedStickerId = useMemo(() => {
     if (!makerAssetId) return "";
@@ -573,6 +608,7 @@ export function MarketplacePanel() {
     if (!ownedStickerGroups.length) {
       setMakerAssetId("");
       setSaleAssetId("");
+      setSendSelectedAssetIds([]);
       return;
     }
 
@@ -589,6 +625,10 @@ export function MarketplacePanel() {
     if (!hasSale) {
       setSaleAssetId(ownedStickerGroups[0].primaryAssetId);
     }
+
+    setSendSelectedAssetIds((prev) =>
+      prev.filter((assetId) => assets.some((asset) => asset.assetId === assetId))
+    );
   }, [assets, makerAssetId, ownedStickerGroups, saleAssetId]);
 
   useEffect(() => {
@@ -603,6 +643,7 @@ export function MarketplacePanel() {
       savedTab === "marketplace" ||
       savedTab === "history" ||
       savedTab === "create" ||
+      savedTab === "send" ||
       savedTab === "mine"
     ) {
       setActiveTab(savedTab);
@@ -722,6 +763,86 @@ export function MarketplacePanel() {
       }
       return [...normalized, id];
     });
+  }
+
+  function toggleSendAssetId(assetId: string) {
+    setSendSelectedAssetIds((prev) => {
+      if (prev.includes(assetId)) return prev.filter((entry) => entry !== assetId);
+      return [...prev, assetId];
+    });
+  }
+
+  async function sendAssets() {
+    if (loading) return;
+    if (!walletPk) {
+      setNotice("Connecte ton wallet");
+      return;
+    }
+    const recipientWallet = normalizeWallet(sendRecipientWallet);
+    if (!recipientWallet) {
+      setNotice("Adresse de destination invalide");
+      return;
+    }
+    if (recipientWallet === walletPk) {
+      setNotice("Tu ne peux pas t'envoyer les cartes à toi-même");
+      return;
+    }
+    if (!selectedSendAssets.length) {
+      setNotice("Sélectionne au moins une carte à envoyer");
+      return;
+    }
+
+    const actionKey = "send-assets";
+    setBusyAction(actionKey);
+    setLoading(true);
+    setNotice("");
+
+    try {
+      const txSigs: string[] = [];
+      for (const asset of selectedSendAssets) {
+        const prep = await fetch("/api/trades/send/prepare", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            walletPubkey: walletPk,
+            recipientWallet,
+            assetId: asset.assetId,
+          }),
+        });
+        if (!prep.ok) throw new Error(await prep.text());
+        const prepJson = (await prep.json()) as TransferPrepareResponse;
+
+        const signedTxB64 = await signPreparedTx(prepJson.txB64);
+
+        const sub = await fetch("/api/trades/send/submit", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            intentId: prepJson.intentId,
+            walletPubkey: walletPk,
+            signedTxB64,
+          }),
+        });
+        if (!sub.ok) throw new Error(await sub.text());
+        const subJson = (await sub.json()) as { tx?: string };
+        if (subJson.tx) txSigs.push(subJson.tx);
+      }
+
+      const lines = [
+        `${selectedSendAssets.length} carte${selectedSendAssets.length > 1 ? "s" : ""} envoyée${selectedSendAssets.length > 1 ? "s" : ""}`,
+      ];
+      if (txSigs[0]) lines.push(`Tx: ${txSigs[0]}`);
+      if (txSigs.length > 1) lines.push(`+${txSigs.length - 1} autre(s) transaction(s)`);
+      setNotice(lines.join("\n"));
+      setSendSelectedAssetIds([]);
+      await refresh({ clearNotice: false });
+      scheduleFollowupRefreshes();
+    } catch (e) {
+      setNotice((e as Error)?.message ?? "Erreur envoi cartes");
+    } finally {
+      setBusyAction((prev) => (prev === actionKey ? null : prev));
+      setLoading(false);
+    }
   }
 
   async function createOffer() {
@@ -1074,6 +1195,13 @@ export function MarketplacePanel() {
             onClick={() => setActiveTab("create")}
           >
             Créer
+          </button>
+          <button
+            type="button"
+            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "send" ? "bg-emerald-500/20 text-emerald-100" : "opacity-70 hover:bg-white/10"}`}
+            onClick={() => setActiveTab("send")}
+          >
+            Envoyer
           </button>
           <button
             type="button"
@@ -1643,6 +1771,91 @@ export function MarketplacePanel() {
           ) : (
             <div className="text-sm opacity-70">Aucun échange terminé pour le moment.</div>
           )}
+        </section>
+      ) : null}
+
+      {activeTab === "send" ? (
+        <section className="rounded-2xl border border-white/20 bg-black/25 p-4 space-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
+          <div>
+            <h2 className="text-lg font-semibold">Envoyer des cartes</h2>
+            <p className="text-xs opacity-70">
+              Sélectionne une ou plusieurs cartes, puis envoie-les vers un autre wallet.
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-center">
+            <input
+              className="rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-emerald-300/45 focus:ring-2 focus:ring-emerald-400/20"
+              placeholder="Wallet destination (adresse Solana)"
+              value={sendRecipientWallet}
+              onChange={(e) => setSendRecipientWallet(e.target.value)}
+            />
+            <button
+              type="button"
+              className={buttonClass}
+              disabled={loading || !sendSelectedAssetIds.length}
+              onClick={() => setSendSelectedAssetIds([])}
+            >
+              Vider sélection
+            </button>
+            <button
+              type="button"
+              className={buttonPrimaryClass}
+              disabled={loading || !selectedSendAssets.length}
+              onClick={() => void sendAssets()}
+            >
+              {busyAction === "send-assets"
+                ? "Envoi..."
+                : `Envoyer ${selectedSendAssets.length} carte${selectedSendAssets.length > 1 ? "s" : ""}`}
+            </button>
+          </div>
+
+          <div className="rounded-xl border border-white/15 bg-black/20 p-2">
+            {sendAssetOptions.length ? (
+              <div className="grid max-h-96 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                {sendAssetOptions.map((asset) => {
+                  const stickerId = String(asset.stickerId);
+                  const sticker = stickerById.get(stickerId);
+                  const selected = sendSelectedAssetIds.includes(asset.assetId);
+                  const rarity = rarityBadgeMeta(sticker?.rarity);
+                  return (
+                    <label
+                      key={`send-asset-${asset.assetId}`}
+                      className={`flex items-center gap-2 rounded-lg border px-2 py-2 text-sm transition ${
+                        selected
+                          ? "border-emerald-300/45 bg-emerald-500/10"
+                          : "border-white/15 bg-black/25 hover:bg-white/5"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-emerald-400"
+                        checked={selected}
+                        onChange={() => toggleSendAssetId(asset.assetId)}
+                      />
+                      <div className="min-w-0">
+                        <div className="truncate font-medium">
+                          #{stickerId} - {sticker?.name ?? asset.name ?? "Sticker"}
+                        </div>
+                        <div className="truncate text-xs opacity-70">
+                          Asset: {short(asset.assetId, 7, 7)}
+                        </div>
+                      </div>
+                      {rarity ? (
+                        <span
+                          className={`ml-auto shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium ${rarity.chipClass}`}
+                        >
+                          {rarity.label}
+                        </span>
+                      ) : null}
+                    </label>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="px-2 py-3 text-sm opacity-70">Aucune carte dans ce wallet.</div>
+            )}
+          </div>
         </section>
       ) : null}
 

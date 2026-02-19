@@ -267,6 +267,47 @@ export async function prepareDelegateTxForAsset(params: {
   };
 }
 
+export async function prepareOwnerTransferTxForAsset(params: {
+  assetId: string;
+  ownerWallet: string;
+  recipientWallet: string;
+}) {
+  const { umi, asset, stickerId } = await getAssetWithTradeProof(params.assetId);
+  const ownerPk = pk(params.ownerWallet);
+  const ownerSigner = createNoopSigner(ownerPk);
+
+  if (!publicKeyEquals(asset.leafOwner, params.ownerWallet)) {
+    throw new Error("Asset owner mismatch");
+  }
+
+  const builder = transferV2(umi, {
+    merkleTree: asset.merkleTree,
+    root: asset.root,
+    dataHash: asset.dataHash,
+    creatorHash: asset.creatorHash,
+    assetDataHash: asset.asset_data_hash ?? none(),
+    flags: typeof asset.flags === "number" ? some(asset.flags) : none(),
+    nonce: asset.nonce,
+    index: asset.index,
+    proof: asset.proof,
+    payer: ownerSigner,
+    authority: ownerSigner,
+    leafOwner: ownerPk,
+    leafDelegate: asset.leafDelegate,
+    newLeafOwner: pk(params.recipientWallet),
+  });
+
+  const built = await (
+    await builder.setFeePayer(ownerSigner).setLatestBlockhash(umi)
+  ).buildAndSign(umi);
+
+  const bytes = umi.transactions.serialize(built);
+  return {
+    txB64: Buffer.from(bytes).toString("base64"),
+    stickerId,
+  };
+}
+
 export function assertSignedTxMatchesPrepared(
   signedTxB64: string,
   preparedTxB64: string

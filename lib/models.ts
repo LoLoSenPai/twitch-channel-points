@@ -87,6 +87,16 @@ const CollectionSchema = new Schema(
   { timestamps: true }
 );
 
+const UserWalletSchema = new Schema(
+  {
+    twitchUserId: { type: String, required: true, index: true },
+    wallet: { type: String, required: true, index: true },
+    lastSeenAt: { type: Date, default: Date.now },
+  },
+  { timestamps: true }
+);
+UserWalletSchema.index({ twitchUserId: 1, wallet: 1 }, { unique: true });
+
 const TradeOfferSchema = new Schema(
   {
     offerId: { type: String, unique: true, index: true },
@@ -143,6 +153,27 @@ const SaleListingSchema = new Schema(
   { timestamps: true }
 );
 
+const TransferIntentSchema = new Schema(
+  {
+    intentId: { type: String, unique: true, index: true },
+    twitchUserId: { type: String, required: true, index: true },
+    wallet: { type: String, required: true, index: true },
+    assetId: { type: String, required: true, index: true },
+    stickerId: { type: String, default: null, index: true },
+    recipientWallet: { type: String, required: true, index: true },
+    preparedTxB64: { type: String, required: true },
+    status: {
+      type: String,
+      enum: ["PREPARED", "SUBMITTED", "DONE", "FAILED"],
+      default: "PREPARED",
+      index: true,
+    },
+    txSig: { type: String, default: null },
+    error: { type: String, default: null },
+  },
+  { timestamps: true }
+);
+
 export const Redemption =
   mongoose.models.Redemption || mongoose.model("Redemption", RedemptionSchema);
 export const Mint = mongoose.models.Mint || mongoose.model("Mint", MintSchema);
@@ -150,7 +181,11 @@ export const MintIntent =
   mongoose.models.MintIntent || mongoose.model("MintIntent", MintIntentSchema);
 export const Collection =
   mongoose.models.Collection || mongoose.model("Collection", CollectionSchema);
+export const UserWallet =
+  mongoose.models.UserWallet || mongoose.model("UserWallet", UserWalletSchema);
 export const TradeOffer =
   mongoose.models.TradeOffer || mongoose.model("TradeOffer", TradeOfferSchema);
 export const SaleListing =
   mongoose.models.SaleListing || mongoose.model("SaleListing", SaleListingSchema);
+export const TransferIntent =
+  mongoose.models.TransferIntent || mongoose.model("TransferIntent", TransferIntentSchema);

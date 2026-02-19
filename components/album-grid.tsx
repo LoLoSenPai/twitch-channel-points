@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import stickers from "@/stickers/stickers.json";
 import { AnimatePresence, motion } from "framer-motion";
 import { createPortal } from "react-dom";
+import { useWallet } from "@solana/wallet-adapter-react";
 
 type Mint = { stickerId: string; mintTx: string };
 type Me = {
@@ -222,6 +223,7 @@ function AlbumLeaf({
 }
 
 export function AlbumGrid() {
+    const wallet = useWallet();
     const [me, setMe] = useState<Me | null>(null);
     const [loading, setLoading] = useState(true);
     const [spreadIndex, setSpreadIndex] = useState(0);
@@ -244,7 +246,11 @@ export function AlbumGrid() {
 
         (async () => {
             try {
-                const response = await fetch("/api/me", { cache: "no-store" });
+                const walletPubkey = wallet.publicKey?.toBase58();
+                const url = walletPubkey
+                    ? `/api/me?walletPubkey=${encodeURIComponent(walletPubkey)}`
+                    : "/api/me";
+                const response = await fetch(url, { cache: "no-store" });
                 if (!active) return;
                 if (response.ok) {
                     setMe(await response.json());
@@ -260,7 +266,7 @@ export function AlbumGrid() {
             active = false;
             if (turnTimer.current) clearTimeout(turnTimer.current);
         };
-    }, []);
+    }, [wallet.publicKey]);
 
     useEffect(() => {
         setMounted(true);

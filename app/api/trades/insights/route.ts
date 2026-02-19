@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { Collection, Mint, Redemption, TradeOffer } from "@/lib/models";
+import { Collection, Mint, Redemption, TradeOffer, UserWallet } from "@/lib/models";
 import { STICKERS_TOTAL } from "@/lib/stickers";
 import { getTwitchAppAccessToken } from "@/lib/twitch/app-token";
 
@@ -224,12 +224,13 @@ export async function GET() {
     return NextResponse.json(cached.payload);
   }
 
-  const [historyRows, mintRows, tradeUsersMaker, tradeUsersTaker, redemptionUsers, active] =
+  const [historyRows, mintRows, walletRows, tradeUsersMaker, tradeUsersTaker, redemptionUsers, active] =
     await Promise.all([
       TradeOffer.find({ status: "DONE" }).sort({ updatedAt: -1 }).limit(100).lean(),
       Mint.find({})
         .select({ twitchUserId: 1, wallet: 1, stickerId: 1 })
         .lean(),
+      UserWallet.find({}).select({ twitchUserId: 1, wallet: 1 }).lean(),
       TradeOffer.distinct("makerTwitchUserId", {}),
       TradeOffer.distinct("takerTwitchUserId", { takerTwitchUserId: { $ne: null } }),
       Redemption.distinct("twitchUserId", {}),
@@ -253,6 +254,16 @@ export async function GET() {
   const walletByUser = new Map<string, Set<string>>();
   const mintedStickerByUser = new Map<string, Set<string>>();
   const mintedTotalByUser = new Map<string, number>();
+  for (const row of walletRows as Array<{ twitchUserId?: string; wallet?: string }>) {
+    const userId = String(row.twitchUserId ?? "").trim();
+    if (!userId) continue;
+    userIds.add(userId);
+    const wallet = String(row.wallet ?? "").trim();
+    if (!wallet) continue;
+    const ws = walletByUser.get(userId) ?? new Set<string>();
+    ws.add(wallet);
+    walletByUser.set(userId, ws);
+  }
   for (const row of mintRows as Array<{ twitchUserId?: string; wallet?: string; stickerId?: string }>) {
     const userId = String(row.twitchUserId ?? "").trim();
     if (!userId) continue;
