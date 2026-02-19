@@ -495,10 +495,7 @@ export function MarketplacePanel() {
       : ownedStickerGroups;
     if (!needle) return scoped;
     return scoped.filter((group) => {
-      return (
-        group.stickerId.toLowerCase().includes(needle) ||
-        group.name.toLowerCase().includes(needle)
-      );
+      return group.stickerId.toLowerCase().includes(needle);
     });
   }, [ownedStickerGroups, makerAssetSearch, makerOnlyDuplicates]);
 
@@ -551,14 +548,10 @@ export function MarketplacePanel() {
     return [...(ST.items ?? [])]
       .map((item) => ({
         id: String(item.id),
-        name: String(item.name ?? ""),
       }))
       .filter((item) => {
         if (!needle) return true;
-        return (
-          item.id.toLowerCase().includes(needle) ||
-          item.name.toLowerCase().includes(needle)
-        );
+        return item.id.toLowerCase().includes(needle);
       })
       .sort((a, b) => {
         const aSelected = selected.has(a.id);
@@ -1311,7 +1304,7 @@ export function MarketplacePanel() {
                 <div className="text-xs uppercase tracking-[0.14em] opacity-60">Ta carte proposée</div>
                 <input
                   className="rounded-xl border border-white/20 px-3 py-2 bg-black/25 text-sm"
-                  placeholder="Filtrer ta carte (#14, trader...)"
+                  placeholder="Filtrer ta carte (#14)"
                   value={makerAssetSearch}
                   onChange={(e) => setMakerAssetSearch(e.target.value)}
                 />
@@ -1357,7 +1350,7 @@ export function MarketplacePanel() {
                             </div>
                             <div className="min-w-0">
                               <div className="truncate text-sm">
-                                #{group.stickerId} - {group.name}
+                                #{group.stickerId}
                               </div>
                               <div className="text-[11px] opacity-70">x{group.count}</div>
                             </div>
@@ -1371,7 +1364,7 @@ export function MarketplacePanel() {
                 </div>
                 {makerSelectedGroup ? (
                   <div className="rounded-lg border border-emerald-300/25 bg-emerald-500/10 px-2.5 py-1.5 text-xs">
-                    Carte proposée: <span className="font-medium">#{makerSelectedGroup.stickerId} - {makerSelectedGroup.name}</span>
+                    Carte proposée: <span className="font-medium">#{makerSelectedGroup.stickerId}</span>
                     {" · "}x{makerSelectedGroup.count}
                   </div>
                 ) : (
@@ -1383,7 +1376,7 @@ export function MarketplacePanel() {
                 <div className="text-xs uppercase tracking-[0.14em] opacity-60">Cartes acceptées en retour</div>
                 <input
                   className="rounded-xl border border-white/20 px-3 py-2 bg-black/25 text-sm"
-                  placeholder="Rechercher une carte (#14, trader...)"
+                  placeholder="Rechercher une carte (#14)"
                   value={wantedStickerSearch}
                   onChange={(e) => setWantedStickerSearch(e.target.value)}
                 />
@@ -1407,7 +1400,7 @@ export function MarketplacePanel() {
                               onChange={() => toggleWantedStickerId(item.id)}
                               className="h-3.5 w-3.5 accent-cyan-300"
                             />
-                            <span className="truncate">#{item.id} - {item.name || "Sticker"}</span>
+                            <span className="truncate">#{item.id}</span>
                           </label>
                         );
                       })}
