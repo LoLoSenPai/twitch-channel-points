@@ -101,6 +101,7 @@ const TradeOfferSchema = new Schema(
   {
     offerId: { type: String, unique: true, index: true },
     makerTwitchUserId: { type: String, required: true, index: true },
+    makerDisplayName: { type: String, default: null },
     makerWallet: { type: String, required: true, index: true },
     makerAssetId: { type: String, required: true, index: true },
     makerStickerId: { type: String, required: true, index: true },

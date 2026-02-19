@@ -19,6 +19,8 @@ type TradeAsset = {
 type OpenOffer = {
   offerId: string;
   makerStickerId: string;
+  makerTwitchUserId: string;
+  makerDisplayName: string;
   wantedStickerIds: string[];
   status: string;
   expiresAt: string | null;
@@ -1609,6 +1611,9 @@ export function MarketplacePanel() {
               const sticker = stickerById.get(String(offer.makerStickerId));
               const rarity = rarityBadgeMeta(sticker?.rarity);
               const imageSrc = resolveStickerImageSrc(sticker?.image);
+              const makerName =
+                String(offer.makerDisplayName ?? "").trim() ||
+                short(String(offer.makerTwitchUserId ?? ""), 4, 4);
               const remaining = remainingMsUntil(offer.expiresAt, nowMs);
               const countdownLabel = formatCountdown(remaining);
               const wantedIds = normalizeStickerIds(offer.wantedStickerIds ?? []);
@@ -1668,6 +1673,7 @@ export function MarketplacePanel() {
                       #{offer.makerStickerId} contre{" "}
                       {wantedCount <= 1 ? wantedListPreview : `${wantedCount} cartes`}
                     </div>
+                    <div className="opacity-70 text-xs">Par: {makerName}</div>
                     <div className="opacity-70 text-xs">
                       Cartes demandées: {wantedListPreview || "Aucune"}
                     </div>

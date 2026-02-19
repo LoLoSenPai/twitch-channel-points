@@ -105,6 +105,8 @@ export async function GET() {
     open: open.map((o) => ({
       offerId: o.offerId,
       makerStickerId: o.makerStickerId,
+      makerTwitchUserId: o.makerTwitchUserId,
+      makerDisplayName: String((o as { makerDisplayName?: string | null }).makerDisplayName ?? ""),
       wantedStickerIds: wantedStickerIdsFromOffer(o),
       status: o.status,
       expiresAt: o.expiresAt,
@@ -131,7 +133,10 @@ export async function GET() {
 
 export async function POST(req: Request) {
   const session = await auth();
-  const twitchUserId = (session?.user as { id?: string })?.id;
+  const sessionUser = session?.user as
+    | { id?: string; displayName?: string; name?: string }
+    | undefined;
+  const twitchUserId = sessionUser?.id;
   if (!twitchUserId) return new NextResponse("Unauthorized", { status: 401 });
 
   const body = await req.json().catch(() => null);
@@ -181,6 +186,9 @@ export async function POST(req: Request) {
   await TradeOffer.create({
     offerId,
     makerTwitchUserId: twitchUserId,
+    makerDisplayName:
+      String(sessionUser?.displayName ?? sessionUser?.name ?? "").trim() ||
+      twitchUserId,
     makerWallet: walletPubkey,
     makerAssetId,
     makerStickerId: stickerId,
