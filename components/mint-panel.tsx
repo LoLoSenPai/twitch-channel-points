@@ -75,7 +75,7 @@ function rarityBoostMultiplier(r: Rarity | null) {
 }
 
 
-export function MintPanel() {
+export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean }) {
     const wallet = useWallet();
     const [loading, setLoading] = useState(false);
     const [reveal, setReveal] = useState<Reveal | null>(null);
@@ -373,6 +373,7 @@ export function MintPanel() {
                     }
                     tx={pendingReveal?.tx ?? null}
                     accent={glowColor}
+                    showProofLinks={showProofLinks}
                     onSkip={() => {
                         if (pendingReveal) setReveal(pendingReveal);
                         setPhase("cardFront");
@@ -432,14 +433,16 @@ export function MintPanel() {
                         >
                             Voir la tx
                         </a>
-                        <a
-                            className="rounded-xl border px-3 py-2 text-sm opacity-80 cursor-pointer"
-                            href={`/api/mint/proof/${reveal.tx}`}
-                            target="_blank"
-                            rel="noreferrer"
-                        >
-                            Voir la preuve
-                        </a>
+                        {showProofLinks ? (
+                            <a
+                                className="rounded-xl border px-3 py-2 text-sm opacity-80 cursor-pointer"
+                                href={`/api/mint/proof/${reveal.tx}`}
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                Voir la preuve
+                            </a>
+                        ) : null}
                     </div>
                 </div>
             ) : null}
@@ -447,10 +450,11 @@ export function MintPanel() {
     );
 }
 
-function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx }: {
+function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, showProofLinks }: {
     phase: "charging" | "flash" | "cardBack" | "cardFront";
     sticker: { id: string; name: string; image: string } | null;
     tx: string | null;
+    showProofLinks: boolean;
     onFlip: () => void;
     onClose: () => void;
     onSkip: () => void;
@@ -544,7 +548,7 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx }: {
                                 Tx
                             </a>
                         ) : null}
-                        {tx ? (
+                        {tx && showProofLinks ? (
                             <a
                                 className="rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
                                 href={`/api/mint/proof/${tx}`}

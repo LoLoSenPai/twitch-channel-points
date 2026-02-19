@@ -10,6 +10,10 @@ interface ExtendedUser {
 
 export default async function HomePage() {
     const session = await auth();
+    const randomnessMode = String(process.env.MINT_RANDOMNESS_MODE ?? "local")
+        .trim()
+        .toLowerCase();
+    const showFairness = randomnessMode === "switchboard";
 
     if (!session?.user) {
         return (
@@ -79,7 +83,7 @@ export default async function HomePage() {
                     </div>
                 </section>
 
-                <MintPanel />
+                <MintPanel showProofLinks={showFairness} />
             </main>
         </PageShell>
     );
