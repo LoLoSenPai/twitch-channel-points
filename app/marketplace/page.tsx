@@ -25,7 +25,7 @@ export default async function MarketplacePage() {
 
   return (
     <PageShell>
-      <main className="mx-auto max-w-5xl space-y-6 p-6">
+      <main className="mx-auto max-w-6xl space-y-6 p-6">
         <h1 className="text-2xl font-semibold">Marketplace</h1>
         <MarketplacePanel />
       </main>

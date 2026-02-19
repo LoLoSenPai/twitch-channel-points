@@ -90,6 +90,7 @@ type MyListing = {
   status: string;
   error: string | null;
   buyerWallet: string | null;
+  expiresAt?: string | null;
   sellerDelegationTxSig: string | null;
   buyTxSig: string | null;
 };
@@ -142,6 +143,12 @@ const IMAGE_BASE =
 const SOLSCAN_CLUSTER = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "";
 const SALES_UI_ENABLED =
   (process.env.NEXT_PUBLIC_MARKET_ENABLE_SALES?.trim().toLowerCase() ?? "") === "1";
+const TRADE_OFFER_TTL_HOURS_UI = Number(
+  process.env.NEXT_PUBLIC_TRADE_OFFER_TTL_HOURS ?? 168
+);
+const MARKET_LISTING_TTL_HOURS_UI = Number(
+  process.env.NEXT_PUBLIC_MARKET_LISTING_TTL_HOURS ?? 24
+);
 const BOARD_GRID_STORAGE_KEY = "market.board.grid.cols";
 const MARKET_ACTIVE_TAB_STORAGE_KEY = "market.active.tab";
 
@@ -291,6 +298,40 @@ function formatDateTime(value?: string | null) {
   });
 }
 
+function formatTtlLabel(hoursRaw: number) {
+  const hours = Number.isFinite(hoursRaw) && hoursRaw > 0 ? Math.floor(hoursRaw) : 0;
+  if (hours <= 0) return "-";
+  const days = Math.floor(hours / 24);
+  const remHours = hours % 24;
+  if (days > 0 && remHours === 0) return `${days} jour${days > 1 ? "s" : ""}`;
+  if (days > 0) {
+    return `${days}j ${remHours}h`;
+  }
+  return `${hours}h`;
+}
+
+function remainingMsUntil(value: string | null | undefined, nowMs: number) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const ts = Date.parse(raw);
+  if (!Number.isFinite(ts)) return null;
+  return ts - nowMs;
+}
+
+function formatCountdown(value: number | null) {
+  if (value === null) return "Durée inconnue";
+  if (value <= 0) return "Expirée";
+  const totalSec = Math.max(0, Math.floor(value / 1000));
+  const days = Math.floor(totalSec / 86400);
+  const hours = Math.floor((totalSec % 86400) / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  if (days > 0) return `${days}j ${hours}h ${mins}m`;
+  if (hours > 0) return `${hours}h ${mins}m ${secs}s`;
+  if (mins > 0) return `${mins}m ${secs}s`;
+  return `${secs}s`;
+}
+
 function boardGridClass(cols: "2" | "3" | "4") {
   if (cols === "2") {
     return "grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-2";
@@ -377,6 +418,7 @@ export function MarketplacePanel() {
   const [activeTab, setActiveTab] = useState<
     "marketplace" | "history" | "create" | "send" | "mine"
   >("marketplace");
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [sendRecipientWallet, setSendRecipientWallet] = useState("");
   const [sendSelectedAssetIds, setSendSelectedAssetIds] = useState<string[]>([]);
 
@@ -607,6 +649,11 @@ export function MarketplacePanel() {
     const timer = setTimeout(() => setNotice(""), 8000);
     return () => clearTimeout(timer);
   }, [notice]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     if (!ownedStickerGroups.length) {
@@ -1240,7 +1287,10 @@ export function MarketplacePanel() {
                   Choisis 1 carte à offrir, puis les cartes que tu acceptes en retour.
                 </div>
                 <div className="text-xs opacity-60 mt-1">
-                  Durée des offres: fixe côté serveur.
+                  Durée des offres: {formatTtlLabel(TRADE_OFFER_TTL_HOURS_UI)} (fixe côté serveur).
+                  {SALES_UI_ENABLED
+                    ? ` Durée des ventes: ${formatTtlLabel(MARKET_LISTING_TTL_HOURS_UI)}.`
+                    : ""}
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 text-xs">
@@ -1566,6 +1616,8 @@ export function MarketplacePanel() {
               const sticker = stickerById.get(String(offer.makerStickerId));
               const rarity = rarityBadgeMeta(sticker?.rarity);
               const imageSrc = resolveStickerImageSrc(sticker?.image);
+              const remaining = remainingMsUntil(offer.expiresAt, nowMs);
+              const countdownLabel = formatCountdown(remaining);
               const wantedIds = normalizeStickerIds(offer.wantedStickerIds ?? []);
               const wantedCount = wantedIds.length;
               const wantedListFull = formatStickerList(wantedIds);
@@ -1595,6 +1647,9 @@ export function MarketplacePanel() {
                     <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-200">
                       Échange
                     </span>
+                    <span className="ml-auto rounded-full border border-white/15 bg-black/30 px-2 py-0.5 text-[11px] opacity-80">
+                      Expire dans: {countdownLabel}
+                    </span>
                   </div>
 
                   <div className="relative rounded-xl border border-white/15 overflow-hidden bg-black/30 aspect-[3/4]">
@@ -1622,6 +1677,9 @@ export function MarketplacePanel() {
                     </div>
                     <div className="opacity-70 text-xs">
                       Cartes demandées: {wantedListPreview || "Aucune"}
+                    </div>
+                    <div className="opacity-70 text-xs">
+                      Expire le: {formatDateTime(offer.expiresAt)}
                     </div>
                     {wantedCount > 4 ? (
                       <details className="mt-2 rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-xs">
@@ -1673,12 +1731,17 @@ export function MarketplacePanel() {
               const sticker = stickerById.get(String(listing.sellerStickerId));
               const rarity = rarityBadgeMeta(sticker?.rarity);
               const imageSrc = resolveStickerImageSrc(sticker?.image);
+              const remaining = remainingMsUntil(listing.expiresAt, nowMs);
+              const countdownLabel = formatCountdown(remaining);
               const split = splitMarketSaleAmount(listing.priceLamports, marketFeeBps);
               return (
                 <article key={`sale-${listing.listingId}`} className="rounded-2xl border border-white/20 p-3 space-y-3 bg-black/30 backdrop-blur-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-fuchsia-300/35">
                   <div className="flex items-center gap-2">
                     <span className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-2 py-0.5 text-xs text-fuchsia-200">
                       Vente
+                    </span>
+                    <span className="ml-auto rounded-full border border-white/15 bg-black/30 px-2 py-0.5 text-[11px] opacity-80">
+                      Expire dans: {countdownLabel}
                     </span>
                   </div>
 
@@ -1703,6 +1766,9 @@ export function MarketplacePanel() {
                   <div className="text-sm">
                     <div className="font-semibold">#{listing.sellerStickerId} - {sticker?.name ?? "Sticker"}</div>
                     <div className="text-base font-semibold text-amber-200">{lamportsToSol(split.totalLamports)} SOL</div>
+                    <div className="opacity-70 text-xs">
+                      Expire le: {formatDateTime(listing.expiresAt)}
+                    </div>
                     {marketFeeBps > 0 ? (
                       <div className="opacity-70 text-xs">
                         Vendeur reçoit: {lamportsToSol(split.sellerLamports)} SOL
@@ -1883,6 +1949,8 @@ export function MarketplacePanel() {
                 const wantedCount = wantedIds.length;
                 const wantedListFull = formatStickerList(wantedIds);
                 const wantedListPreview = formatStickerListPreview(wantedIds, 4);
+                const remaining = remainingMsUntil(offer.expiresAt, nowMs);
+                const countdownLabel = formatCountdown(remaining);
                 return (
                   <div key={offer.offerId} className="rounded-xl border border-white/15 bg-black/25 p-3 text-sm space-y-1">
                     <div className="flex items-center justify-between gap-2">
@@ -1895,6 +1963,9 @@ export function MarketplacePanel() {
                       </span>
                     </div>
                     <div className="opacity-70 text-xs">Demandées: {wantedListPreview || "Aucune"}</div>
+                    <div className="opacity-70 text-xs">
+                      Expire dans: {countdownLabel} · {formatDateTime(offer.expiresAt)}
+                    </div>
                     {wantedCount > 4 ? (
                       <details className="rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-xs">
                         <summary className="cursor-pointer select-none opacity-80">
@@ -2001,6 +2072,8 @@ export function MarketplacePanel() {
               <div className="space-y-2">
                 {listings!.mine.map((listing) => {
                   const split = splitMarketSaleAmount(listing.priceLamports, marketFeeBps);
+                  const remaining = remainingMsUntil(listing.expiresAt, nowMs);
+                  const countdownLabel = formatCountdown(remaining);
                   return (
                     <div key={listing.listingId} className="rounded-xl border border-white/15 bg-black/25 p-3 text-sm space-y-1">
                       <div className="flex items-center justify-between gap-2">
@@ -2008,6 +2081,9 @@ export function MarketplacePanel() {
                         <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(listing.status)}`}>
                           {listing.status}
                         </span>
+                      </div>
+                      <div className="opacity-70 text-xs">
+                        Expire dans: {countdownLabel} · {formatDateTime(listing.expiresAt)}
                       </div>
                       {marketFeeBps > 0 ? (
                         <div className="opacity-70 text-xs">
