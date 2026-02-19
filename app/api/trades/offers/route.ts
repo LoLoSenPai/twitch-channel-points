@@ -170,12 +170,12 @@ export async function POST(req: Request) {
     });
   }
 
-  const OFFER_TTL_HOURS = Number(process.env.TRADE_OFFER_TTL_HOURS ?? 24);
+  const OFFER_TTL_HOURS = Number(process.env.TRADE_OFFER_TTL_HOURS ?? 168);
   const offerId = oid();
   const expiresAt = nowPlusHours(
     Number.isFinite(OFFER_TTL_HOURS) && OFFER_TTL_HOURS > 0
       ? OFFER_TTL_HOURS
-      : 24
+      : 168
   );
 
   await TradeOffer.create({

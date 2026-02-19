@@ -360,6 +360,7 @@ export function MarketplacePanel() {
 
   const [makerAssetId, setMakerAssetId] = useState("");
   const [makerAssetSearch, setMakerAssetSearch] = useState("");
+  const [makerOnlyDuplicates, setMakerOnlyDuplicates] = useState(false);
   const [wantedStickerSearch, setWantedStickerSearch] = useState("");
   const [wantedStickerIds, setWantedStickerIds] = useState<string[]>([]);
   const [saleAssetId, setSaleAssetId] = useState("");
@@ -447,14 +448,17 @@ export function MarketplacePanel() {
 
   const makerAssetOptions = useMemo(() => {
     const needle = makerAssetSearch.trim().toLowerCase();
-    if (!needle) return ownedStickerGroups;
-    return ownedStickerGroups.filter((group) => {
+    const scoped = makerOnlyDuplicates
+      ? ownedStickerGroups.filter((group) => group.count > 1)
+      : ownedStickerGroups;
+    if (!needle) return scoped;
+    return scoped.filter((group) => {
       return (
         group.stickerId.toLowerCase().includes(needle) ||
         group.name.toLowerCase().includes(needle)
       );
     });
-  }, [ownedStickerGroups, makerAssetSearch]);
+  }, [ownedStickerGroups, makerAssetSearch, makerOnlyDuplicates]);
 
   const sendAssetOptions = useMemo(() => {
     return [...assets].sort((a, b) => {
@@ -1236,7 +1240,7 @@ export function MarketplacePanel() {
                   Choisis 1 carte à offrir, puis les cartes que tu acceptes en retour.
                 </div>
                 <div className="text-xs opacity-60 mt-1">
-                  Toutes tes cartes sont échangeables, même en un seul exemplaire.
+                  Durée des offres: fixe côté serveur.
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 text-xs">
@@ -1261,6 +1265,15 @@ export function MarketplacePanel() {
                   value={makerAssetSearch}
                   onChange={(e) => setMakerAssetSearch(e.target.value)}
                 />
+                <label className="inline-flex w-fit items-center gap-2 rounded-xl border border-white/20 bg-black/20 px-3 py-1.5 text-xs">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-emerald-400"
+                    checked={makerOnlyDuplicates}
+                    onChange={(e) => setMakerOnlyDuplicates(e.target.checked)}
+                  />
+                  Doublons uniquement
+                </label>
                 <div className="max-h-64 overflow-y-auto rounded-xl border border-white/20 bg-black/20 p-2">
                   {makerAssetOptions.length ? (
                     <div className="grid gap-2 sm:grid-cols-2">
