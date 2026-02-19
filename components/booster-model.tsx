@@ -413,6 +413,46 @@ function LocalEnvironment() {
     return <primitive attach="environment" object={envTexture} />;
 }
 
+function ViewportStabilizer() {
+    const gl = useThree((s) => s.gl);
+    const camera = useThree((s) => s.camera);
+    const invalidate = useThree((s) => s.invalidate);
+
+    useEffect(() => {
+        const parent = gl.domElement.parentElement;
+        if (!parent) return;
+
+        const syncViewport = () => {
+            const width = parent.clientWidth;
+            const height = parent.clientHeight;
+            if (!width || !height) return;
+
+            gl.setSize(width, height, false);
+            if ("aspect" in camera) {
+                (camera as THREE.PerspectiveCamera).aspect = width / height;
+                (camera as THREE.PerspectiveCamera).updateProjectionMatrix();
+            }
+            invalidate();
+        };
+
+        syncViewport();
+        const raf1 = requestAnimationFrame(syncViewport);
+        const raf2 = requestAnimationFrame(syncViewport);
+
+        window.addEventListener("load", syncViewport);
+        window.addEventListener("resize", syncViewport);
+
+        return () => {
+            cancelAnimationFrame(raf1);
+            cancelAnimationFrame(raf2);
+            window.removeEventListener("load", syncViewport);
+            window.removeEventListener("resize", syncViewport);
+        };
+    }, [gl, camera, invalidate]);
+
+    return null;
+}
+
 export function BoosterScene({
     labelUrl,
     backLabelUrl,
@@ -440,6 +480,7 @@ export function BoosterScene({
                 dpr={[1, 1.5]}
                 gl={{ antialias: false, powerPreference: "high-performance" }}
             >
+                <ViewportStabilizer />
                 <LocalEnvironment />
                 <ambientLight intensity={0.55} />
                 <hemisphereLight

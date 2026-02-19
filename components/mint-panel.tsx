@@ -38,6 +38,7 @@ const stickerRarityMap = new Map(
 );
 
 const SOLSCAN_CLUSTER = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "devnet";
+const BOOSTER_ASSET_VERSION = process.env.NEXT_PUBLIC_BOOSTER_ASSET_VERSION?.trim() ?? "1";
 
 function solscanTxUrl(signature: string) {
     const sig = String(signature ?? "").trim();
@@ -285,8 +286,8 @@ export function MintPanel() {
                 {/* LEFT */}
                 <div className="rounded-2xl border p-4">
                     <BoosterScene
-                        labelUrl="/booster-front.png?v=1"
-                        backLabelUrl="/booster-back.png?v=1"
+                        labelUrl={`/booster-front.png?v=${encodeURIComponent(BOOSTER_ASSET_VERSION)}`}
+                        backLabelUrl={`/booster-back.png?v=${encodeURIComponent(BOOSTER_ASSET_VERSION)}`}
                         onOpen={openBooster}
                         canOpen={!loading && phase === "idle"} // pas de canMint ici
                         theme={{ body: { color: "#eef3fa", metalness: 0.88, roughness: 0.16, ...(phase === "charging" ? { emissive: glowColor, emissiveIntensity: chargingIntensity } : {}), }, }}
