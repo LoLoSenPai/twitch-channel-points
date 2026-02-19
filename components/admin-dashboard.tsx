@@ -37,11 +37,24 @@ type Collection = {
     isActive: boolean;
 };
 
+type LockedOffer = {
+    offerId: string;
+    makerTwitchUserId: string;
+    makerStickerId: string;
+    wantedStickerIds: string[];
+    status: string;
+    takerTwitchUserId: string | null;
+    takerWallet: string | null;
+    takerAssetId: string | null;
+    updatedAt: string | null;
+};
+
 type AdminData = {
     stats: Stats | null;
     pendingTickets: PendingTicket[];
     preparedIntents: PreparedIntent[];
     collections: Collection[];
+    lockedOffers: LockedOffer[];
     supply: SupplyData | null;
 };
 
@@ -135,12 +148,13 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
         "w-full rounded-xl border border-white/25 bg-black/35 px-3 py-2 text-zinc-100 focus:outline-none focus:ring-2 focus:ring-emerald-400/40";
 
     const refresh = useCallback(async () => {
-        const [s, t, i, c, supply] = await Promise.all([
+        const [s, t, i, c, supply, lockedOffers] = await Promise.all([
             fetch("/api/admin/stats").then((r) => r.json()),
             fetch("/api/admin/redemptions?status=PENDING&limit=30").then((r) => r.json()),
             fetch("/api/admin/intents?status=PREPARED&limit=30").then((r) => r.json()),
             fetch("/api/admin/collections").then((r) => r.json()),
             fetch("/api/admin/supply").then((r) => r.json()),
+            fetch("/api/admin/trades/offers?status=LOCKED&limit=30").then((r) => r.json()),
         ]);
 
         setData({
@@ -148,6 +162,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
             pendingTickets: t.items ?? [],
             preparedIntents: i.items ?? [],
             collections: c.items ?? [],
+            lockedOffers: lockedOffers.items ?? [],
             supply,
         });
     }, []);
@@ -181,6 +196,15 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
             method: "POST",
             headers: { "content-type": "application/json" },
             body: JSON.stringify({ redemptionId, action: "forceUnlock" }),
+        });
+        await refresh();
+    }
+
+    async function forceUnlockTradeOffer(offerId: string) {
+        await fetch("/api/admin/trades/offers", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ offerId, action: "forceUnlock" }),
         });
         await refresh();
     }
@@ -567,6 +591,43 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                             </button>
                         </div>
                     ))}
+                </div>
+            </section>
+
+            <section className={panelClass}>
+                <div className="font-semibold">Trade offers LOCKED (30 derniers)</div>
+                <div className="space-y-2">
+                    {data.lockedOffers.length ? (
+                        data.lockedOffers.map((offer) => (
+                            <div key={offer.offerId} className={`${itemClass} flex items-center justify-between gap-3`}>
+                                <div className="break-all text-xs">
+                                    <div>
+                                        <span className="opacity-70">offer:</span> {offer.offerId}
+                                    </div>
+                                    <div>
+                                        <span className="opacity-70">maker:</span> {offer.makerTwitchUserId}
+                                    </div>
+                                    <div>
+                                        <span className="opacity-70">maker sticker:</span> #{offer.makerStickerId}
+                                    </div>
+                                    <div>
+                                        <span className="opacity-70">wanted:</span> {(offer.wantedStickerIds ?? []).map((id) => `#${id}`).join(", ") || "-"}
+                                    </div>
+                                    <div>
+                                        <span className="opacity-70">taker:</span> {offer.takerTwitchUserId ?? "-"}
+                                    </div>
+                                    <div>
+                                        <span className="opacity-70">updated:</span> {offer.updatedAt ?? "-"}
+                                    </div>
+                                </div>
+                                <button className={buttonClass} onClick={() => forceUnlockTradeOffer(offer.offerId)}>
+                                    Unlock
+                                </button>
+                            </div>
+                        ))
+                    ) : (
+                        <div className="text-xs opacity-70">Aucune offre locked.</div>
+                    )}
                 </div>
             </section>
 

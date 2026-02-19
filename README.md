@@ -54,7 +54,10 @@ The full template is in `.env.EXAMPLE`. Most important values:
 - `SOLANA_AUTHORITY_SECRET`
 - `MERKLE_TREE_PUBKEY`, `CORE_COLLECTION_PUBKEY`, `COLLECTION_METADATA_URI`
 - `TRADE_DELEGATE_SECRET` (if trades are enabled)
+- `TRADE_LOCK_TTL_MINUTES` (auto-release timeout for locked trade offers)
+- `TRADE_INSIGHTS_CACHE_SECONDS` (cache TTL for marketplace history/leaderboard)
 - `SWITCHBOARD_QUEUE_PUBKEY` + `SWITCHBOARD_*` variables (fair randomness)
+- `MINT_RANDOMNESS_MODE` (`local` or `switchboard`)
 - `NEXT_PUBLIC_MARKET_ENABLE_SALES` (keep `false` for trade-only mode)
 
 ## Useful scripts

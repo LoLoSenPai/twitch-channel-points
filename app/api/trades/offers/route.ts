@@ -16,6 +16,12 @@ function nowPlusHours(hours: number) {
   return new Date(Date.now() + hours * 60 * 60 * 1000);
 }
 
+function lockTtlMs() {
+  const minutes = Number(process.env.TRADE_LOCK_TTL_MINUTES ?? 5);
+  if (!Number.isFinite(minutes) || minutes <= 0) return 5 * 60 * 1000;
+  return Math.floor(minutes * 60 * 1000);
+}
+
 function sanitizeStickerId(value: unknown) {
   return String(value ?? "").trim();
 }
@@ -59,6 +65,27 @@ export async function GET() {
     { $set: { status: "EXPIRED", error: "OFFER_EXPIRED" } }
   );
 
+  const staleBefore = new Date(Date.now() - lockTtlMs());
+  await TradeOffer.updateMany(
+    {
+      status: "LOCKED",
+      updatedAt: { $lt: staleBefore },
+      $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
+    },
+    {
+      $set: {
+        status: "OPEN",
+        takerTwitchUserId: null,
+        takerWallet: null,
+        takerAssetId: null,
+        takerStickerId: null,
+        takerPreparedDelegationTxB64: null,
+        takerDelegationTxSig: null,
+        error: null,
+      },
+    }
+  );
+
   const [open, mine] = await Promise.all([
     TradeOffer.find({ status: "OPEN", makerTwitchUserId: { $ne: twitchUserId } })
       .sort({ createdAt: -1 })
@@ -89,6 +116,7 @@ export async function GET() {
       wantedStickerIds: wantedStickerIdsFromOffer(o),
       makerAssetId: o.makerAssetId,
       takerAssetId: o.takerAssetId,
+      takerStickerId: o.takerStickerId ?? null,
       status: o.status,
       error: o.error,
       expiresAt: o.expiresAt,

@@ -45,6 +45,34 @@ type OffersResponse = {
   mine: MyOffer[];
 };
 
+type TradeHistoryItem = {
+  offerId: string;
+  makerStickerId: string;
+  takerStickerId: string | null;
+  wantedStickerIds: string[];
+  makerTwitchUserId: string;
+  makerDisplayName: string;
+  takerTwitchUserId: string | null;
+  takerDisplayName: string | null;
+  settlementTxSig: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+};
+
+type LeaderboardEntry = {
+  twitchUserId: string;
+  displayName: string;
+  totalCards: number;
+  uniqueCards: number;
+  completionPct: number;
+};
+
+type InsightsResponse = {
+  totalStickers: number;
+  history: TradeHistoryItem[];
+  leaderboard: LeaderboardEntry[];
+};
+
 type OpenListing = {
   listingId: string;
   sellerStickerId: string;
@@ -241,6 +269,20 @@ function toTimestamp(input: string) {
   return Number.isFinite(t) ? t : 0;
 }
 
+function formatDateTime(value?: string | null) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "-";
+  const ts = Date.parse(raw);
+  if (!Number.isFinite(ts)) return "-";
+  return new Date(ts).toLocaleString("fr-FR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function boardGridClass(cols: "2" | "3" | "4") {
   if (cols === "2") {
     return "grid gap-3 grid-cols-1 sm:grid-cols-2 xl:grid-cols-2";
@@ -295,6 +337,7 @@ export function MarketplacePanel() {
 
   const [offers, setOffers] = useState<OffersResponse | null>(null);
   const [listings, setListings] = useState<ListingsResponse | null>(null);
+  const [insights, setInsights] = useState<InsightsResponse | null>(null);
   const [assets, setAssets] = useState<TradeAsset[]>([]);
 
   const [makerAssetId, setMakerAssetId] = useState("");
@@ -312,7 +355,7 @@ export function MarketplacePanel() {
   const [boardSort, setBoardSort] = useState<"recent" | "priceAsc" | "priceDesc">("recent");
   const [boardCols, setBoardCols] = useState<"2" | "3" | "4">("3");
   const [stickerFilter, setStickerFilter] = useState("");
-  const [activeTab, setActiveTab] = useState<"marketplace" | "create" | "mine">("marketplace");
+  const [activeTab, setActiveTab] = useState<"marketplace" | "history" | "create" | "mine">("marketplace");
 
   const [loading, setLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -453,6 +496,7 @@ export function MarketplacePanel() {
         const requests = [
           fetch("/api/trades/offers", { cache: "no-store" }),
           fetch("/api/market/listings", { cache: "no-store" }),
+          fetch("/api/trades/insights", { cache: "no-store" }),
         ];
 
         if (walletPk) {
@@ -463,15 +507,22 @@ export function MarketplacePanel() {
           );
         }
 
-        const [offersRes, listingsRes, assetsRes] = await Promise.all(requests);
+        const responses = await Promise.all(requests);
+        const offersRes = responses[0];
+        const listingsRes = responses[1];
+        const insightsRes = responses[2];
+        const assetsRes = walletPk ? responses[3] : null;
 
         if (!offersRes.ok) throw new Error(await offersRes.text());
         if (!listingsRes.ok) throw new Error(await listingsRes.text());
+        if (!insightsRes.ok) throw new Error(await insightsRes.text());
 
         const offersJson = (await offersRes.json()) as OffersResponse;
         const listingsJson = (await listingsRes.json()) as ListingsResponse;
+        const insightsJson = (await insightsRes.json()) as InsightsResponse;
         setOffers(offersJson);
         setListings(listingsJson);
+        setInsights(insightsJson);
 
         if (walletPk && assetsRes) {
           if (!assetsRes.ok) throw new Error(await assetsRes.text());
@@ -548,7 +599,12 @@ export function MarketplacePanel() {
     }
 
     const savedTab = window.localStorage.getItem(MARKET_ACTIVE_TAB_STORAGE_KEY);
-    if (savedTab === "marketplace" || savedTab === "create" || savedTab === "mine") {
+    if (
+      savedTab === "marketplace" ||
+      savedTab === "history" ||
+      savedTab === "create" ||
+      savedTab === "mine"
+    ) {
       setActiveTab(savedTab);
     }
   }, []);
@@ -609,6 +665,11 @@ export function MarketplacePanel() {
     sorted.sort((a, b) => toTimestamp(b.createdAt) - toTimestamp(a.createdAt));
     return sorted;
   }, [listings?.open, stickerNeedle, boardSort]);
+
+  const tradeHistory = useMemo(() => {
+    const source = insights?.history ?? [];
+    return source;
+  }, [insights?.history]);
 
   const showTrades = !SALES_UI_ENABLED || marketMode === "all" || marketMode === "trade";
   const showSales = SALES_UI_ENABLED && (marketMode === "all" || marketMode === "sale");
@@ -835,6 +896,12 @@ export function MarketplacePanel() {
       await refresh({ clearNotice: false });
       scheduleFollowupRefreshes();
     } catch (e) {
+      // Best-effort unlock when taker flow is interrupted (wallet reject, submit error, etc.).
+      try {
+        await fetch(`/api/trades/offers/${offer.offerId}/release`, { method: "POST" });
+      } catch {
+        // ignore
+      }
       setNotice((e as Error)?.message ?? "Erreur acceptation offre");
     } finally {
       setBusyAction((prev) => (prev === actionKey ? null : prev));
@@ -900,6 +967,27 @@ export function MarketplacePanel() {
       await refresh({ clearNotice: false });
     } catch (e) {
       setNotice((e as Error)?.message ?? "Erreur annulation offre");
+    } finally {
+      setBusyAction((prev) => (prev === actionKey ? null : prev));
+      setLoading(false);
+    }
+  }
+
+  async function releaseOfferLock(offerId: string) {
+    if (loading) return;
+    const actionKey = `release-offer-${offerId}`;
+    setBusyAction(actionKey);
+    setLoading(true);
+    setNotice("");
+    try {
+      const res = await fetch(`/api/trades/offers/${offerId}/release`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(await res.text());
+      setNotice("Offre déverrouillée");
+      await refresh({ clearNotice: false });
+    } catch (e) {
+      setNotice((e as Error)?.message ?? "Erreur déverrouillage offre");
     } finally {
       setBusyAction((prev) => (prev === actionKey ? null : prev));
       setLoading(false);
@@ -975,6 +1063,13 @@ export function MarketplacePanel() {
           </button>
           <button
             type="button"
+            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "history" ? "bg-emerald-500/20 text-emerald-100" : "opacity-70 hover:bg-white/10"}`}
+            onClick={() => setActiveTab("history")}
+          >
+            Historique
+          </button>
+          <button
+            type="button"
             className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "create" ? "bg-emerald-500/20 text-emerald-100" : "opacity-70 hover:bg-white/10"}`}
             onClick={() => setActiveTab("create")}
           >
@@ -1011,6 +1106,9 @@ export function MarketplacePanel() {
                 <div className="text-lg font-semibold">Proposer un échange</div>
                 <div className="text-xs opacity-70">
                   Choisis 1 carte à offrir, puis les cartes que tu acceptes en retour.
+                </div>
+                <div className="text-xs opacity-60 mt-1">
+                  Toutes tes cartes sont échangeables, même en un seul exemplaire.
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 text-xs">
@@ -1487,6 +1585,64 @@ export function MarketplacePanel() {
         {!visibleOpenCount ? (
           <div className="text-sm opacity-70">Aucune annonce correspondante.</div>
         ) : null}
+
+        </section>
+      ) : null}
+
+      {activeTab === "history" ? (
+        <section className="rounded-2xl border border-white/20 bg-black/25 p-4 space-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-semibold">Historique des échanges</h2>
+              <p className="text-xs opacity-70">
+                {tradeHistory.length} item{tradeHistory.length > 1 ? "s" : ""} (max 100)
+              </p>
+            </div>
+          </div>
+          {tradeHistory.length ? (
+            <div className="space-y-2">
+              {tradeHistory.slice(0, 100).map((entry) => {
+                const makerSticker = stickerById.get(String(entry.makerStickerId));
+                const takerSticker = entry.takerStickerId
+                  ? stickerById.get(String(entry.takerStickerId))
+                  : null;
+                return (
+                  <div
+                    key={`history-${entry.offerId}`}
+                    className="rounded-xl border border-white/15 bg-black/25 p-3 text-sm"
+                  >
+                    <div className="font-medium">
+                      #{entry.makerStickerId}
+                      {makerSticker?.name ? ` - ${makerSticker.name}` : ""}
+                      {"  <->  "}
+                      {entry.takerStickerId ? `#${entry.takerStickerId}` : "?"}
+                      {takerSticker?.name ? ` - ${takerSticker.name}` : ""}
+                    </div>
+                    <div className="mt-1 text-xs opacity-75">
+                      {entry.makerDisplayName || short(entry.makerTwitchUserId, 4, 4)}
+                      {"  ->  "}
+                      {entry.takerDisplayName ||
+                        (entry.takerTwitchUserId ? short(entry.takerTwitchUserId, 4, 4) : "?")}
+                      {" · "}
+                      {formatDateTime(entry.updatedAt ?? entry.createdAt)}
+                    </div>
+                    {entry.settlementTxSig ? (
+                      <a
+                        className="mt-2 inline-block text-xs underline opacity-80 hover:opacity-100"
+                        href={solscanTxUrl(entry.settlementTxSig)}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Settlement tx
+                      </a>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-sm opacity-70">Aucun échange terminé pour le moment.</div>
+          )}
         </section>
       ) : null}
 
@@ -1592,6 +1748,15 @@ export function MarketplacePanel() {
                       onClick={() => void cancelOffer(offer.offerId)}
                     >
                       {busyAction === `cancel-offer-${offer.offerId}` ? "Annulation..." : "Annuler"}
+                    </button>
+                  ) : null}
+                  {offer.status === "LOCKED" ? (
+                    <button
+                      className={`${buttonClass} mt-2`}
+                      disabled={loading}
+                      onClick={() => void releaseOfferLock(offer.offerId)}
+                    >
+                      {busyAction === `release-offer-${offer.offerId}` ? "Déverrouillage..." : "Débloquer"}
                     </button>
                   ) : null}
                 </div>

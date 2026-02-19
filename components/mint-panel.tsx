@@ -333,12 +333,8 @@ export function MintPanel() {
                         <li>Clique sur le booster, signe la transaction, puis révèle ta carte.</li>
                     </ol>
                     <p className="mt-3 text-xs opacity-75">
-                        Tirage vérifiable: la preuve de ton dernier mint est visible dans la preview,
-                        puis consultable dans{" "}
-                        <Link href="/fairness" className="underline underline-offset-4 hover:opacity-100">
-                            la page fairness
-                        </Link>
-                        .
+                        Tirage vérifiable: la preuve de ton dernier mint est visible directement dans
+                        la preview, puis consultable via le bouton "Voir la preuve".
                     </p>
 
                     <div className="mt-5 space-y-3 text-sm">

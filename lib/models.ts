@@ -101,6 +101,7 @@ const TradeOfferSchema = new Schema(
     takerTwitchUserId: { type: String, default: null, index: true },
     takerWallet: { type: String, default: null },
     takerAssetId: { type: String, default: null, index: true },
+    takerStickerId: { type: String, default: null, index: true },
     takerPreparedDelegationTxB64: { type: String, default: null },
     takerDelegationTxSig: { type: String, default: null },
     settlementTxSig: { type: String, default: null },

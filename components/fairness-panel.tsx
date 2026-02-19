@@ -18,11 +18,13 @@ type FairnessPanelProps = {
 };
 
 type VerifyResponse = {
+    provider?: string | null;
     checks: {
         randomPresent: boolean;
         algorithmMatches: boolean;
         requiredTxOk: boolean;
         overall: boolean;
+        requiredTxRule?: string;
     };
     algorithm: {
         randomHex: string | null;
@@ -143,7 +145,7 @@ export function FairnessPanel({
                             onClick={runAutoVerify}
                             disabled={!verifyPath || verifyState === "loading"}
                         >
-                            {verifyState === "loading" ? "Verification..." : "Verifier automatiquement"}
+                            {verifyState === "loading" ? "Vérification..." : "Vérifier automatiquement"}
                         </button>
                         {proofPath ? (
                             <a
@@ -162,7 +164,7 @@ export function FairnessPanel({
                             disabled={!proofUrl}
                         >
                             {copyState === "ok"
-                                ? "Lien copie"
+                                ? "Lien copié"
                                 : copyState === "error"
                                   ? "Erreur copie"
                                   : "Copier lien preuve"}
@@ -211,24 +213,29 @@ export function FairnessPanel({
 
                     {verifyState === "error" ? (
                         <div className="rounded-xl border border-red-300/35 bg-red-500/10 p-3 text-sm text-red-100">
-                            Verification impossible: {verifyError || "Erreur inconnue"}
+                            Vérification impossible: {verifyError || "Erreur inconnue"}
                         </div>
                     ) : null}
 
                     {verifyResult ? (
                         <div className="space-y-3 rounded-xl border border-white/10 bg-black/25 p-3">
-                            <div className="text-sm font-medium">Resultat verification (1 clic)</div>
+                            <div className="text-sm font-medium">Résultat vérification (1 clic)</div>
                             <ul className="space-y-1 text-sm text-white/85">
                                 <li>
-                                    {verifyResult.checks.randomPresent ? "OK" : "KO"} - Random Switchboard présente
+                                    {verifyResult.checks.randomPresent ? "OK" : "KO"} - Random présente
                                 </li>
                                 <li>
                                     {verifyResult.checks.algorithmMatches ? "OK" : "KO"} - Calcul index et sticker cohérent
                                 </li>
                                 <li>
-                                    {verifyResult.checks.requiredTxOk ? "OK" : "KO"} - Tx mint/commit/reveal confirmées
+                                    {verifyResult.checks.requiredTxOk ? "OK" : "KO"} - Tx requises confirmées
                                 </li>
                             </ul>
+                            {verifyResult.checks.requiredTxRule ? (
+                                <div className="text-xs text-white/70">
+                                    Règle tx: {verifyResult.checks.requiredTxRule}
+                                </div>
+                            ) : null}
                             <div
                                 className={
                                     verifyResult.checks.overall
@@ -237,16 +244,16 @@ export function FairnessPanel({
                                 }
                             >
                                 {verifyResult.checks.overall
-                                    ? "Preuve valide: ce mint est coherent avec la random et les tx on-chain."
-                                    : "Attention: au moins un check a echoue. Ouvre les details techniques."}
+                                    ? "Preuve valide: ce mint est cohérent avec la random et les tx on-chain."
+                                    : "Attention: au moins un check a échoué. Ouvre les détails techniques."}
                             </div>
                             <details className="rounded-lg border border-white/10 bg-black/20 px-3 py-2 text-xs text-white/70">
-                                <summary className="cursor-pointer select-none">Details techniques</summary>
+                                <summary className="cursor-pointer select-none">Détails techniques</summary>
                                 <div className="mt-2 space-y-1">
                                     <div>Formule: {verifyResult.algorithm.formula}</div>
-                                    <div>Index stocke: {String(verifyResult.algorithm.storedDrawIndex ?? "null")}</div>
-                                    <div>Index recalcule: {String(verifyResult.algorithm.computedIndex ?? "null")}</div>
-                                    <div>Sticker stocke: {String(verifyResult.algorithm.storedStickerId ?? "null")}</div>
+                                    <div>Index stocké: {String(verifyResult.algorithm.storedDrawIndex ?? "null")}</div>
+                                    <div>Index recalculé: {String(verifyResult.algorithm.computedIndex ?? "null")}</div>
+                                    <div>Sticker stocké: {String(verifyResult.algorithm.storedStickerId ?? "null")}</div>
                                     <div>Sticker attendu: {String(verifyResult.algorithm.expectedStickerId ?? "null")}</div>
                                     {verifyResult.algorithm.error ? (
                                         <div>Erreur calcul: {verifyResult.algorithm.error}</div>
@@ -258,7 +265,7 @@ export function FairnessPanel({
                 </div>
             ) : (
                 <div className="text-sm text-white/70">
-                    Aucune preuve affichee pour le moment. Elle apparaitra apres un mint realise
+                    Aucune preuve affichée pour le moment. Elle apparaîtra après un mint réalisé
                     avec le nouveau flow fairness.
                 </div>
             )}

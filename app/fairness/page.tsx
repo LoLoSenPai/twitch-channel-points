@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Mint } from "@/lib/models";
@@ -33,6 +34,13 @@ function solscanTxUrl(signature?: string | null) {
 }
 
 export default async function FairnessPage() {
+  const randomnessMode = String(process.env.MINT_RANDOMNESS_MODE ?? "local")
+    .trim()
+    .toLowerCase();
+  if (randomnessMode !== "switchboard") {
+    notFound();
+  }
+
   const session = await auth();
   const user = session?.user as ExtendedUser | undefined;
 
@@ -61,9 +69,7 @@ export default async function FairnessPage() {
 
   const latestMintTx = String(latestMintProof?.mintTx ?? "").trim();
   const hasProof = Boolean(
-    latestMintProof?.randomnessProvider &&
-      latestMintProof?.randomnessValueHex &&
-      latestMintTx,
+    latestMintProof?.randomnessProvider && latestMintProof?.randomnessValueHex && latestMintTx,
   );
   const proofPath = hasProof ? `/api/mint/proof/${latestMintTx}` : null;
 
@@ -71,15 +77,13 @@ export default async function FairnessPage() {
     <PageShell>
       <main className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6 lg:p-10">
         <section className="rounded-3xl border border-white/10 bg-black/30 p-6 shadow-[0_20px_80px_rgba(0,0,0,.35)] backdrop-blur md:p-8">
-          <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/70">
-            Fairness
-          </p>
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/70">Fairness</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
             Vérifier le tirage de mint
           </h1>
           <p className="mt-3 text-sm text-white/80 sm:text-base">
-            Les mints utilisent une random vérifiable (Switchboard). Le NFT
-            est ensuite choisi uniformément parmi les IDs encore mintables.
+            Le mint est tiré avec une random vérifiable (Switchboard), puis le NFT est choisi
+            uniformément parmi les IDs encore mintables.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <a
@@ -95,7 +99,7 @@ export default async function FairnessPage() {
 
         {!session?.user ? (
           <section className="rounded-2xl border border-white/10 bg-black/20 p-5 text-sm text-white/80">
-            Connecte toi pour voir la preuve de ton dernier mint.
+            Connecte-toi pour voir la preuve de ton dernier mint.
           </section>
         ) : null}
 
@@ -124,12 +128,18 @@ export default async function FairnessPage() {
         <section className="rounded-3xl border border-white/10 bg-black/20 p-5 md:p-6">
           <h2 className="text-xl font-semibold">Comment vérifier</h2>
           <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-white/80">
-            <li>Clique d&apos;abord sur &quot;Vérifier automatiquement&quot; dans le bloc &quot;Dernière preuve&quot;.</li>
-            <li>Si les 3 checks sont &quot;OK&quot;, le mint est cohérent (random + calcul + tx).</li>
-            <li>Tu peux ensuite ouvrir Mint tx / Commit tx / Reveal tx pour un audit manuel.</li>
             <li>
-              Pour les curieux, l&apos;algorithme détaillé reste visible dans &quot;détails techniques&quot;
-              et dans le JSON de preuve.
+              Clique d&apos;abord sur "Vérifier automatiquement" dans le bloc "Dernière preuve".
+            </li>
+            <li>
+              Si les checks sont "OK", le mint est cohérent (random + calcul + tx).
+            </li>
+            <li>
+              Tu peux ensuite ouvrir Mint tx / Commit tx / Reveal tx pour un audit manuel.
+            </li>
+            <li>
+              Pour les curieux, l&apos;algorithme détaillé reste visible dans
+              "détails techniques" et dans le JSON de preuve.
             </li>
           </ol>
           <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-3 font-mono text-xs text-white/75">

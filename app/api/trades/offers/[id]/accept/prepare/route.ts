@@ -43,10 +43,17 @@ async function unlockOfferOnError(offerId: string) {
         takerTwitchUserId: null,
         takerWallet: null,
         takerAssetId: null,
+        takerStickerId: null,
         takerPreparedDelegationTxB64: null,
       },
     }
   );
+}
+
+function lockTtlMs() {
+  const minutes = Number(process.env.TRADE_LOCK_TTL_MINUTES ?? 5);
+  if (!Number.isFinite(minutes) || minutes <= 0) return 5 * 60 * 1000;
+  return Math.floor(minutes * 60 * 1000);
 }
 
 export async function POST(
@@ -69,6 +76,27 @@ export async function POST(
   }
 
   await db();
+
+  const staleBefore = new Date(Date.now() - lockTtlMs());
+  await TradeOffer.updateMany(
+    {
+      status: "LOCKED",
+      updatedAt: { $lt: staleBefore },
+      $or: [{ expiresAt: null }, { expiresAt: { $gt: new Date() } }],
+    },
+    {
+      $set: {
+        status: "OPEN",
+        takerTwitchUserId: null,
+        takerWallet: null,
+        takerAssetId: null,
+        takerStickerId: null,
+        takerPreparedDelegationTxB64: null,
+        takerDelegationTxSig: null,
+        error: null,
+      },
+    }
+  );
 
   const lock = await TradeOffer.findOneAndUpdate(
     {
@@ -116,6 +144,7 @@ export async function POST(
       {
         $set: {
           takerAssetId,
+          takerStickerId: String(stickerId),
           takerPreparedDelegationTxB64: txB64,
           error: null,
         },

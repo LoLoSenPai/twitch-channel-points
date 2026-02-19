@@ -9,9 +9,16 @@ import { SiteNavLinks } from "@/components/site-nav-links";
 type SiteNavbarControlsProps = {
   isAuthenticated: boolean;
   displayName: string;
+  showFairness: boolean;
+  showLeaderboard: boolean;
 };
 
-export function SiteNavbarControls({ isAuthenticated, displayName }: SiteNavbarControlsProps) {
+export function SiteNavbarControls({
+  isAuthenticated,
+  displayName,
+  showFairness,
+  showLeaderboard,
+}: SiteNavbarControlsProps) {
   const pathname = usePathname() ?? "";
   const [openedForPath, setOpenedForPath] = useState<string | null>(null);
   const menuOpen = openedForPath === pathname;
@@ -19,7 +26,7 @@ export function SiteNavbarControls({ isAuthenticated, displayName }: SiteNavbarC
   return (
     <>
       <div className="hidden min-w-0 flex-1 items-center justify-between gap-4 md:flex">
-        <SiteNavLinks />
+        <SiteNavLinks showFairness={showFairness} showLeaderboard={showLeaderboard} />
 
         <div className="flex items-center gap-2 text-sm">
           {isAuthenticated ? (
@@ -55,7 +62,12 @@ export function SiteNavbarControls({ isAuthenticated, displayName }: SiteNavbarC
       {menuOpen ? (
         <div id="mobile-site-menu" className="w-full md:hidden">
           <div className="space-y-3 rounded-2xl border border-white/20 bg-black/40 p-3 backdrop-blur-sm">
-            <SiteNavLinks orientation="vertical" onNavigate={() => setOpenedForPath(null)} />
+            <SiteNavLinks
+              orientation="vertical"
+              onNavigate={() => setOpenedForPath(null)}
+              showFairness={showFairness}
+              showLeaderboard={showLeaderboard}
+            />
 
             <div className="border-t border-white/10 pt-3 text-sm">
               {isAuthenticated ? (

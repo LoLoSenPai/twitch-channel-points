@@ -2,7 +2,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/admin";
 import { db } from "@/lib/db";
-import { Redemption, Mint, MintIntent, Collection } from "@/lib/models";
+import { Redemption, Mint, MintIntent, Collection, TradeOffer } from "@/lib/models";
 import { AdminDashboard } from "@/components/admin-dashboard";
 import PageShell from "@/components/page-shell";
 
@@ -25,6 +25,18 @@ type CollectionRow = {
     merkleTreePubkey?: string;
     coreCollectionPubkey?: string | null;
     isActive?: boolean;
+};
+
+type LockedOfferRow = {
+    offerId?: string;
+    makerTwitchUserId?: string;
+    makerStickerId?: string;
+    wantedStickerIds?: string[];
+    status?: string;
+    takerTwitchUserId?: string | null;
+    takerWallet?: string | null;
+    takerAssetId?: string | null;
+    updatedAt?: string | Date;
 };
 
 export default async function AdminPage() {
@@ -68,6 +80,7 @@ export default async function AdminPage() {
         pendingTickets,
         preparedIntents,
         collections,
+        lockedOffers,
     ] = await Promise.all([
         Redemption.countDocuments({ status: "PENDING" }),
         Redemption.countDocuments({ status: "CONSUMED" }),
@@ -79,6 +92,7 @@ export default async function AdminPage() {
         Redemption.find({ status: "PENDING" }).sort({ createdAt: -1 }).limit(30).lean(),
         MintIntent.find({ status: "PREPARED" }).sort({ createdAt: -1 }).limit(30).lean(),
         Collection.find({}).sort({ createdAt: -1 }).lean(),
+        TradeOffer.find({ status: "LOCKED" }).sort({ updatedAt: -1 }).limit(30).lean(),
     ]);
 
     const pendingTicketsSafe = (pendingTickets as PendingTicketRow[]).map((row) => ({
@@ -102,6 +116,20 @@ export default async function AdminPage() {
         isActive: Boolean(row.isActive),
     }));
 
+    const lockedOffersSafe = (lockedOffers as LockedOfferRow[]).map((row) => ({
+        offerId: String(row.offerId ?? ""),
+        makerTwitchUserId: String(row.makerTwitchUserId ?? ""),
+        makerStickerId: String(row.makerStickerId ?? ""),
+        wantedStickerIds: Array.isArray(row.wantedStickerIds)
+            ? row.wantedStickerIds.map((id) => String(id ?? "")).filter(Boolean)
+            : [],
+        status: String(row.status ?? ""),
+        takerTwitchUserId: row.takerTwitchUserId ? String(row.takerTwitchUserId) : null,
+        takerWallet: row.takerWallet ? String(row.takerWallet) : null,
+        takerAssetId: row.takerAssetId ? String(row.takerAssetId) : null,
+        updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : null,
+    }));
+
     const initialData = {
         stats: {
             ticketsPending,
@@ -121,6 +149,7 @@ export default async function AdminPage() {
         pendingTickets: pendingTicketsSafe,
         preparedIntents: preparedIntentsSafe,
         collections: collectionsSafe,
+        lockedOffers: lockedOffersSafe,
         supply: null,
     };
 

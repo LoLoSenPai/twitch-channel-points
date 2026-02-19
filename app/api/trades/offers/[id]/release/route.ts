@@ -19,28 +19,27 @@ export async function POST(
 
   await db();
 
-  const offer = await TradeOffer.findOne({
-    offerId,
-    makerTwitchUserId: twitchUserId,
-  }).lean();
-  if (!offer) return new NextResponse("Offer not found", { status: 404 });
+  const offer = await TradeOffer.findOne({ offerId, status: "LOCKED" }).lean();
+  if (!offer) return new NextResponse("Offer is not locked", { status: 409 });
 
-  if (!["DRAFT", "OPEN", "LOCKED"].includes(String(offer.status))) {
-    return new NextResponse("Cannot cancel this offer state", { status: 409 });
+  const isMaker = String(offer.makerTwitchUserId) === twitchUserId;
+  const isTaker = String(offer.takerTwitchUserId ?? "") === twitchUserId;
+  if (!isMaker && !isTaker) {
+    return new NextResponse("Forbidden", { status: 403 });
   }
 
   await TradeOffer.updateOne(
-    { offerId },
+    { offerId, status: "LOCKED" },
     {
       $set: {
-        status: "CANCELLED",
+        status: "OPEN",
         takerTwitchUserId: null,
         takerWallet: null,
         takerAssetId: null,
         takerStickerId: null,
         takerPreparedDelegationTxB64: null,
         takerDelegationTxSig: null,
-        error: "USER_CANCELLED",
+        error: null,
       },
     }
   );

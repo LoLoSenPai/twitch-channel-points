@@ -14,27 +14,34 @@ export async function GET() {
 
   const rewardId = process.env.TWITCH_REWARD_ID;
 
-  const baseFilter = {
+  const scopedFilter = {
     twitchUserId,
     status: "PENDING" as const,
     ...(rewardId ? { rewardId } : {}),
   };
 
-  const [tickets, ticketsLocked] = await Promise.all([
+  const [tickets, ticketsLocked, ticketsAllRewards] = await Promise.all([
     Redemption.countDocuments({
-      ...baseFilter,
+      ...scopedFilter,
       lockedByIntentId: null,
     }),
     Redemption.countDocuments({
-      ...baseFilter,
-      // ✅ compte uniquement les locks “réelles” (string)
+      ...scopedFilter,
       lockedByIntentId: { $type: "string" },
+    }),
+    Redemption.countDocuments({
+      twitchUserId,
+      status: "PENDING" as const,
+      lockedByIntentId: null,
     }),
   ]);
 
   return NextResponse.json({
     tickets,
     ticketsLocked,
+    ticketsAllRewards,
+    rewardScope: rewardId || null,
+    scopedByReward: Boolean(rewardId),
     asOf: new Date().toISOString(),
   });
 }

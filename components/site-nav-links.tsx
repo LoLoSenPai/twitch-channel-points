@@ -12,13 +12,14 @@ type NavItem = {
 type SiteNavLinksProps = {
   orientation?: "horizontal" | "vertical";
   onNavigate?: () => void;
+  showFairness?: boolean;
+  showLeaderboard?: boolean;
 };
 
-const NAV_ITEMS: NavItem[] = [
+const BASE_NAV_ITEMS: NavItem[] = [
   { href: "/", label: "Accueil" },
   { href: "/album", label: "Album" },
   { href: "/marketplace", label: "Marketplace" },
-  { href: "/fairness", label: "Fairness" },
 ];
 
 function isActivePath(pathname: string, href: string) {
@@ -26,13 +27,23 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function SiteNavLinks({ orientation = "horizontal", onNavigate }: SiteNavLinksProps = {}) {
+export function SiteNavLinks({
+  orientation = "horizontal",
+  onNavigate,
+  showFairness = true,
+  showLeaderboard = true,
+}: SiteNavLinksProps = {}) {
   const pathname = usePathname() ?? "/";
   const isVertical = orientation === "vertical";
+  const navItems = [
+    ...BASE_NAV_ITEMS,
+    ...(showLeaderboard ? [{ href: "/leaderboard", label: "Leaderboard" }] : []),
+    ...(showFairness ? [{ href: "/fairness", label: "Fairness" }] : []),
+  ];
 
   return (
     <nav className={cn("text-sm", isVertical ? "flex flex-col gap-2" : "flex w-max items-center gap-2")}>
-      {NAV_ITEMS.map((item) => {
+      {navItems.map((item) => {
         const active = isActivePath(pathname, item.href);
         return (
           <Link

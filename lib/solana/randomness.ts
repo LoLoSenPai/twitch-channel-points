@@ -1,12 +1,13 @@
 import { Connection, Keypair, PublicKey } from "@solana/web3.js";
 import { AnchorUtils, Queue, Randomness, asV0Tx } from "@switchboard-xyz/on-demand";
+import crypto from "crypto";
 
 export type RandomnessProof = {
-  provider: "switchboard";
-  queuePubkey: string;
-  randomnessAccount: string;
-  commitTx: string;
-  revealTx: string;
+  provider: "switchboard" | "local_prng";
+  queuePubkey: string | null;
+  randomnessAccount: string | null;
+  commitTx: string | null;
+  revealTx: string | null;
   closeTx: string | null;
   randomHex: string;
   seedSlot: number | null;
@@ -261,4 +262,34 @@ export async function drawSwitchboardRandomness(): Promise<RandomnessProof> {
   throw new Error(
     `Switchboard reveal failed after oracle fallback (${oracleCandidates.length} attempts): ${asErrorMessage(lastError)}`,
   );
+}
+
+function drawLocalRandomness(): RandomnessProof {
+  const randomHex = crypto.randomBytes(32).toString("hex");
+  return {
+    provider: "local_prng",
+    queuePubkey: null,
+    randomnessAccount: null,
+    commitTx: null,
+    revealTx: null,
+    closeTx: null,
+    randomHex,
+    seedSlot: null,
+    revealSlot: null,
+  };
+}
+
+function resolveRandomnessMode() {
+  const raw = String(process.env.MINT_RANDOMNESS_MODE ?? "local")
+    .trim()
+    .toLowerCase();
+  return raw === "switchboard" ? "switchboard" : "local";
+}
+
+export async function drawConfiguredRandomness(): Promise<RandomnessProof> {
+  const mode = resolveRandomnessMode();
+  if (mode === "switchboard") {
+    return drawSwitchboardRandomness();
+  }
+  return drawLocalRandomness();
 }

@@ -89,6 +89,8 @@ export async function GET(
   if (!mint) return new NextResponse("Mint not found", { status: 404 });
 
   const randomHex = String(mint.randomnessValueHex ?? "").trim();
+  const provider = String(mint.randomnessProvider ?? "").trim().toLowerCase();
+  const isSwitchboard = provider === "switchboard";
   const availableStickerIds = Array.isArray(mint.drawAvailableStickerIds)
     ? mint.drawAvailableStickerIds.map(String)
     : [];
@@ -129,18 +131,24 @@ export async function GET(
     checkTx(connection, "close", mint.randomnessCloseTx ?? null),
   ]);
 
-  const requiredTxOk = mintCheck.ok && commitCheck.ok && revealCheck.ok;
+  const requiredTxOk = isSwitchboard
+    ? mintCheck.ok && commitCheck.ok && revealCheck.ok
+    : mintCheck.ok;
   const randomPresent = Boolean(randomHex);
   const overall = randomPresent && algorithmMatches && requiredTxOk;
 
   return NextResponse.json({
     mintTx: mint.mintTx ?? sig,
     stickerId: storedStickerId,
+    provider: provider || null,
     checks: {
       randomPresent,
       algorithmMatches,
       requiredTxOk,
       overall,
+      requiredTxRule: isSwitchboard
+        ? "mint + commit + reveal must be confirmed"
+        : "mint must be confirmed",
     },
     algorithm: {
       randomHex: randomHex || null,
@@ -163,4 +171,3 @@ export async function GET(
     },
   });
 }
-

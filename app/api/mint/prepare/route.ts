@@ -8,7 +8,7 @@ import {
   getSticker,
   pickUniformAvailableStickerIdFromHex,
 } from "@/lib/stickers";
-import { drawSwitchboardRandomness } from "@/lib/solana/randomness";
+import { drawConfiguredRandomness } from "@/lib/solana/randomness";
 
 import { umiServer } from "@/lib/solana/umi";
 import { mintV2 } from "@metaplex-foundation/mpl-bubblegum";
@@ -114,7 +114,7 @@ export async function POST(req: Request) {
       return new NextResponse("Collection sold out", { status: 409 });
     }
 
-    const randomnessProof = await drawSwitchboardRandomness();
+    const randomnessProof = await drawConfiguredRandomness();
     const draw = pickUniformAvailableStickerIdFromHex(
       availableStickerIds,
       randomnessProof.randomHex,

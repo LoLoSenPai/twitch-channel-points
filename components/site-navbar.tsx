@@ -13,6 +13,11 @@ export default async function SiteNavbar() {
   const user = session?.user as SessionUser | undefined;
   const displayName = user?.displayName ?? user?.name ?? "viewer";
   const isAuthenticated = Boolean(session?.user);
+  const randomnessMode = String(process.env.MINT_RANDOMNESS_MODE ?? "local")
+    .trim()
+    .toLowerCase();
+  const showFairness = randomnessMode === "switchboard";
+  const showLeaderboard = true;
 
   return (
     <header className="border-b border-white/10 bg-black/25 backdrop-blur-xl">
@@ -23,7 +28,12 @@ export default async function SiteNavbar() {
           </Link>
         </div>
 
-        <SiteNavbarControls isAuthenticated={isAuthenticated} displayName={displayName} />
+        <SiteNavbarControls
+          isAuthenticated={isAuthenticated}
+          displayName={displayName}
+          showFairness={showFairness}
+          showLeaderboard={showLeaderboard}
+        />
       </div>
     </header>
   );
