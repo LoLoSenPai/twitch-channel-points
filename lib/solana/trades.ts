@@ -12,6 +12,7 @@ import {
   TokenProgramVersion,
   TokenStandard,
   delegateV2,
+  isValidLeafSchemaV2Flags,
   transferV2,
 } from "@metaplex-foundation/mpl-bubblegum";
 import {
@@ -210,6 +211,12 @@ async function loadAssetWithProof(
       ? fullProof.slice(0, -canopyDepth)
       : fullProof;
 
+  const rawFlags = rpcAsset.compression.flags;
+  const safeFlags =
+    typeof rawFlags === "number" && isValidLeafSchemaV2Flags(rawFlags)
+      ? rawFlags
+      : undefined;
+
   return {
     leafOwner: pk(rpcAsset.ownership.owner),
     leafDelegate: pk(rpcAsset.ownership.delegate ?? rpcAsset.ownership.owner),
@@ -223,7 +230,7 @@ async function loadAssetWithProof(
     asset_data_hash: rpcAsset.compression.asset_data_hash
       ? publicKeyBytes(pk(rpcAsset.compression.asset_data_hash))
       : undefined,
-    flags: rpcAsset.compression.flags,
+    flags: safeFlags,
     nonce: rpcAsset.compression.leaf_id,
     index: rpcAssetProof.node_index - 2 ** fullProof.length,
     proof: truncatedProof.map((node) => pk(node)),

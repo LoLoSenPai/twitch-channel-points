@@ -135,6 +135,8 @@ type OwnedStickerGroup = {
   name: string;
   imageSrc: string | null;
   count: number;
+  availableCount: number;
+  lockedCount: number;
   primaryAssetId: string;
   assetIds: string[];
 };
@@ -153,6 +155,7 @@ const MARKET_LISTING_TTL_HOURS_UI = Number(
 );
 const BOARD_GRID_STORAGE_KEY = "market.board.grid.cols";
 const MARKET_ACTIVE_TAB_STORAGE_KEY = "market.active.tab";
+const ACTIVE_LOCK_STATUSES = new Set(["DRAFT", "OPEN", "LOCKED"]);
 
 function short(v: string, head = 5, tail = 5) {
   if (!v) return "";
@@ -463,6 +466,31 @@ export function MarketplacePanel() {
     return map;
   }, [assets]);
 
+  const lockedAssetReasonById = useMemo(() => {
+    const map = new Map<string, string>();
+
+    for (const offer of offers?.mine ?? []) {
+      const status = String(offer.status ?? "").trim().toUpperCase();
+      const assetId = String(offer.makerAssetId ?? "").trim();
+      if (!assetId || !ACTIVE_LOCK_STATUSES.has(status)) continue;
+      map.set(assetId, "Offre active");
+    }
+
+    for (const listing of listings?.mine ?? []) {
+      const status = String(listing.status ?? "").trim().toUpperCase();
+      const assetId = String(listing.sellerAssetId ?? "").trim();
+      if (!assetId || !ACTIVE_LOCK_STATUSES.has(status)) continue;
+      const previous = map.get(assetId);
+      map.set(assetId, previous ? "Offre + vente active" : "Vente active");
+    }
+
+    return map;
+  }, [offers?.mine, listings?.mine]);
+
+  const lockedAssetIds = useMemo(() => {
+    return new Set<string>([...lockedAssetReasonById.keys()]);
+  }, [lockedAssetReasonById]);
+
   const ownedStickerGroups = useMemo<OwnedStickerGroup[]>(() => {
     const grouped = new Map<string, TradeAsset[]>();
     for (const asset of assets) {
@@ -475,6 +503,9 @@ export function MarketplacePanel() {
     return [...grouped.entries()]
       .map(([stickerId, list]) => {
         const sticker = stickerById.get(stickerId);
+        const availableAssets = list.filter(
+          (asset) => !lockedAssetIds.has(String(asset.assetId))
+        );
         const imageSrc =
           resolveStickerImageSrc(list[0]?.image ?? null) ??
           resolveStickerImageSrc(sticker?.image);
@@ -483,17 +514,19 @@ export function MarketplacePanel() {
           name: String(sticker?.name ?? list[0]?.name ?? `Sticker #${stickerId}`),
           imageSrc,
           count: list.length,
-          primaryAssetId: list[0].assetId,
+          availableCount: availableAssets.length,
+          lockedCount: Math.max(0, list.length - availableAssets.length),
+          primaryAssetId: availableAssets[0]?.assetId ?? "",
           assetIds: list.map((asset) => asset.assetId),
         };
       })
       .sort((a, b) => compareStickerIds(a.stickerId, b.stickerId));
-  }, [assets, stickerById]);
+  }, [assets, lockedAssetIds, stickerById]);
 
   const makerAssetOptions = useMemo(() => {
     const needle = makerAssetSearch.trim().toLowerCase();
     const scoped = makerOnlyDuplicates
-      ? ownedStickerGroups.filter((group) => group.count > 1)
+      ? ownedStickerGroups.filter((group) => group.availableCount > 1)
       : ownedStickerGroups;
     if (!needle) return scoped;
     return scoped.filter((group) => {
@@ -503,16 +536,22 @@ export function MarketplacePanel() {
 
   const sendAssetOptions = useMemo(() => {
     return [...assets].sort((a, b) => {
+      const aLocked = lockedAssetIds.has(String(a.assetId)) ? 1 : 0;
+      const bLocked = lockedAssetIds.has(String(b.assetId)) ? 1 : 0;
+      if (aLocked !== bLocked) return aLocked - bLocked;
       const bySticker = compareStickerIds(String(a.stickerId), String(b.stickerId));
       if (bySticker !== 0) return bySticker;
       return String(a.assetId).localeCompare(String(b.assetId), "fr");
     });
-  }, [assets]);
+  }, [assets, lockedAssetIds]);
 
   const selectedSendAssets = useMemo(() => {
     const selected = new Set(sendSelectedAssetIds);
-    return sendAssetOptions.filter((asset) => selected.has(asset.assetId));
-  }, [sendAssetOptions, sendSelectedAssetIds]);
+    return sendAssetOptions.filter(
+      (asset) =>
+        selected.has(asset.assetId) && !lockedAssetIds.has(String(asset.assetId))
+    );
+  }, [lockedAssetIds, sendAssetOptions, sendSelectedAssetIds]);
 
   const makerSelectedStickerId = useMemo(() => {
     if (!makerAssetId) return "";
@@ -659,23 +698,37 @@ export function MarketplacePanel() {
     }
 
     const hasMaker = makerAssetId
-      ? assets.some((asset) => asset.assetId === makerAssetId)
+      ? assets.some(
+          (asset) =>
+            asset.assetId === makerAssetId &&
+            !lockedAssetIds.has(String(asset.assetId))
+        )
       : false;
     if (!hasMaker) {
-      setMakerAssetId(ownedStickerGroups[0].primaryAssetId);
+      const fallbackGroup = ownedStickerGroups.find((group) => group.primaryAssetId);
+      setMakerAssetId(fallbackGroup?.primaryAssetId ?? "");
     }
 
     const hasSale = saleAssetId
-      ? assets.some((asset) => asset.assetId === saleAssetId)
+      ? assets.some(
+          (asset) =>
+            asset.assetId === saleAssetId &&
+            !lockedAssetIds.has(String(asset.assetId))
+        )
       : false;
     if (!hasSale) {
-      setSaleAssetId(ownedStickerGroups[0].primaryAssetId);
+      const fallbackGroup = ownedStickerGroups.find((group) => group.primaryAssetId);
+      setSaleAssetId(fallbackGroup?.primaryAssetId ?? "");
     }
 
     setSendSelectedAssetIds((prev) =>
-      prev.filter((assetId) => assets.some((asset) => asset.assetId === assetId))
+      prev.filter(
+        (assetId) =>
+          assets.some((asset) => asset.assetId === assetId) &&
+          !lockedAssetIds.has(String(assetId))
+      )
     );
-  }, [assets, makerAssetId, ownedStickerGroups, saleAssetId]);
+  }, [assets, lockedAssetIds, makerAssetId, ownedStickerGroups, saleAssetId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -812,6 +865,11 @@ export function MarketplacePanel() {
   }
 
   function toggleSendAssetId(assetId: string) {
+    const lockReason = lockedAssetReasonById.get(String(assetId));
+    if (lockReason) {
+      setNotice(`Carte verrouillée: ${lockReason.toLowerCase()}.`);
+      return;
+    }
     setSendSelectedAssetIds((prev) => {
       if (prev.includes(assetId)) return prev.filter((entry) => entry !== assetId);
       return [...prev, assetId];
@@ -901,6 +959,11 @@ export function MarketplacePanel() {
       setNotice("Choisis une carte et au moins un sticker cible");
       return;
     }
+    const lockReason = lockedAssetReasonById.get(String(makerAssetId));
+    if (lockReason) {
+      setNotice(`Cette carte est verrouillée (${lockReason.toLowerCase()}).`);
+      return;
+    }
 
     const actionKey = "create-offer";
     setBusyAction(actionKey);
@@ -959,6 +1022,11 @@ export function MarketplacePanel() {
     const lamports = solToLamports(salePriceSol);
     if (!saleAssetId || !lamports) {
       setNotice("Choisis une carte et un prix valide");
+      return;
+    }
+    const lockReason = lockedAssetReasonById.get(String(saleAssetId));
+    if (lockReason) {
+      setNotice(`Cette carte est verrouillée (${lockReason.toLowerCase()}).`);
       return;
     }
 
@@ -1319,22 +1387,35 @@ export function MarketplacePanel() {
                   />
                   Doublons uniquement
                 </label>
+                <div className="text-[11px] opacity-65">
+                  Les cartes verrouillées (offre/vente active) sont masquées des actions.
+                </div>
                 <div className="max-h-64 overflow-y-auto rounded-xl border border-white/20 bg-black/20 p-2">
                   {makerAssetOptions.length ? (
                     <div className="grid gap-2 sm:grid-cols-2">
                       {makerAssetOptions.map((group) => {
                         const selected = makerSelectedStickerId === group.stickerId;
+                        const isDisabled = !group.primaryAssetId;
                         return (
                           <button
                             key={`maker-group-${group.stickerId}`}
                             type="button"
                             className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition-all duration-150 cursor-pointer ${
-                              selected
+                              isDisabled
+                                ? "border-white/10 bg-black/10 opacity-45 cursor-not-allowed"
+                                : selected
                                 ? "bg-emerald-500/15 border-emerald-300/60 shadow-[0_0_0_1px_rgba(52,211,153,.15)]"
                                 : "border-white/15 bg-black/20 hover:bg-white/10"
                             }`}
-                            onClick={() => setMakerAssetId(group.primaryAssetId)}
-                            title={`Sélectionner #${group.stickerId}`}
+                            onClick={() => {
+                              if (!isDisabled) setMakerAssetId(group.primaryAssetId);
+                            }}
+                            disabled={isDisabled}
+                            title={
+                              isDisabled
+                                ? `#${group.stickerId} indisponible (tout verrouillé)`
+                                : `Sélectionner #${group.stickerId}`
+                            }
                           >
                             <div className="h-10 w-8 shrink-0 overflow-hidden rounded border border-white/15 bg-black/30">
                               {group.imageSrc ? (
@@ -1351,10 +1432,11 @@ export function MarketplacePanel() {
                               )}
                             </div>
                             <div className="min-w-0">
-                              <div className="truncate text-sm">
-                                #{group.stickerId}
+                              <div className="truncate text-sm">#{group.stickerId}</div>
+                              <div className="text-[11px] opacity-70">
+                                dispo x{group.availableCount}
+                                {group.lockedCount > 0 ? ` · verrouillé x${group.lockedCount}` : ""}
                               </div>
-                              <div className="text-[11px] opacity-70">x{group.count}</div>
                             </div>
                           </button>
                         );
@@ -1367,7 +1449,10 @@ export function MarketplacePanel() {
                 {makerSelectedGroup ? (
                   <div className="rounded-lg border border-emerald-300/25 bg-emerald-500/10 px-2.5 py-1.5 text-xs">
                     Carte proposée: <span className="font-medium">#{makerSelectedGroup.stickerId}</span>
-                    {" · "}x{makerSelectedGroup.count}
+                    {" · "}dispo x{makerSelectedGroup.availableCount}
+                    {makerSelectedGroup.lockedCount > 0
+                      ? ` · verrouillé x${makerSelectedGroup.lockedCount}`
+                      : ""}
                   </div>
                 ) : (
                   <div className="text-xs opacity-70">Choisis une carte à proposer.</div>
@@ -1480,8 +1565,14 @@ export function MarketplacePanel() {
                 >
                   <option value="" style={selectOptionStyle}>Choisis ta carte à vendre</option>
                   {ownedStickerGroups.map((group) => (
-                    <option key={`sale-group-${group.stickerId}`} value={group.primaryAssetId} style={selectOptionStyle}>
-                      #{group.stickerId} - {group.name} (x{group.count})
+                    <option
+                      key={`sale-group-${group.stickerId}`}
+                      value={group.primaryAssetId}
+                      disabled={!group.primaryAssetId}
+                      style={selectOptionStyle}
+                    >
+                      #{group.stickerId} · dispo x{group.availableCount}
+                      {group.lockedCount > 0 ? ` · verrouillé x${group.lockedCount}` : ""}
                     </option>
                   ))}
                 </select>
@@ -1622,7 +1713,11 @@ export function MarketplacePanel() {
               const wantedListPreview = formatStickerListPreview(wantedIds, 4);
               const compatible = wantedIds
                 .flatMap((wantedId) => assetsBySticker.get(String(wantedId)) ?? [])
-                .filter((asset, index, array) => array.findIndex((entry) => entry.assetId === asset.assetId) === index);
+                .filter(
+                  (asset, index, array) =>
+                    array.findIndex((entry) => entry.assetId === asset.assetId) ===
+                      index && !lockedAssetIds.has(String(asset.assetId))
+                );
               const groupedCompatible = new Map<string, TradeAsset[]>();
               for (const asset of compatible) {
                 const key = String(asset.stickerId);
@@ -1702,12 +1797,12 @@ export function MarketplacePanel() {
                         <option value="" style={selectOptionStyle}>
                           Choisir ta carte ({compatibleGroups.length} option{compatibleGroups.length > 1 ? "s" : ""})
                         </option>
-                        {compatibleGroups.map((group) => (
-                          <option key={`${offer.offerId}-${group.stickerId}`} value={group.primaryAssetId} style={selectOptionStyle}>
-                            #{group.stickerId} - {group.name} (x{group.count})
-                          </option>
-                        ))}
-                      </select>
+                      {compatibleGroups.map((group) => (
+                        <option key={`${offer.offerId}-${group.stickerId}`} value={group.primaryAssetId} style={selectOptionStyle}>
+                          #{group.stickerId} - {group.name} (x{group.count})
+                        </option>
+                      ))}
+                    </select>
                     ) : (
                       <div className="rounded-xl border border-white/20 bg-black/25 px-3 py-2 text-sm opacity-70">
                         Aucune carte compatible dans ton wallet.
@@ -1895,12 +1990,17 @@ export function MarketplacePanel() {
                   const stickerId = String(asset.stickerId);
                   const sticker = stickerById.get(stickerId);
                   const selected = sendSelectedAssetIds.includes(asset.assetId);
+                  const lockReason =
+                    lockedAssetReasonById.get(String(asset.assetId)) ?? null;
+                  const isLocked = Boolean(lockReason);
                   const rarity = rarityBadgeMeta(sticker?.rarity);
                   return (
                     <label
                       key={`send-asset-${asset.assetId}`}
                       className={`flex items-center gap-2 rounded-lg border px-2 py-2 text-sm transition ${
-                        selected
+                        isLocked
+                          ? "border-amber-300/30 bg-amber-500/10 opacity-70"
+                          : selected
                           ? "border-emerald-300/45 bg-emerald-500/10"
                           : "border-white/15 bg-black/25 hover:bg-white/5"
                       }`}
@@ -1908,7 +2008,8 @@ export function MarketplacePanel() {
                       <input
                         type="checkbox"
                         className="h-4 w-4 accent-emerald-400"
-                        checked={selected}
+                        checked={selected && !isLocked}
+                        disabled={isLocked}
                         onChange={() => toggleSendAssetId(asset.assetId)}
                       />
                       <div className="min-w-0">
@@ -1918,6 +2019,11 @@ export function MarketplacePanel() {
                         <div className="truncate text-xs opacity-70">
                           Asset: {short(asset.assetId, 7, 7)}
                         </div>
+                        {isLocked ? (
+                          <div className="truncate text-xs text-amber-200/90">
+                            Verrouillée: {lockReason}
+                          </div>
+                        ) : null}
                       </div>
                       {rarity ? (
                         <span

@@ -3,7 +3,7 @@ import { PublicKey } from "@solana/web3.js";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { TransferIntent } from "@/lib/models";
+import { SaleListing, TradeOffer, TransferIntent } from "@/lib/models";
 import { prepareOwnerTransferTxForAsset } from "@/lib/solana/trades";
 import { touchWalletForUser } from "@/lib/wallet-link";
 
@@ -45,6 +45,30 @@ export async function POST(req: Request) {
     return new NextResponse("This wallet is already linked to another Twitch account", {
       status: 409,
     });
+  }
+
+  const [activeTradeOffer, activeListing] = await Promise.all([
+    TradeOffer.findOne({
+      makerAssetId: assetId,
+      makerWallet: walletPubkey,
+      status: { $in: ["DRAFT", "OPEN", "LOCKED"] },
+    })
+      .select({ offerId: 1 })
+      .lean(),
+    SaleListing.findOne({
+      sellerAssetId: assetId,
+      sellerWallet: walletPubkey,
+      status: { $in: ["DRAFT", "OPEN", "LOCKED"] },
+    })
+      .select({ listingId: 1 })
+      .lean(),
+  ]);
+
+  if (activeTradeOffer || activeListing) {
+    return new NextResponse(
+      "Asset is currently locked in an active marketplace offer/listing. Cancel it before sending.",
+      { status: 409 }
+    );
   }
 
   const { txB64, stickerId } = await prepareOwnerTransferTxForAsset({
