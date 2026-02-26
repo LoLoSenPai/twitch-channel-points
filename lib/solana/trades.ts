@@ -76,7 +76,8 @@ async function loadAssetWithProof(
   }
   return getAssetWithProof(
     umi as unknown as Parameters<typeof getAssetWithProof>[0],
-    pk(assetId)
+    pk(assetId),
+    { truncateCanopy: true }
   );
 }
 
@@ -292,6 +293,54 @@ export async function executeDelegatedSwap(params: {
   takerWallet: string;
   delegateWallet: string;
 }) {
+  const { raw } = await buildDelegatedSwapSignedRaw(params);
+  const connection = rpcConnection();
+
+  const sig = await connection.sendRawTransaction(raw, {
+    skipPreflight: false,
+    maxRetries: 3,
+    preflightCommitment: "processed",
+  });
+  const conf = await connection.confirmTransaction(sig, "confirmed");
+  if (conf.value.err) {
+    const message = JSON.stringify(conf.value.err);
+    if (/too large|VersionedTransaction too large|encoded\/raw/i.test(message)) {
+      throw new Error(
+        "Settlement transaction too large for atomic swap. Reduce proof size/tree depth or use a tree with canopy."
+      );
+    }
+    throw new Error(`Settlement failed: ${message}`);
+  }
+
+  return sig;
+}
+
+export async function estimateDelegatedSwapRawSize(params: {
+  makerAssetId: string;
+  makerWallet: string;
+  takerAssetId: string;
+  takerWallet: string;
+  delegateWallet: string;
+}) {
+  const { raw, makerProofNodes, takerProofNodes } =
+    await buildDelegatedSwapSignedRaw(params);
+
+  return {
+    rawBytes: raw.length,
+    limitBytes: MAX_SOLANA_RAW_TX_BYTES,
+    makerProofNodes,
+    takerProofNodes,
+    exceedsLimit: raw.length > MAX_SOLANA_RAW_TX_BYTES,
+  };
+}
+
+async function buildDelegatedSwapSignedRaw(params: {
+  makerAssetId: string;
+  makerWallet: string;
+  takerAssetId: string;
+  takerWallet: string;
+  delegateWallet: string;
+}) {
   const umi = umiTradeDelegate();
   const delegateSigner = umi.identity;
 
@@ -363,29 +412,24 @@ export async function executeDelegatedSwap(params: {
       })
     );
 
-  const connection = rpcConnection();
   const built = await (
     await builder.setFeePayer(delegateSigner).setLatestBlockhash(umi)
   ).buildAndSign(umi);
 
   const raw = Buffer.from(umi.transactions.serialize(built));
-  const sig = await connection.sendRawTransaction(raw, {
-    skipPreflight: false,
-    maxRetries: 3,
-    preflightCommitment: "processed",
-  });
-  const conf = await connection.confirmTransaction(sig, "confirmed");
-  if (conf.value.err) {
-    const message = JSON.stringify(conf.value.err);
-    if (/too large|VersionedTransaction too large|encoded\/raw/i.test(message)) {
-      throw new Error(
-        "Settlement transaction too large for atomic swap. Reduce proof size/tree depth or use a tree with canopy."
-      );
-    }
-    throw new Error(`Settlement failed: ${message}`);
+  if (raw.length > MAX_SOLANA_RAW_TX_BYTES) {
+    throw new Error(
+      `Settlement transaction too large (${raw.length} bytes > ${MAX_SOLANA_RAW_TX_BYTES}). ` +
+        `Proof nodes maker=${makerAsset.proof.length}, taker=${takerAsset.proof.length}. ` +
+        "Use a Merkle tree with higher canopy depth (e.g. 10-12) to shorten proofs."
+    );
   }
 
-  return sig;
+  return {
+    raw,
+    makerProofNodes: makerAsset.proof.length,
+    takerProofNodes: takerAsset.proof.length,
+  };
 }
 
 export async function prepareDelegatedSalePurchaseTx(params: {

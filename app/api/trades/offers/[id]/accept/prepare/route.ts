@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { TradeOffer } from "@/lib/models";
-import { prepareDelegateTxForAsset } from "@/lib/solana/trades";
+import {
+  estimateDelegatedSwapRawSize,
+  prepareDelegateTxForAsset,
+} from "@/lib/solana/trades";
 import { tradeDelegatePublicKeyBase58 } from "@/lib/solana/umi";
 
 type Params = { id: string };
@@ -137,6 +140,20 @@ export async function POST(
     }
     if (String(takerAssetId) === String(lock.makerAssetId)) {
       throw new Error("Cannot trade the same asset");
+    }
+
+    const settlementSize = await estimateDelegatedSwapRawSize({
+      makerAssetId: String(lock.makerAssetId),
+      makerWallet: String(lock.makerWallet),
+      takerAssetId,
+      takerWallet: walletPubkey,
+      delegateWallet,
+    });
+    if (settlementSize.exceedsLimit) {
+      throw new Error(
+        `Atomic swap too large (${settlementSize.rawBytes}/${settlementSize.limitBytes} bytes). ` +
+          `Proof nodes maker=${settlementSize.makerProofNodes}, taker=${settlementSize.takerProofNodes}.`
+      );
     }
 
     await TradeOffer.updateOne(

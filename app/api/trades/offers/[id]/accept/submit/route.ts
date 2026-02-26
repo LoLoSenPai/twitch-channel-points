@@ -48,16 +48,9 @@ export async function POST(
 
   let takerDelegationTxSig: string | null = null;
   try {
-    const matchesPrepared = signedTxMatchesPrepared(
-      signedTxB64,
-      offer.takerPreparedDelegationTxB64
-    );
-    if (!matchesPrepared) {
-      console.warn(
-        "trades/offers/[id]/accept/submit: signed tx differs from prepared tx",
-        { offerId }
-      );
-    }
+    // Keep compatibility with wallet providers that may re-serialize.
+    // Mismatch is tolerated, since relay executes only taker-signed payload.
+    signedTxMatchesPrepared(signedTxB64, offer.takerPreparedDelegationTxB64);
 
     takerDelegationTxSig = await sendSignedTxB64(signedTxB64);
 
@@ -91,16 +84,21 @@ export async function POST(
   } catch (e) {
     const message = (e as Error)?.message ?? "Accept submit failed";
     await TradeOffer.updateOne(
-      { offerId },
+      { offerId, status: "LOCKED" },
       {
         $set: {
-          status: "FAILED",
-          takerDelegationTxSig,
+          status: "OPEN",
+          takerDelegationTxSig: null,
+          takerTwitchUserId: null,
+          takerWallet: null,
+          takerAssetId: null,
+          takerStickerId: null,
+          takerPreparedDelegationTxB64: null,
           error: message,
         },
       }
     );
 
-    return new NextResponse(`Accept submit failed: ${message}`, { status: 500 });
+    return new NextResponse(`Accept submit failed: ${message}`, { status: 409 });
   }
 }
