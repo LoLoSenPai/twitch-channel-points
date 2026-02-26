@@ -34,6 +34,58 @@ function rpcConnection() {
   });
 }
 
+const canopyDepthCache = new Map<string, number>();
+
+function computeConcurrentMerkleTreeSerializedSize(
+  maxDepth: number,
+  maxBufferSize: number
+) {
+  // sequenceNumber(u64) + activeIndex(u64) + bufferSize(u64)
+  const headerSize = 24;
+  // root(32) + pathNodes(maxDepth * 32) + index(8)
+  const changeLogSize = 40 + 32 * maxDepth;
+  // proof(maxDepth * 32) + leaf(32) + index(u32) + padding(u32)
+  const pathSize = 40 + 32 * maxDepth;
+  return headerSize + maxBufferSize * changeLogSize + pathSize;
+}
+
+async function getCanopyDepthForTree(treeId: string): Promise<number> {
+  const cached = canopyDepthCache.get(treeId);
+  if (typeof cached === "number") return cached;
+
+  const connection = rpcConnection();
+  const info = await connection.getAccountInfo(new PublicKey(treeId), "confirmed");
+  if (!info?.data || info.data.length < 56) {
+    canopyDepthCache.set(treeId, 0);
+    return 0;
+  }
+
+  // ConcurrentMerkleTree account layout:
+  // [0] discriminator(u8), [1] version enum(u8), [2..5] maxBufferSize(u32 LE), [6..9] maxDepth(u32 LE)
+  const maxBufferSize = info.data.readUInt32LE(2);
+  const maxDepth = info.data.readUInt32LE(6);
+  if (!Number.isFinite(maxBufferSize) || !Number.isFinite(maxDepth)) {
+    canopyDepthCache.set(treeId, 0);
+    return 0;
+  }
+
+  const treeBytes = computeConcurrentMerkleTreeSerializedSize(maxDepth, maxBufferSize);
+  const canopyStartOffset = 56 + treeBytes;
+  const canopyBytes = Math.max(0, info.data.length - canopyStartOffset);
+  if (canopyBytes <= 0 || canopyBytes % 32 !== 0) {
+    canopyDepthCache.set(treeId, 0);
+    return 0;
+  }
+
+  const canopyNodes = canopyBytes / 32;
+  const canopyDepth = Math.max(
+    0,
+    Math.floor(Math.log2(canopyNodes + 2) - 1)
+  );
+  canopyDepthCache.set(treeId, canopyDepth);
+  return canopyDepth;
+}
+
 function pk(v: string) {
   return publicKey(v.trim());
 }
@@ -151,7 +203,13 @@ async function loadAssetWithProof(
     })),
   };
 
-  const proof = Array.isArray(rpcAssetProof.proof) ? rpcAssetProof.proof : [];
+  const fullProof = Array.isArray(rpcAssetProof.proof) ? rpcAssetProof.proof : [];
+  const canopyDepth = await getCanopyDepthForTree(String(rpcAssetProof.tree_id));
+  const truncatedProof =
+    canopyDepth > 0 && fullProof.length > canopyDepth
+      ? fullProof.slice(0, -canopyDepth)
+      : fullProof;
+
   return {
     leafOwner: pk(rpcAsset.ownership.owner),
     leafDelegate: pk(rpcAsset.ownership.delegate ?? rpcAsset.ownership.owner),
@@ -167,8 +225,8 @@ async function loadAssetWithProof(
       : undefined,
     flags: rpcAsset.compression.flags,
     nonce: rpcAsset.compression.leaf_id,
-    index: rpcAssetProof.node_index - 2 ** proof.length,
-    proof: proof.map((node) => pk(node)),
+    index: rpcAssetProof.node_index - 2 ** fullProof.length,
+    proof: truncatedProof.map((node) => pk(node)),
     metadata,
     rpcAsset: rpcAsset as never,
     rpcAssetProof: rpcAssetProof as never,
@@ -425,12 +483,12 @@ export async function executeDelegatedSwap(params: {
       })
     );
 
+  const connection = rpcConnection();
   const built = await (
     await builder.setFeePayer(delegateSigner).setLatestBlockhash(umi)
   ).buildAndSign(umi);
 
   const raw = Buffer.from(umi.transactions.serialize(built));
-  const connection = rpcConnection();
   const sig = await connection.sendRawTransaction(raw, {
     skipPreflight: false,
     maxRetries: 3,
@@ -438,7 +496,13 @@ export async function executeDelegatedSwap(params: {
   });
   const conf = await connection.confirmTransaction(sig, "confirmed");
   if (conf.value.err) {
-    throw new Error(`Settlement failed: ${JSON.stringify(conf.value.err)}`);
+    const message = JSON.stringify(conf.value.err);
+    if (/too large|VersionedTransaction too large|encoded\/raw/i.test(message)) {
+      throw new Error(
+        "Settlement transaction too large for atomic swap. Reduce proof size/tree depth or use a tree with canopy."
+      );
+    }
+    throw new Error(`Settlement failed: ${message}`);
   }
 
   return sig;
