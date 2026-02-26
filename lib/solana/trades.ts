@@ -293,7 +293,10 @@ export async function executeDelegatedSwap(params: {
   takerWallet: string;
   delegateWallet: string;
 }) {
-  const { raw } = await buildDelegatedSwapSignedRaw(params);
+  const { raw } = await buildDelegatedSwapSignedRaw({
+    ...params,
+    enforceDelegatedState: true,
+  });
   const connection = rpcConnection();
 
   const sig = await connection.sendRawTransaction(raw, {
@@ -323,7 +326,10 @@ export async function estimateDelegatedSwapRawSize(params: {
   delegateWallet: string;
 }) {
   const { raw, makerProofNodes, takerProofNodes } =
-    await buildDelegatedSwapSignedRaw(params);
+    await buildDelegatedSwapSignedRaw({
+      ...params,
+      enforceDelegatedState: false,
+    });
 
   return {
     rawBytes: raw.length,
@@ -340,9 +346,11 @@ async function buildDelegatedSwapSignedRaw(params: {
   takerAssetId: string;
   takerWallet: string;
   delegateWallet: string;
+  enforceDelegatedState?: boolean;
 }) {
   const umi = umiTradeDelegate();
   const delegateSigner = umi.identity;
+  const enforceDelegatedState = params.enforceDelegatedState ?? true;
 
   if (!publicKeyEquals(delegateSigner.publicKey, params.delegateWallet)) {
     throw new Error("Delegate key mismatch");
@@ -363,11 +371,13 @@ async function buildDelegatedSwapSignedRaw(params: {
   if (!publicKeyEquals(takerAsset.leafOwner, params.takerWallet)) {
     throw new Error("Taker no longer owns the offered asset");
   }
-  if (!publicKeyEquals(makerAsset.leafDelegate, params.delegateWallet)) {
-    throw new Error("Maker asset is not delegated to trade authority");
-  }
-  if (!publicKeyEquals(takerAsset.leafDelegate, params.delegateWallet)) {
-    throw new Error("Taker asset is not delegated to trade authority");
+  if (enforceDelegatedState) {
+    if (!publicKeyEquals(makerAsset.leafDelegate, params.delegateWallet)) {
+      throw new Error("Maker asset is not delegated to trade authority");
+    }
+    if (!publicKeyEquals(takerAsset.leafDelegate, params.delegateWallet)) {
+      throw new Error("Taker asset is not delegated to trade authority");
+    }
   }
 
   const builder = transactionBuilder()
