@@ -115,6 +115,21 @@ function publicKeyEquals(a: unknown, b: string) {
   return String(a) === String(pk(b));
 }
 
+function coreCollectionFromAsset(asset: AssetWithProof) {
+  const groups = (
+    (asset.rpcAsset as {
+      grouping?: Array<{ group_key?: string; group_value?: string }>;
+    })?.grouping ?? []
+  ) as Array<{ group_key?: string; group_value?: string }>;
+
+  const collection = groups.find(
+    (group) => String(group.group_key ?? "").toLowerCase() === "collection"
+  )?.group_value;
+
+  const raw = String(collection ?? "").trim();
+  return raw ? pk(raw) : undefined;
+}
+
 export async function getAssetWithTradeProof(assetId: string) {
   const umi = umiTradeDelegate();
   const asset = await loadAssetWithProof(umi, assetId);
@@ -183,6 +198,7 @@ export async function prepareOwnerTransferTxForAsset(params: {
     throw new Error("Asset owner mismatch");
   }
 
+  const coreCollection = coreCollectionFromAsset(asset);
   const builder = transferV2(umi, {
     merkleTree: asset.merkleTree,
     root: asset.root,
@@ -198,6 +214,7 @@ export async function prepareOwnerTransferTxForAsset(params: {
     leafOwner: ownerPk,
     leafDelegate: asset.leafDelegate,
     newLeafOwner: pk(params.recipientWallet),
+    ...(coreCollection ? { coreCollection } : {}),
   });
 
   const built = await (
@@ -272,6 +289,8 @@ export async function executeDelegatedSwap(params: {
     loadAssetWithProof(umi, params.makerAssetId),
     loadAssetWithProof(umi, params.takerAssetId),
   ]);
+  const makerCoreCollection = coreCollectionFromAsset(makerAsset);
+  const takerCoreCollection = coreCollectionFromAsset(takerAsset);
   assertAssetInConfiguredCollection(makerAsset);
   assertAssetInConfiguredCollection(takerAsset);
 
@@ -306,6 +325,7 @@ export async function executeDelegatedSwap(params: {
         leafOwner: pk(params.makerWallet),
         leafDelegate: delegateSigner.publicKey,
         newLeafOwner: pk(params.takerWallet),
+        ...(makerCoreCollection ? { coreCollection: makerCoreCollection } : {}),
       })
     )
     .add(
@@ -325,6 +345,7 @@ export async function executeDelegatedSwap(params: {
         leafOwner: pk(params.takerWallet),
         leafDelegate: delegateSigner.publicKey,
         newLeafOwner: pk(params.makerWallet),
+        ...(takerCoreCollection ? { coreCollection: takerCoreCollection } : {}),
       })
     );
 
@@ -376,6 +397,7 @@ export async function prepareDelegatedSalePurchaseTx(params: {
   }
 
   const sellerAsset = await loadAssetWithProof(umi, params.sellerAssetId);
+  const sellerCoreCollection = coreCollectionFromAsset(sellerAsset);
   assertAssetInConfiguredCollection(sellerAsset);
 
   if (!publicKeyEquals(sellerAsset.leafOwner, params.sellerWallet)) {
@@ -404,6 +426,7 @@ export async function prepareDelegatedSalePurchaseTx(params: {
     leafOwner: sellerPk,
     leafDelegate: delegateSigner.publicKey,
     newLeafOwner: buyerPk,
+    ...(sellerCoreCollection ? { coreCollection: sellerCoreCollection } : {}),
   }).getInstructions()[0];
 
   const totalLamports = Math.floor(params.priceLamports);
