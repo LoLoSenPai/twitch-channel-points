@@ -12,7 +12,6 @@ import {
   TokenProgramVersion,
   TokenStandard,
   delegateV2,
-  isValidLeafSchemaV2Flags,
   transferV2,
 } from "@metaplex-foundation/mpl-bubblegum";
 import {
@@ -212,10 +211,18 @@ async function loadAssetWithProof(
       : fullProof;
 
   const rawFlags = rpcAsset.compression.flags;
-  const safeFlags =
-    typeof rawFlags === "number" && isValidLeafSchemaV2Flags(rawFlags)
-      ? rawFlags
-      : undefined;
+  const safeFlags = typeof rawFlags === "number" ? rawFlags : undefined;
+
+  const nodeIndexRaw = Number(rpcAssetProof.node_index ?? 0);
+  if (!Number.isFinite(nodeIndexRaw) || nodeIndexRaw < 0) {
+    throw new Error("Invalid node_index returned by DAS getAssetProof");
+  }
+  const legacyLeafIndex = nodeIndexRaw - 2 ** fullProof.length;
+  // DAS implementations differ: some return tree node index, others direct leaf index.
+  const leafIndex =
+    Number.isFinite(legacyLeafIndex) && legacyLeafIndex >= 0
+      ? legacyLeafIndex
+      : nodeIndexRaw;
 
   return {
     leafOwner: pk(rpcAsset.ownership.owner),
@@ -232,7 +239,7 @@ async function loadAssetWithProof(
       : undefined,
     flags: safeFlags,
     nonce: rpcAsset.compression.leaf_id,
-    index: rpcAssetProof.node_index - 2 ** fullProof.length,
+    index: leafIndex,
     proof: truncatedProof.map((node) => pk(node)),
     metadata,
     rpcAsset: rpcAsset as never,
