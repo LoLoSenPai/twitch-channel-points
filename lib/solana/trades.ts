@@ -28,6 +28,8 @@ import {
 } from "@metaplex-foundation/umi";
 import { umiTradeDelegate } from "@/lib/solana/umi";
 
+const MAX_SOLANA_RAW_TX_BYTES = 1232;
+
 function rpcConnection() {
   return new Connection(process.env.HELIUS_RPC_URL!, {
     commitment: "confirmed",
@@ -178,6 +180,12 @@ export async function prepareDelegateTxForAsset(params: {
   ).buildAndSign(umi);
 
   const bytes = umi.transactions.serialize(built);
+  if (bytes.length > MAX_SOLANA_RAW_TX_BYTES) {
+    throw new Error(
+      `Prepared delegation tx too large (${bytes.length} bytes > ${MAX_SOLANA_RAW_TX_BYTES}). ` +
+        "Current Merkle tree proof is too long (likely no canopy). Create/use a tree with canopyDepth (e.g. 8-10)."
+    );
+  }
   return {
     txB64: Buffer.from(bytes).toString("base64"),
     stickerId,
@@ -222,6 +230,12 @@ export async function prepareOwnerTransferTxForAsset(params: {
   ).buildAndSign(umi);
 
   const bytes = umi.transactions.serialize(built);
+  if (bytes.length > MAX_SOLANA_RAW_TX_BYTES) {
+    throw new Error(
+      `Prepared transfer tx too large (${bytes.length} bytes > ${MAX_SOLANA_RAW_TX_BYTES}). ` +
+        "Current Merkle tree proof is too long (likely no canopy). Create/use a tree with canopyDepth (e.g. 8-10)."
+    );
+  }
   return {
     txB64: Buffer.from(bytes).toString("base64"),
     stickerId,
