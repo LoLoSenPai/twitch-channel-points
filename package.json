@@ -10,7 +10,8 @@
     "test:core": "node ./node_modules/tsx/dist/cli.mjs ./tests/core-randomness.test.ts",
     "test:quick": "npm run test:core && npx tsc --noEmit",
     "tree:create": "node ./node_modules/tsx/dist/cli.mjs ./scripts/create-tree.ts",
-    "authority:print": "node ./node_modules/tsx/dist/cli.mjs ./scripts/print-authority.ts"
+    "authority:print": "node ./node_modules/tsx/dist/cli.mjs ./scripts/print-authority.ts",
+    "db:reset": "node ./node_modules/tsx/dist/cli.mjs ./scripts/reset-db.ts"
   },
   "dependencies": {
     "@metaplex-foundation/mpl-bubblegum": "^5.0.2",

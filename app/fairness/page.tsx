@@ -28,7 +28,7 @@ type LatestMintProof = {
 function solscanTxUrl(signature?: string | null) {
   const sig = String(signature ?? "").trim();
   if (!sig) return null;
-  const cluster = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "devnet";
+  const cluster = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "";
   const suffix = cluster ? `?cluster=${encodeURIComponent(cluster)}` : "";
   return `https://solscan.io/tx/${sig}${suffix}`;
 }

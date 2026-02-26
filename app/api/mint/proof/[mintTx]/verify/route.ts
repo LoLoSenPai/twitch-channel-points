@@ -31,7 +31,7 @@ type TxCheck = {
 function toSolscanUrl(signature?: string | null) {
   const sig = String(signature ?? "").trim();
   if (!sig) return null;
-  const cluster = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "devnet";
+  const cluster = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "";
   const suffix = cluster ? `?cluster=${encodeURIComponent(cluster)}` : "";
   return `https://solscan.io/tx/${sig}${suffix}`;
 }
@@ -121,7 +121,8 @@ export async function GET(
     expectedStickerId !== null && Boolean(storedStickerId) && expectedStickerId === storedStickerId;
   const algorithmMatches = indexMatches && stickerMatches;
 
-  const rpcUrl = process.env.HELIUS_RPC_URL || "https://api.devnet.solana.com";
+  const rpcUrl =
+    process.env.HELIUS_RPC_URL || "https://api.mainnet-beta.solana.com";
   const connection = new Connection(rpcUrl, "confirmed");
 
   const [mintCheck, commitCheck, revealCheck, closeCheck] = await Promise.all([

@@ -37,7 +37,7 @@ const stickerRarityMap = new Map(
     (stickers as StickerJson).items.map((item) => [String(item.id), item.rarity])
 );
 
-const SOLSCAN_CLUSTER = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "devnet";
+const SOLSCAN_CLUSTER = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "";
 const BOOSTER_ASSET_VERSION = process.env.NEXT_PUBLIC_BOOSTER_ASSET_VERSION?.trim() ?? "1";
 
 function solscanTxUrl(signature: string) {
@@ -264,7 +264,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
         <div className="rounded-2xl border p-4 space-y-4 bg-linear-to-br from-zinc-900/70 via-black/60 to-zinc-900/70">
             <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
                 <div>
-                    <div className="text-lg font-semibold">Collection #1 (devnet)</div>
+                    <div className="text-lg font-semibold">Collection #1</div>
 
                     <div className="text-sm opacity-70 flex items-center gap-2">
                         Tickets:{" "}

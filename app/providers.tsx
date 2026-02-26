@@ -14,7 +14,12 @@ const WalletModalProvider = dynamic(
 );
 
 export function Providers({ children }: { children: React.ReactNode }) {
-    const endpoint = useMemo(() => "https://api.devnet.solana.com", []);
+    const endpoint = useMemo(
+        () =>
+            process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() ||
+            "https://api.mainnet-beta.solana.com",
+        []
+    );
     const isMobile = useMemo(
         () => (typeof navigator !== "undefined" ? /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent) : false),
         []

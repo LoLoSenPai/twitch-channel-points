@@ -51,6 +51,8 @@ The full template is in `.env.EXAMPLE`. Most important values:
 - `NEXTAUTH_URL`, `NEXTAUTH_SECRET`
 - `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, `TWITCH_BROADCASTER_ID`
 - `HELIUS_RPC_URL`
+- `NEXT_PUBLIC_SOLANA_RPC_URL` (wallet adapter endpoint; set mainnet URL in production)
+- `NEXT_PUBLIC_SOLSCAN_CLUSTER` (e.g. `devnet` in dev; empty on mainnet)
 - `SOLANA_AUTHORITY_SECRET`
 - `MERKLE_TREE_PUBKEY`, `CORE_COLLECTION_PUBKEY`, `COLLECTION_METADATA_URI`
 - `TRADE_DELEGATE_SECRET` (if trades are enabled)
@@ -69,6 +71,8 @@ The full template is in `.env.EXAMPLE`. Most important values:
 - `npm run test:quick`: `test:core` + TypeScript typecheck
 - `npm run tree:create`: create a Merkle tree
 - `npm run authority:print`: print authority public key
+- `npm run db:reset -- --yes-reset`: wipe runtime DB data
+- `npm run db:reset -- --yes-reset --with-collections`: wipe runtime data + collections
 
 ## Tests
 
