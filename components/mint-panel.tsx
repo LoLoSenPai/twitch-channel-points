@@ -335,7 +335,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                     </ol>
                     <p className="mt-3 text-xs opacity-75">
                         Tirage vérifiable: la preuve de ton dernier mint est visible directement dans
-                        la preview, puis consultable via le bouton "Voir la preuve".
+                        la preview, puis consultable via le bouton &quot;Voir la preuve&quot;.
                     </p>
 
                     <div className="mt-5 space-y-3 text-sm">
