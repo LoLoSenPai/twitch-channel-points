@@ -529,10 +529,10 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, show
                         </button>
                     </div>
 
-                    {/* fermer */}
-                    <div className="mt-4 grid w-full grid-cols-2 gap-2 sm:grid-cols-4">
+                    {/* actions */}
+                    <div className="mt-4 flex w-full max-w-[300px] flex-wrap justify-center gap-2">
                         <a
-                            className="rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
+                            className="min-w-[92px] rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
                             href="/album"
                         >
                             Album
@@ -540,7 +540,7 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, show
 
                         {tx ? (
                             <a
-                                className="rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
+                                className="min-w-[92px] rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
                                 href={solscanTxUrl(tx)}
                                 target="_blank"
                                 rel="noreferrer"
@@ -550,7 +550,7 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, show
                         ) : null}
                         {tx && showProofLinks ? (
                             <a
-                                className="rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
+                                className="min-w-[92px] rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
                                 href={`/api/mint/proof/${tx}`}
                                 target="_blank"
                                 rel="noreferrer"
@@ -559,7 +559,7 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, show
                             </a>
                         ) : null}
                         <button
-                            className="rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
+                            className="min-w-[92px] rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
                             onClick={onClose}
                         >
                             Fermer

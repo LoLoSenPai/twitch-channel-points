@@ -1735,7 +1735,7 @@ export function MarketplacePanel() {
                 .filter((group) => Boolean(group.primaryAssetId))
                 .sort((a, b) => compareStickerIds(a.stickerId, b.stickerId));
               return (
-                <article key={`trade-${offer.offerId}`} className="rounded-2xl border border-white/20 p-3 space-y-3 bg-black/30 backdrop-blur-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-cyan-300/35">
+                <article key={`trade-${offer.offerId}`} className="min-w-0 rounded-2xl border border-white/20 p-3 space-y-3 bg-black/30 backdrop-blur-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-cyan-300/35">
                   <div className="flex items-center gap-2">
                     <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-200">
                       Échange
@@ -1785,10 +1785,10 @@ export function MarketplacePanel() {
                     ) : null}
                   </div>
 
-                  <div className="grid gap-2">
+                  <div className="grid min-w-0 gap-2">
                     {compatibleGroups.length ? (
                       <select
-                        className={selectClass}
+                        className={`${selectClass} w-full min-w-0 max-w-full`}
                         value={acceptAssetByOffer[offer.offerId] ?? ""}
                         onChange={(e) =>
                           setAcceptAssetByOffer((prev) => ({ ...prev, [offer.offerId]: e.target.value }))
@@ -1809,7 +1809,7 @@ export function MarketplacePanel() {
                       </div>
                     )}
                     <button
-                      className={buttonClass}
+                      className={buttonWideClass}
                       disabled={loading || !compatibleGroups.length}
                       onClick={() => void acceptOffer(offer)}
                     >
@@ -1829,7 +1829,7 @@ export function MarketplacePanel() {
               const countdownLabel = formatCountdown(remaining);
               const split = splitMarketSaleAmount(listing.priceLamports, marketFeeBps);
               return (
-                <article key={`sale-${listing.listingId}`} className="rounded-2xl border border-white/20 p-3 space-y-3 bg-black/30 backdrop-blur-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-fuchsia-300/35">
+                <article key={`sale-${listing.listingId}`} className="min-w-0 rounded-2xl border border-white/20 p-3 space-y-3 bg-black/30 backdrop-blur-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-fuchsia-300/35">
                   <div className="flex items-center gap-2">
                     <span className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-2 py-0.5 text-xs text-fuchsia-200">
                       Vente
