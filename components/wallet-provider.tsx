@@ -30,7 +30,7 @@ export function SolanaWalletProvider({ children }: { children: React.ReactNode }
         <ConnectionProvider endpoint={endpoint}>
             <WalletProvider
                 wallets={wallets}
-                autoConnect={false}
+                autoConnect
                 localStorageKey={localStorageKey}
                 onError={(e) => {
                     console.error("WalletAdapter error:", e);

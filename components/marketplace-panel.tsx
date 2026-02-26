@@ -428,6 +428,8 @@ export function MarketplacePanel() {
   const [sendSelectedAssetIds, setSendSelectedAssetIds] = useState<string[]>([]);
 
   const [loading, setLoading] = useState(false);
+  const [dataLoading, setDataLoading] = useState(true);
+  const [assetsLoading, setAssetsLoading] = useState(false);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
 
@@ -605,6 +607,8 @@ export function MarketplacePanel() {
   const refresh = useCallback(
     async (options?: { clearNotice?: boolean }) => {
       setLoading(true);
+      setDataLoading(true);
+      setAssetsLoading(Boolean(walletPk));
       if (options?.clearNotice !== false) setNotice("");
 
       try {
@@ -654,6 +658,8 @@ export function MarketplacePanel() {
       } catch (e) {
         setNotice((e as Error)?.message ?? "Erreur refresh");
       } finally {
+        setDataLoading(false);
+        setAssetsLoading(false);
         setLoading(false);
       }
     },
@@ -814,6 +820,7 @@ export function MarketplacePanel() {
   const showTrades = !SALES_UI_ENABLED || marketMode === "all" || marketMode === "trade";
   const showSales = SALES_UI_ENABLED && (marketMode === "all" || marketMode === "sale");
   const marketGridClass = boardGridClass(boardCols);
+  const marketBootLoading = dataLoading && (!offers || !listings || !insights);
   const visibleOpenCount =
     (showTrades ? openTrades.length : 0) +
     (showSales ? openSales.length : 0);
@@ -1442,6 +1449,10 @@ export function MarketplacePanel() {
                         );
                       })}
                     </div>
+                  ) : !walletPk ? (
+                    <div className="text-xs opacity-70">Connecte ton wallet pour charger tes cartes.</div>
+                  ) : assetsLoading ? (
+                    <div className="text-xs opacity-70">Chargement de tes cartes...</div>
                   ) : (
                     <div className="text-xs opacity-70">Aucune carte trouvée.</div>
                   )}
@@ -1803,6 +1814,14 @@ export function MarketplacePanel() {
                         </option>
                       ))}
                     </select>
+                    ) : !walletPk ? (
+                      <div className="rounded-xl border border-white/20 bg-black/25 px-3 py-2 text-sm opacity-70">
+                        Connecte ton wallet pour voir tes cartes compatibles.
+                      </div>
+                    ) : assetsLoading ? (
+                      <div className="rounded-xl border border-white/20 bg-black/25 px-3 py-2 text-sm opacity-70">
+                        Chargement de tes cartes...
+                      </div>
                     ) : (
                       <div className="rounded-xl border border-white/20 bg-black/25 px-3 py-2 text-sm opacity-70">
                         Aucune carte compatible dans ton wallet.
@@ -1883,7 +1902,9 @@ export function MarketplacePanel() {
             })}
         </div>
 
-        {!visibleOpenCount ? (
+        {marketBootLoading ? (
+          <div className="text-sm opacity-70">Chargement des annonces...</div>
+        ) : !visibleOpenCount ? (
           <div className="text-sm opacity-70">Aucune annonce correspondante.</div>
         ) : null}
 
@@ -1900,7 +1921,9 @@ export function MarketplacePanel() {
               </p>
             </div>
           </div>
-          {tradeHistory.length ? (
+          {dataLoading && !insights ? (
+            <div className="text-sm opacity-70">Chargement de l'historique...</div>
+          ) : tradeHistory.length ? (
             <div className="space-y-2">
               {tradeHistory.slice(0, 100).map((entry) => {
                 const makerSticker = stickerById.get(String(entry.makerStickerId));
@@ -2036,6 +2059,10 @@ export function MarketplacePanel() {
                   );
                 })}
               </div>
+            ) : !walletPk ? (
+              <div className="px-2 py-3 text-sm opacity-70">Wallet déconnecté. Connecte ton wallet pour envoyer des cartes.</div>
+            ) : assetsLoading ? (
+              <div className="px-2 py-3 text-sm opacity-70">Chargement des cartes du wallet...</div>
             ) : (
               <div className="px-2 py-3 text-sm opacity-70">Aucune carte dans ce wallet.</div>
             )}
@@ -2047,7 +2074,9 @@ export function MarketplacePanel() {
         <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
         <div className="rounded-2xl border border-white/20 bg-black/25 p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
           <div className="font-semibold">Mes offres d’échange</div>
-          {(offers?.mine ?? []).length ? (
+          {dataLoading && !offers ? (
+            <div className="text-sm opacity-70">Chargement de tes offres...</div>
+          ) : (offers?.mine ?? []).length ? (
             <div className="space-y-2">
               {offers!.mine.map((offer) => {
                 const wantedIds = normalizeStickerIds(offer.wantedStickerIds ?? []);
@@ -2173,7 +2202,9 @@ export function MarketplacePanel() {
         {SALES_UI_ENABLED ? (
           <div className="rounded-2xl border border-white/20 bg-black/25 p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
             <div className="font-semibold">Mes ventes</div>
-            {(listings?.mine ?? []).length ? (
+            {dataLoading && !listings ? (
+              <div className="text-sm opacity-70">Chargement de tes ventes...</div>
+            ) : (listings?.mine ?? []).length ? (
               <div className="space-y-2">
                 {listings!.mine.map((listing) => {
                   const split = splitMarketSaleAmount(listing.priceLamports, marketFeeBps);

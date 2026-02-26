@@ -469,7 +469,7 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, show
     if (typeof document === "undefined") return null;
 
     return createPortal(
-        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/70 backdrop-blur-sm">
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/70 text-white backdrop-blur-sm">
             {/* bouton skip */}
             <button
                 className="absolute right-4 top-4 rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-sm cursor-pointer"
