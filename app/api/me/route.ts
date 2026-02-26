@@ -3,6 +3,7 @@ import { PublicKey } from "@solana/web3.js";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Collection, Redemption, Mint, UserWallet } from "@/lib/models";
+import { touchWalletForUser } from "@/lib/wallet-link";
 import { STICKERS_TOTAL } from "@/lib/stickers";
 
 interface TwitchUser {
@@ -122,12 +123,12 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url);
   const connectedWallet = normalizeWallet(searchParams.get("walletPubkey"));
+  let linkedConnectedWallet: string | null = connectedWallet;
   if (connectedWallet) {
-    await UserWallet.updateOne(
-      { twitchUserId, wallet: connectedWallet },
-      { $set: { lastSeenAt: new Date() } },
-      { upsert: true }
-    );
+    const link = await touchWalletForUser(twitchUserId, connectedWallet);
+    if (!link.ok) {
+      linkedConnectedWallet = null;
+    }
   }
 
   const rewardId = process.env.TWITCH_REWARD_ID;
@@ -165,7 +166,7 @@ export async function GET(req: Request) {
       [
         ...walletsFromMint.map((w) => String(w ?? "").trim()),
         ...walletRows.map((row) => String((row as { wallet?: string }).wallet ?? "").trim()),
-        connectedWallet ?? "",
+        linkedConnectedWallet ?? "",
       ].filter(Boolean)
     ),
   ];

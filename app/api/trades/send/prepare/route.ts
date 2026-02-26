@@ -3,8 +3,9 @@ import { PublicKey } from "@solana/web3.js";
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { TransferIntent, UserWallet } from "@/lib/models";
+import { TransferIntent } from "@/lib/models";
 import { prepareOwnerTransferTxForAsset } from "@/lib/solana/trades";
+import { touchWalletForUser } from "@/lib/wallet-link";
 
 function rid() {
   return crypto.randomBytes(16).toString("hex");
@@ -39,11 +40,12 @@ export async function POST(req: Request) {
 
   await db();
 
-  await UserWallet.updateOne(
-    { twitchUserId, wallet: walletPubkey },
-    { $set: { lastSeenAt: new Date() } },
-    { upsert: true }
-  );
+  const link = await touchWalletForUser(twitchUserId, walletPubkey);
+  if (!link.ok) {
+    return new NextResponse("This wallet is already linked to another Twitch account", {
+      status: 409,
+    });
+  }
 
   const { txB64, stickerId } = await prepareOwnerTransferTxForAsset({
     assetId,

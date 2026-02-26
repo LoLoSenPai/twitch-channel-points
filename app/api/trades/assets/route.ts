@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { UserWallet } from "@/lib/models";
+import { touchWalletForUser } from "@/lib/wallet-link";
 
 type DasAsset = {
   id: string;
@@ -70,11 +70,12 @@ export async function GET(req: Request) {
   }
 
   await db();
-  await UserWallet.updateOne(
-    { twitchUserId, wallet: walletPubkey },
-    { $set: { lastSeenAt: new Date() } },
-    { upsert: true }
-  );
+  const link = await touchWalletForUser(twitchUserId, walletPubkey);
+  if (!link.ok) {
+    return new NextResponse("This wallet is already linked to another Twitch account", {
+      status: 409,
+    });
+  }
 
   const rpc = process.env.HELIUS_RPC_URL;
   if (!rpc) return new NextResponse("Missing HELIUS_RPC_URL", { status: 500 });
