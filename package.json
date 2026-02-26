@@ -11,7 +11,9 @@
     "test:quick": "npm run test:core && npx tsc --noEmit",
     "tree:create": "node ./node_modules/tsx/dist/cli.mjs ./scripts/create-tree.ts",
     "authority:print": "node ./node_modules/tsx/dist/cli.mjs ./scripts/print-authority.ts",
-    "db:reset": "node ./node_modules/tsx/dist/cli.mjs ./scripts/reset-db.ts"
+    "db:reset": "node ./node_modules/tsx/dist/cli.mjs ./scripts/reset-db.ts",
+    "db:reset:yes": "node ./node_modules/tsx/dist/cli.mjs ./scripts/reset-db.ts --yes-reset",
+    "db:reset:full": "node ./node_modules/tsx/dist/cli.mjs ./scripts/reset-db.ts --yes-reset --with-collections"
   },
   "dependencies": {
     "@metaplex-foundation/mpl-bubblegum": "^5.0.2",

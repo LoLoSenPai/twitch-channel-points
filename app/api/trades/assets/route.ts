@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { PublicKey } from "@solana/web3.js";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { Collection } from "@/lib/models";
 import { touchWalletForUser } from "@/lib/wallet-link";
 
 type DasAsset = {
@@ -79,7 +80,12 @@ export async function GET(req: Request) {
 
   const rpc = process.env.HELIUS_RPC_URL;
   if (!rpc) return new NextResponse("Missing HELIUS_RPC_URL", { status: 500 });
-  const collectionPubkey = String(process.env.CORE_COLLECTION_PUBKEY ?? "").trim();
+  const active = await Collection.findOne({ isActive: true }).lean();
+  const collectionPubkey = String(
+    (active?.coreCollectionPubkey as string | undefined) ??
+      process.env.CORE_COLLECTION_PUBKEY ??
+      ""
+  ).trim();
 
   const result: DasAsset[] = [];
   let page = 1;

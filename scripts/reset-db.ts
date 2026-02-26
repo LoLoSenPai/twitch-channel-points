@@ -23,6 +23,15 @@ function hasArg(flag: string) {
   return process.argv.includes(flag);
 }
 
+function hasNpmConfigFlag(names: string[]) {
+  return names.some((name) => {
+    const raw = process.env[name];
+    if (!raw) return false;
+    const value = String(raw).trim().toLowerCase();
+    return value === "1" || value === "true" || value === "yes";
+  });
+}
+
 function usage() {
   console.log(`
 Usage:
@@ -43,8 +52,15 @@ Optional:
 }
 
 async function main() {
-  const confirmed = hasArg("--yes-reset");
-  const withCollections = hasArg("--with-collections");
+  const confirmed =
+    hasArg("--yes-reset") ||
+    hasNpmConfigFlag(["npm_config_yes_reset", "npm_config_yesreset"]);
+  const withCollections =
+    hasArg("--with-collections") ||
+    hasNpmConfigFlag([
+      "npm_config_with_collections",
+      "npm_config_withcollections",
+    ]);
 
   if (!confirmed) {
     usage();
@@ -107,4 +123,3 @@ main().catch(async (error) => {
   await mongoose.disconnect().catch(() => undefined);
   process.exit(1);
 });
-
