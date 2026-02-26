@@ -12,6 +12,7 @@ import {
   TokenProgramVersion,
   TokenStandard,
   delegateV2,
+  getAssetWithProof,
   transferV2,
 } from "@metaplex-foundation/mpl-bubblegum";
 import {
@@ -32,58 +33,6 @@ function rpcConnection() {
     commitment: "confirmed",
     confirmTransactionInitialTimeout: 60_000,
   });
-}
-
-const canopyDepthCache = new Map<string, number>();
-
-function computeConcurrentMerkleTreeSerializedSize(
-  maxDepth: number,
-  maxBufferSize: number
-) {
-  // sequenceNumber(u64) + activeIndex(u64) + bufferSize(u64)
-  const headerSize = 24;
-  // root(32) + pathNodes(maxDepth * 32) + index(8)
-  const changeLogSize = 40 + 32 * maxDepth;
-  // proof(maxDepth * 32) + leaf(32) + index(u32) + padding(u32)
-  const pathSize = 40 + 32 * maxDepth;
-  return headerSize + maxBufferSize * changeLogSize + pathSize;
-}
-
-async function getCanopyDepthForTree(treeId: string): Promise<number> {
-  const cached = canopyDepthCache.get(treeId);
-  if (typeof cached === "number") return cached;
-
-  const connection = rpcConnection();
-  const info = await connection.getAccountInfo(new PublicKey(treeId), "confirmed");
-  if (!info?.data || info.data.length < 56) {
-    canopyDepthCache.set(treeId, 0);
-    return 0;
-  }
-
-  // ConcurrentMerkleTree account layout:
-  // [0] discriminator(u8), [1] version enum(u8), [2..5] maxBufferSize(u32 LE), [6..9] maxDepth(u32 LE)
-  const maxBufferSize = info.data.readUInt32LE(2);
-  const maxDepth = info.data.readUInt32LE(6);
-  if (!Number.isFinite(maxBufferSize) || !Number.isFinite(maxDepth)) {
-    canopyDepthCache.set(treeId, 0);
-    return 0;
-  }
-
-  const treeBytes = computeConcurrentMerkleTreeSerializedSize(maxDepth, maxBufferSize);
-  const canopyStartOffset = 56 + treeBytes;
-  const canopyBytes = Math.max(0, info.data.length - canopyStartOffset);
-  if (canopyBytes <= 0 || canopyBytes % 32 !== 0) {
-    canopyDepthCache.set(treeId, 0);
-    return 0;
-  }
-
-  const canopyNodes = canopyBytes / 32;
-  const canopyDepth = Math.max(
-    0,
-    Math.floor(Math.log2(canopyNodes + 2) - 1)
-  );
-  canopyDepthCache.set(treeId, canopyDepth);
-  return canopyDepth;
 }
 
 function pk(v: string) {
@@ -111,140 +60,22 @@ function toWeb3Instruction(ix: Instruction): TransactionInstruction {
   });
 }
 
-type DasAssetForProof = {
-  content?: {
-    metadata?: {
-      name?: string;
-      symbol?: string;
-      attributes?: Array<{ trait_type?: string; value?: string | number }>;
-    };
-    json_uri?: string;
-  };
-  royalty?: {
-    basis_points?: number;
-    primary_sale_happened?: boolean;
-  };
-  mutable?: boolean;
-  supply?: { edition_nonce?: number | null };
-  grouping?: Array<{ group_key?: string; group_value?: string }>;
-  creators?: Array<{
-    address: string;
-    share: number;
-    verified: boolean;
-  }>;
-  compression: {
-    data_hash: string;
-    creator_hash: string;
-    collection_hash?: string;
-    asset_data_hash?: string;
-    flags?: number;
-    leaf_id: number;
-  };
-  ownership: {
-    owner: string;
-    delegate?: string | null;
-  };
-};
-
-type DasAssetProofForProof = {
-  root: string;
-  proof: string[];
-  node_index: number;
-  tree_id: string;
-};
-
 async function loadAssetWithProof(
   umi: ReturnType<typeof umiTradeDelegate>,
   assetId: string
 ): Promise<AssetWithProof> {
   const rpc = umi.rpc as unknown as {
-    getAsset: (input: unknown) => Promise<DasAssetForProof>;
-    getAssetProof: (assetId: unknown) => Promise<DasAssetProofForProof>;
+    getAsset?: (input: unknown) => Promise<unknown>;
+    getAssetProof?: (assetId: unknown) => Promise<unknown>;
   };
 
   if (typeof rpc.getAsset !== "function" || typeof rpc.getAssetProof !== "function") {
     throw new Error("RPC missing DAS methods (getAsset/getAssetProof)");
   }
-
-  const assetPk = pk(assetId);
-  const [rpcAsset, rpcAssetProof] = await Promise.all([
-    rpc.getAsset({
-      assetId: assetPk,
-      displayOptions: { showUnverifiedCollections: true },
-    }),
-    rpc.getAssetProof(assetPk),
-  ]);
-
-  const collectionString = (rpcAsset.grouping ?? []).find(
-    (group) => String(group.group_key ?? "") === "collection"
-  )?.group_value;
-  const editionNonce =
-    typeof rpcAsset.supply?.edition_nonce === "number"
-      ? rpcAsset.supply.edition_nonce
-      : null;
-
-  const metadata: AssetWithProof["metadata"] = {
-    name: rpcAsset.content?.metadata?.name ?? "",
-    symbol: rpcAsset.content?.metadata?.symbol ?? "",
-    uri: rpcAsset.content?.json_uri ?? "",
-    sellerFeeBasisPoints: rpcAsset.royalty?.basis_points ?? 0,
-    primarySaleHappened: rpcAsset.royalty?.primary_sale_happened ?? false,
-    isMutable: rpcAsset.mutable ?? true,
-    editionNonce: wrapNullable(editionNonce),
-    tokenStandard: some(TokenStandard.NonFungible),
-    collection: collectionString
-      ? (some({ key: pk(collectionString), verified: true }) as never)
-      : none(),
-    uses: none(),
-    tokenProgramVersion: TokenProgramVersion.Original,
-    creators: (rpcAsset.creators ?? []).map((creator) => ({
-      ...creator,
-      address: pk(creator.address),
-    })),
-  };
-
-  const fullProof = Array.isArray(rpcAssetProof.proof) ? rpcAssetProof.proof : [];
-  const canopyDepth = await getCanopyDepthForTree(String(rpcAssetProof.tree_id));
-  const truncatedProof =
-    canopyDepth > 0 && fullProof.length > canopyDepth
-      ? fullProof.slice(0, -canopyDepth)
-      : fullProof;
-
-  const rawFlags = rpcAsset.compression.flags;
-  const safeFlags = typeof rawFlags === "number" ? rawFlags : undefined;
-
-  const nodeIndexRaw = Number(rpcAssetProof.node_index ?? 0);
-  if (!Number.isFinite(nodeIndexRaw) || nodeIndexRaw < 0) {
-    throw new Error("Invalid node_index returned by DAS getAssetProof");
-  }
-  const legacyLeafIndex = nodeIndexRaw - 2 ** fullProof.length;
-  // DAS implementations differ: some return tree node index, others direct leaf index.
-  const leafIndex =
-    Number.isFinite(legacyLeafIndex) && legacyLeafIndex >= 0
-      ? legacyLeafIndex
-      : nodeIndexRaw;
-
-  return {
-    leafOwner: pk(rpcAsset.ownership.owner),
-    leafDelegate: pk(rpcAsset.ownership.delegate ?? rpcAsset.ownership.owner),
-    merkleTree: pk(rpcAssetProof.tree_id),
-    root: publicKeyBytes(pk(rpcAssetProof.root)),
-    dataHash: publicKeyBytes(pk(rpcAsset.compression.data_hash)),
-    creatorHash: publicKeyBytes(pk(rpcAsset.compression.creator_hash)),
-    collection_hash: rpcAsset.compression.collection_hash
-      ? publicKeyBytes(pk(rpcAsset.compression.collection_hash))
-      : undefined,
-    asset_data_hash: rpcAsset.compression.asset_data_hash
-      ? publicKeyBytes(pk(rpcAsset.compression.asset_data_hash))
-      : undefined,
-    flags: safeFlags,
-    nonce: rpcAsset.compression.leaf_id,
-    index: leafIndex,
-    proof: truncatedProof.map((node) => pk(node)),
-    metadata,
-    rpcAsset: rpcAsset as never,
-    rpcAssetProof: rpcAssetProof as never,
-  };
+  return getAssetWithProof(
+    umi as unknown as Parameters<typeof getAssetWithProof>[0],
+    pk(assetId)
+  );
 }
 
 function parseStickerId(asset: AssetWithProof): string | null {
