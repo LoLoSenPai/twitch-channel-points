@@ -59,7 +59,10 @@ async function notifyTwitchBot(payload: NotifyPayload) {
 
     const res = await fetch(url, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+  "content-type": "application/json",
+  "x-bot-token": process.env.TWITCH_BOT_TOKEN ?? "",
+},
       body: JSON.stringify(payload),
       signal: controller.signal,
       // pas de cache, au cas où
