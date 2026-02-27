@@ -1,4 +1,4 @@
-import "dotenv/config";
+﻿import "dotenv/config";
 import express from "express";
 import tmi from "tmi.js";
 
@@ -28,11 +28,11 @@ const client = new tmi.Client({
 
 function rarityEmojiFromLabel(rarity: string) {
   const r = rarity.toLowerCase();
-  if (r === "mythic") return "??";
-  if (r === "legendary" || r === "ssr") return "??";
-  if (r === "rare" || r === "sr") return "??";
-  if (r === "uncommon") return "??";
-  return "?";
+  if (r === "mythic") return "MYTHIC";
+  if (r === "legendary" || r === "ssr") return "LEGENDARY";
+  if (r === "rare" || r === "sr") return "RARE";
+  if (r === "uncommon") return "UNCOMMON";
+  return "COMMON";
 }
 
 async function main() {
@@ -61,8 +61,8 @@ async function main() {
       }
       lastSig.set(tx, now);
 
-      const rarityEmoji = rarityEmojiFromLabel(String(rarity));
-      const msg = `?? ${displayName} vient d’ouvrir un booster : Panini #${stickerId}: ${stickerName} (${rarity} ${rarityEmoji}) ! GG ??`;
+      const rarityLabel = rarityEmojiFromLabel(String(rarity));
+      const msg = `[MINT] ${displayName} vient d'ouvrir un booster : Panini #${stickerId}: ${stickerName} (${rarityLabel}) ! GG !`;
 
       await client.say(CHANNEL, msg);
       return res.json({ ok: true });
@@ -81,3 +81,4 @@ main().catch((e) => {
   console.error(e);
   process.exit(1);
 });
+
