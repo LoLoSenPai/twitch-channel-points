@@ -334,10 +334,10 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                         <li>Connecte ton wallet Solana.</li>
                         <li>Clique sur le booster, signe la transaction, puis révèle ta carte.</li>
                     </ol>
-                    <p className="mt-3 text-xs opacity-75">
+                    {/* <p className="mt-3 text-xs opacity-75">
                         Tirage vérifiable: la preuve de ton dernier mint est visible directement dans
                         la preview, puis consultable via le bouton &quot;Voir la preuve&quot;.
-                    </p>
+                    </p> */}
 
                     <div className="mt-5 space-y-3 text-sm">
                         <div className="rounded-xl border p-3">

@@ -393,8 +393,8 @@ export function AlbumGrid() {
         <section className="panini-album">
             <header className="album-hero">
                 <div className="album-hero-headline">
-                    <p className="album-kicker">NYLS PANINI COLLECTION</p>
-                    <h2 className="album-title">Ton album de stickers</h2>
+                    <p className="album-kicker">NYLS COLLECTION</p>
+                    <h2 className="album-title">Ton album Panini</h2>
                     <p className="album-subtitle">
                         {loading
                             ? "Chargement de ton album..."
@@ -409,10 +409,10 @@ export function AlbumGrid() {
                         Possedés <strong>{uniqueOwnedCount}</strong> / <strong>{totalSlots}</strong>
                     </p>
                     <p>
-                        Stickers mintés <strong>{mintedTotal}</strong>
+                        NFTs mintés <strong>{mintedTotal}</strong>
                     </p>
                     <p>
-                        Doubles <strong>{duplicates}</strong>
+                        Doublons <strong>{duplicates}</strong>
                     </p>
                     <div className="album-progress" role="progressbar" aria-valuenow={completion} aria-valuemin={0} aria-valuemax={100}>
                         <div className="album-progress-fill" style={{ width: `${completion}%` }} />
