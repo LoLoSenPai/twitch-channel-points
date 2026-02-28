@@ -98,7 +98,8 @@ function BoosterModel({
             const mat = Array.isArray(label.material) ? label.material[0] : label.material;
             labelMatRef.current = (mat as THREE.MeshStandardMaterial) ?? null;
 
-            const labelBox = new THREE.Box3().setFromObject(label);
+            scene.updateMatrixWorld(true);
+            const labelBox = new THREE.Box3().setFromObject(label, true);
             const size = new THREE.Vector3();
             const center = new THREE.Vector3();
             labelBox.getSize(size);
