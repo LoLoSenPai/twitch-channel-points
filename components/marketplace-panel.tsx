@@ -1294,8 +1294,9 @@ export function MarketplacePanel() {
         </div>
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="inline-flex rounded-xl border border-white/20 bg-black/20 p-1 text-sm">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div className="max-w-full overflow-x-auto">
+          <div className="inline-flex min-w-max rounded-xl border border-white/20 bg-black/20 p-1 text-sm">
           <button
             type="button"
             className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "marketplace" ? "bg-emerald-500/20 text-emerald-100" : "opacity-70 hover:bg-white/10"}`}
@@ -1331,12 +1332,13 @@ export function MarketplacePanel() {
           >
             Mes offres
           </button>
+          </div>
         </div>
 
         {activeTab !== "create" ? (
           <button
             type="button"
-            className={buttonPrimaryClass}
+            className={`${buttonPrimaryClass} self-start sm:self-auto`}
             onClick={() => {
               setActiveTab("create");
             }}
