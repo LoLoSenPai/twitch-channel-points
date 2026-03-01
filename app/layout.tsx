@@ -7,8 +7,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Panini Mint",
-  description: "Panini V0",
+  title: "Paninyls",
+  description: "Complète la 1ère édition de Paninyls, les Panini à collectionner en NFT sur la blockchain Solana.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

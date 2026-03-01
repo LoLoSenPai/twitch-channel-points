@@ -75,10 +75,10 @@ export default async function HomePage() {
             <main className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6 lg:p-10">
                 <section className="rounded-3xl border border-white/10 bg-black/30 p-6 shadow-[0_20px_80px_rgba(0,0,0,.35)] backdrop-blur md:p-8">
                     <div className="space-y-2">
-                        <p className="text-xs uppercase tracking-[0.2em] text-white/60">Panini Mint</p>
+                        <p className="text-xs uppercase tracking-[0.2em] text-white/60">Paninyls</p>
                         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Bienvenue, {user.displayName ?? user.name}</h1>
                         <p className="text-sm text-white/75 sm:text-base">
-                            Ouvre des boosters, récupère des cartes rares et avance dans ton album.
+                            Ouvre des boosters, récupère des cartes et avance dans ton album.
                         </p>
                     </div>
                 </section>
