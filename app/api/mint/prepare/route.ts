@@ -155,6 +155,7 @@ export async function POST(req: Request) {
     const builder = await mintV2(umi, {
       merkleTree,
       leafOwner: ownerPk,
+      payer: feePayer,
       ...(coreCollectionPk
         ? {
             coreCollection: coreCollectionPk,
