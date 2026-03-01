@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { VersionedTransaction } from "@solana/web3.js";
@@ -40,6 +40,8 @@ const stickerRarityMap = new Map(
 
 const SOLSCAN_CLUSTER = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "";
 const BOOSTER_ASSET_VERSION = process.env.NEXT_PUBLIC_BOOSTER_ASSET_VERSION?.trim() ?? "1";
+const BOOSTER_RENDER_MODE_KEY = "mint.booster.render_mode";
+type BoosterRenderMode = "3d" | "image";
 
 function solscanTxUrl(signature: string) {
     const sig = String(signature ?? "").trim();
@@ -85,6 +87,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
     const [pendingReveal, setPendingReveal] = useState<Reveal | null>(null);
     const [rarity, setRarity] = useState<Rarity | null>(null);
     const [resetOrbitKey, setResetOrbitKey] = useState(0);
+    const [boosterRenderMode, setBoosterRenderMode] = useState<BoosterRenderMode>("3d");
 
     const { tickets, refreshingUi, refresh: refreshTickets } = useTickets({
         enabled: !loading,
@@ -97,6 +100,25 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
     const ready = walletOk && ticketsOk && !loading && phase === "idle";
 
     const [hint, setHint] = useState<string | null>(null);
+
+    useEffect(() => {
+        try {
+            const saved = window.localStorage.getItem(BOOSTER_RENDER_MODE_KEY);
+            if (saved === "3d" || saved === "image") {
+                setBoosterRenderMode(saved);
+            }
+        } catch {
+            // ignore
+        }
+    }, []);
+
+    useEffect(() => {
+        try {
+            window.localStorage.setItem(BOOSTER_RENDER_MODE_KEY, boosterRenderMode);
+        } catch {
+            // ignore
+        }
+    }, [boosterRenderMode]);
 
     async function mintOnce(): Promise<Reveal> {
         if (!wallet.publicKey || !wallet.signTransaction) {
@@ -286,16 +308,50 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
                 {/* LEFT */}
                 <div className="rounded-2xl border p-4">
-                    <BoosterScene
-                        labelUrl={`/booster-front.png?v=${encodeURIComponent(BOOSTER_ASSET_VERSION)}`}
-                        backLabelUrl={`/booster-back.png?v=${encodeURIComponent(BOOSTER_ASSET_VERSION)}`}
-                        onOpen={openBooster}
-                        canOpen={!loading && phase === "idle"} // pas de canMint ici
-                        theme={{ body: { color: "#eef3fa", metalness: 0.88, roughness: 0.16, ...(phase === "charging" ? { emissive: glowColor, emissiveIntensity: chargingIntensity } : {}), }, }}
-                        shake={phase === "charging" ? glow : 0}
-                        resetOrbitKey={resetOrbitKey}
-                        lockControls={phase !== "idle"}
-                    />
+                    <div className="mb-3 flex items-center justify-end gap-2 text-xs">
+                        <span className="opacity-70">Mode booster</span>
+                        <button
+                            type="button"
+                            className={`rounded-lg border px-2 py-1 cursor-pointer transition ${boosterRenderMode === "3d" ? "border-emerald-300/50 bg-emerald-500/10 text-emerald-100" : "border-white/20 opacity-80 hover:bg-white/10"}`}
+                            onClick={() => setBoosterRenderMode("3d")}
+                        >
+                            3D
+                        </button>
+                        <button
+                            type="button"
+                            className={`rounded-lg border px-2 py-1 cursor-pointer transition ${boosterRenderMode === "image" ? "border-emerald-300/50 bg-emerald-500/10 text-emerald-100" : "border-white/20 opacity-80 hover:bg-white/10"}`}
+                            onClick={() => setBoosterRenderMode("image")}
+                        >
+                            Léger
+                        </button>
+                    </div>
+
+                    {boosterRenderMode === "3d" ? (
+                        <BoosterScene
+                            labelUrl={`/booster-front.png?v=${encodeURIComponent(BOOSTER_ASSET_VERSION)}`}
+                            backLabelUrl={`/booster-back.png?v=${encodeURIComponent(BOOSTER_ASSET_VERSION)}`}
+                            onOpen={openBooster}
+                            canOpen={!loading && phase === "idle"} // pas de canMint ici
+                            theme={{ body: { color: "#eef3fa", metalness: 0.88, roughness: 0.16, ...(phase === "charging" ? { emissive: glowColor, emissiveIntensity: chargingIntensity } : {}), }, }}
+                            shake={phase === "charging" ? glow : 0}
+                            resetOrbitKey={resetOrbitKey}
+                            lockControls={phase !== "idle"}
+                        />
+                    ) : (
+                        <button
+                            type="button"
+                            onClick={openBooster}
+                            disabled={loading || phase !== "idle"}
+                            className="group block w-full rounded-2xl border border-white/20 bg-black/30 p-4 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                                src={`/booster-front.png?v=${encodeURIComponent(BOOSTER_ASSET_VERSION)}`}
+                                alt="Booster"
+                                className="mx-auto h-[420px] w-auto max-w-full object-contain transition-transform duration-200 group-hover:scale-[1.01]"
+                            />
+                        </button>
+                    )}
 
                     <div className="mt-3 text-sm opacity-80">
                         {hint ? (
