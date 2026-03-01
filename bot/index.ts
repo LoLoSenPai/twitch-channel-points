@@ -18,7 +18,11 @@ if (!BOT_USERNAME || !BOT_OAUTH || !CHANNEL) {
 }
 
 const client = new tmi.Client({
-  options: { debug: true },
+  options: { debug: false },
+  connection: {
+    reconnect: true,
+    secure: true,
+  },
   identity: {
     username: BOT_USERNAME,
     password: BOT_OAUTH,
@@ -36,6 +40,16 @@ function rarityEmojiFromLabel(rarity: string) {
 }
 
 async function main() {
+  client.on("connected", (addr, port) => {
+    console.log(`Bot connected to ${addr}:${port}`);
+  });
+  client.on("disconnected", (reason) => {
+    console.error("Bot disconnected:", reason);
+  });
+  client.on("reconnect", () => {
+    console.log("Bot reconnecting...");
+  });
+
   await client.connect();
 
   const app = express();

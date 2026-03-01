@@ -212,8 +212,7 @@ export async function POST(req: Request) {
     };
 
     // 🚀 fire-and-forget (ne bloque jamais la réponse API)
-    void notifyTwitchBot(payload);
-    // await notifyTwitchBot(payload);
+    await notifyTwitchBot(payload);
 
     return NextResponse.json({
       ok: true,
