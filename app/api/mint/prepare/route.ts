@@ -156,6 +156,7 @@ export async function POST(req: Request) {
       merkleTree,
       leafOwner: ownerPk,
       payer: feePayer,
+      treeCreatorOrDelegate: umi.identity,
       ...(coreCollectionPk
         ? {
             coreCollection: coreCollectionPk,
