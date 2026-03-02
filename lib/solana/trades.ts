@@ -203,10 +203,7 @@ export async function prepareOwnerTransferTxForAsset(params: {
   ownerWallet: string;
   recipientWallet: string;
 }) {
-  const { umi, asset, stickerId } = await getAssetWithTradeProof(params.assetId, {
-    // For direct sends we prioritize proof correctness over compactness.
-    truncateCanopy: false,
-  });
+  const { umi, asset, stickerId } = await getAssetWithTradeProof(params.assetId);
   const ownerPk = pk(params.ownerWallet);
   const ownerSigner = createNoopSigner(ownerPk);
 

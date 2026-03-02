@@ -64,12 +64,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const txSig = await sendSignedTxB64(signedTxB64, {
-      // Bubblegum preflight can reject valid transactions on fast-moving trees.
-      // We rely on on-chain confirmation result just after send.
-      skipPreflight: true,
-      maxRetries: 5,
-    });
+    const txSig = await sendSignedTxB64(signedTxB64);
 
     await TransferIntent.updateOne(
       { intentId, status: "PREPARED" },
