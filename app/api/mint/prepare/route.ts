@@ -124,6 +124,7 @@ export async function POST(req: Request) {
     const umi = umiServer();
     const ownerPk = publicKey(walletPubkey);
     const feePayer = createNoopSigner(ownerPk);
+    const authorityNoop = createNoopSigner(umi.identity.publicKey);
 
     const metaBase = process.env.METADATA_BASE_URI;
     if (!metaBase)
@@ -156,11 +157,13 @@ export async function POST(req: Request) {
       merkleTree,
       leafOwner: ownerPk,
       payer: feePayer,
-      treeCreatorOrDelegate: umi.identity,
+      // Keep the authority pubkey in the required signers list without
+      // pre-signing at prepare time. User signs first in wallet.
+      treeCreatorOrDelegate: authorityNoop,
       ...(coreCollectionPk
         ? {
             coreCollection: coreCollectionPk,
-            collectionAuthority: umi.identity,
+            collectionAuthority: authorityNoop,
             metadata: {
               name: onchainName,
               uri,

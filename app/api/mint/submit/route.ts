@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Redemption, MintIntent, Mint } from "@/lib/models";
 import { getSticker, type StickerRarity } from "@/lib/stickers";
-import { Connection, VersionedTransaction } from "@solana/web3.js";
+import { Connection, Keypair, VersionedTransaction } from "@solana/web3.js";
 
 type SessionUser = {
   id?: string;
@@ -41,6 +41,21 @@ type NotifyPayload = {
   rarity: StickerRarity;
   tx: string;
 };
+
+function authorityKeypairFromEnv() {
+  const raw = String(process.env.SOLANA_AUTHORITY_SECRET ?? "").trim();
+  if (!raw) throw new Error("Missing SOLANA_AUTHORITY_SECRET");
+
+  let secret: Uint8Array;
+  try {
+    const parsed = JSON.parse(raw) as number[];
+    secret = Uint8Array.from(parsed);
+  } catch {
+    throw new Error("Invalid SOLANA_AUTHORITY_SECRET format");
+  }
+
+  return Keypair.fromSecretKey(secret);
+}
 
 async function notifyTwitchBot(payload: NotifyPayload) {
   const url = process.env.TWITCH_BOT_NOTIFY_URL; // ex: https://...plesk.page/notify
@@ -129,8 +144,14 @@ export async function POST(req: Request) {
       throw new Error("Signed transaction does not match prepared transaction");
     }
 
+    // Co-sign with backend mint authority after wallet signature.
+    // This avoids sending a pre-signed backend tx to the wallet popup.
+    const authority = authorityKeypairFromEnv();
+    signedVtx.sign([authority]);
+    const signedAndCosignedRaw = Buffer.from(signedVtx.serialize());
+
     // 1) envoi
-    const sig = await connection.sendRawTransaction(raw, {
+    const sig = await connection.sendRawTransaction(signedAndCosignedRaw, {
       skipPreflight: false,
       maxRetries: 3,
       preflightCommitment: "processed",
