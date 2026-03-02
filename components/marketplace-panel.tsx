@@ -396,6 +396,18 @@ function normalizeWallet(value: string) {
   }
 }
 
+function isStaleMerkleProofError(message: string) {
+  const m = String(message ?? "");
+  return (
+    /Invalid root recomputed from proof/i.test(m) ||
+    /Error using concurrent merkle tree/i.test(m)
+  );
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function MarketplacePanel() {
   const wallet = useWallet();
 
@@ -911,32 +923,58 @@ export function MarketplacePanel() {
     try {
       const txSigs: string[] = [];
       for (const asset of selectedSendAssets) {
-        const prep = await fetch("/api/trades/send/prepare", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            walletPubkey: walletPk,
-            recipientWallet,
-            assetId: asset.assetId,
-          }),
-        });
-        if (!prep.ok) throw new Error(await prep.text());
-        const prepJson = (await prep.json()) as TransferPrepareResponse;
+        let sent = false;
+        let lastError: Error | null = null;
 
-        const signedTxB64 = await signPreparedTx(prepJson.txB64);
+        for (let attempt = 1; attempt <= 4; attempt += 1) {
+          try {
+            if (attempt > 1) {
+              setNotice(
+                `Preuve Merkle expirée, nouvelle tentative (${attempt}/4) pour #${asset.stickerId}...`
+              );
+            }
 
-        const sub = await fetch("/api/trades/send/submit", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            intentId: prepJson.intentId,
-            walletPubkey: walletPk,
-            signedTxB64,
-          }),
-        });
-        if (!sub.ok) throw new Error(await sub.text());
-        const subJson = (await sub.json()) as { tx?: string };
-        if (subJson.tx) txSigs.push(subJson.tx);
+            const prep = await fetch("/api/trades/send/prepare", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                walletPubkey: walletPk,
+                recipientWallet,
+                assetId: asset.assetId,
+              }),
+            });
+            if (!prep.ok) throw new Error(await prep.text());
+            const prepJson = (await prep.json()) as TransferPrepareResponse;
+
+            const signedTxB64 = await signPreparedTx(prepJson.txB64);
+
+            const sub = await fetch("/api/trades/send/submit", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                intentId: prepJson.intentId,
+                walletPubkey: walletPk,
+                signedTxB64,
+              }),
+            });
+            if (!sub.ok) throw new Error(await sub.text());
+            const subJson = (await sub.json()) as { tx?: string };
+            if (subJson.tx) txSigs.push(subJson.tx);
+            sent = true;
+            break;
+          } catch (err) {
+            const error = err as Error;
+            lastError = error;
+            if (!isStaleMerkleProofError(error.message) || attempt === 4) {
+              throw error;
+            }
+            await delay(500);
+          }
+        }
+
+        if (!sent && lastError) {
+          throw lastError;
+        }
       }
 
       const lines = [
