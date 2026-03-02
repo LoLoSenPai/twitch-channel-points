@@ -977,6 +977,7 @@ export function MarketplacePanel() {
     setBusyAction(actionKey);
     setLoading(true);
     setNotice("");
+    let preparedOfferId: string | null = null;
     try {
       const prep = await fetch("/api/trades/offers", {
         method: "POST",
@@ -990,6 +991,7 @@ export function MarketplacePanel() {
       if (!prep.ok) throw new Error(await prep.text());
 
       const prepJson = (await prep.json()) as { offerId: string; txB64: string };
+      preparedOfferId = prepJson.offerId;
       const signedTxB64 = await signPreparedTx(prepJson.txB64);
 
       const sub = await fetch("/api/trades/offers/submit", {
@@ -1014,7 +1016,22 @@ export function MarketplacePanel() {
       await refresh({ clearNotice: false });
       scheduleFollowupRefreshes();
     } catch (e) {
-      setNotice((e as Error)?.message ?? "Erreur création offre");
+      const errorMessage = (e as Error)?.message ?? "Erreur création offre";
+      if (preparedOfferId) {
+        try {
+          await fetch(`/api/trades/offers/${preparedOfferId}/cancel`, {
+            method: "POST",
+          });
+        } catch {
+          // ignore cleanup failure; we still show original error
+        }
+      }
+      if (preparedOfferId && /reject|denied|cancel|annul/i.test(errorMessage)) {
+        setNotice("Signature annulée, brouillon supprimé.");
+        await refresh({ clearNotice: false });
+      } else {
+        setNotice(errorMessage);
+      }
     } finally {
       setBusyAction((prev) => (prev === actionKey ? null : prev));
       setLoading(false);
@@ -1042,6 +1059,7 @@ export function MarketplacePanel() {
     setBusyAction(actionKey);
     setLoading(true);
     setNotice("");
+    let preparedListingId: string | null = null;
     try {
       const prep = await fetch("/api/market/listings", {
         method: "POST",
@@ -1055,6 +1073,7 @@ export function MarketplacePanel() {
       if (!prep.ok) throw new Error(await prep.text());
 
       const prepJson = (await prep.json()) as { listingId: string; txB64: string };
+      preparedListingId = prepJson.listingId;
       const signedTxB64 = await signPreparedTx(prepJson.txB64);
 
       const sub = await fetch("/api/market/listings/submit", {
@@ -1077,7 +1096,22 @@ export function MarketplacePanel() {
       await refresh({ clearNotice: false });
       scheduleFollowupRefreshes();
     } catch (e) {
-      setNotice((e as Error)?.message ?? "Erreur création vente");
+      const errorMessage = (e as Error)?.message ?? "Erreur création vente";
+      if (preparedListingId) {
+        try {
+          await fetch(`/api/market/listings/${preparedListingId}/cancel`, {
+            method: "POST",
+          });
+        } catch {
+          // ignore cleanup failure; we still show original error
+        }
+      }
+      if (preparedListingId && /reject|denied|cancel|annul/i.test(errorMessage)) {
+        setNotice("Signature annulée, brouillon supprimé.");
+        await refresh({ clearNotice: false });
+      } else {
+        setNotice(errorMessage);
+      }
     } finally {
       setBusyAction((prev) => (prev === actionKey ? null : prev));
       setLoading(false);
