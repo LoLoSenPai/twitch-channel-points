@@ -275,13 +275,16 @@ export function signedTxMatchesPrepared(
   return signedMsg.equals(preparedMsg);
 }
 
-export async function sendSignedTxB64(signedTxB64: string) {
+export async function sendSignedTxB64(
+  signedTxB64: string,
+  options?: { skipPreflight?: boolean; maxRetries?: number }
+) {
   const raw = Buffer.from(signedTxB64, "base64");
   const connection = rpcConnection();
 
   const sig = await connection.sendRawTransaction(raw, {
-    skipPreflight: false,
-    maxRetries: 3,
+    skipPreflight: options?.skipPreflight ?? false,
+    maxRetries: options?.maxRetries ?? 3,
     preflightCommitment: "processed",
   });
 
