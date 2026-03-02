@@ -64,7 +64,8 @@ function toWeb3Instruction(ix: Instruction): TransactionInstruction {
 
 async function loadAssetWithProof(
   umi: ReturnType<typeof umiTradeDelegate>,
-  assetId: string
+  assetId: string,
+  options?: { truncateCanopy?: boolean }
 ): Promise<AssetWithProof> {
   const rpc = umi.rpc as unknown as {
     getAsset?: (input: unknown) => Promise<unknown>;
@@ -77,7 +78,7 @@ async function loadAssetWithProof(
   return getAssetWithProof(
     umi as unknown as Parameters<typeof getAssetWithProof>[0],
     pk(assetId),
-    { truncateCanopy: true }
+    { truncateCanopy: options?.truncateCanopy ?? true }
   );
 }
 
@@ -133,9 +134,12 @@ function coreCollectionFromAsset(asset: AssetWithProof) {
   return raw ? pk(raw) : undefined;
 }
 
-export async function getAssetWithTradeProof(assetId: string) {
+export async function getAssetWithTradeProof(
+  assetId: string,
+  options?: { truncateCanopy?: boolean }
+) {
   const umi = umiTradeDelegate();
-  const asset = await loadAssetWithProof(umi, assetId);
+  const asset = await loadAssetWithProof(umi, assetId, options);
   assertAssetInConfiguredCollection(asset);
 
   return {
@@ -199,7 +203,10 @@ export async function prepareOwnerTransferTxForAsset(params: {
   ownerWallet: string;
   recipientWallet: string;
 }) {
-  const { umi, asset, stickerId } = await getAssetWithTradeProof(params.assetId);
+  const { umi, asset, stickerId } = await getAssetWithTradeProof(params.assetId, {
+    // For direct sends we prioritize proof correctness over compactness.
+    truncateCanopy: false,
+  });
   const ownerPk = pk(params.ownerWallet);
   const ownerSigner = createNoopSigner(ownerPk);
 
