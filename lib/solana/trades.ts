@@ -27,6 +27,7 @@ import {
   wrapNullable,
 } from "@metaplex-foundation/umi";
 import { umiTradeDelegate } from "@/lib/solana/umi";
+import { isAssetIdBlocked } from "@/lib/blocked-assets";
 
 const MAX_SOLANA_RAW_TX_BYTES = 1232;
 
@@ -67,6 +68,10 @@ async function loadAssetWithProof(
   assetId: string,
   options?: { truncateCanopy?: boolean }
 ): Promise<AssetWithProof> {
+  if (isAssetIdBlocked(assetId)) {
+    throw new Error("Asset is blocked by admin policy");
+  }
+
   const rpc = umi.rpc as unknown as {
     getAsset?: (input: unknown) => Promise<unknown>;
     getAssetProof?: (assetId: unknown) => Promise<unknown>;
@@ -355,6 +360,10 @@ async function buildDelegatedSwapSignedRaw(params: {
   delegateWallet: string;
   enforceDelegatedState?: boolean;
 }) {
+  if (isAssetIdBlocked(params.makerAssetId) || isAssetIdBlocked(params.takerAssetId)) {
+    throw new Error("One of the assets is blocked by admin policy");
+  }
+
   const umi = umiTradeDelegate();
   const delegateSigner = umi.identity;
   const enforceDelegatedState = params.enforceDelegatedState ?? true;

@@ -3,6 +3,7 @@ import { db } from "@/lib/db";
 import { Collection, Mint, Redemption, TradeOffer, UserWallet } from "@/lib/models";
 import { STICKERS_TOTAL } from "@/lib/stickers";
 import { getTwitchAppAccessToken } from "@/lib/twitch/app-token";
+import { isAssetIdBlocked } from "@/lib/blocked-assets";
 
 type DasAsset = {
   id: string;
@@ -146,6 +147,7 @@ async function fetchOwnerCollectionAssets(params: {
     const items = json.result?.items ?? [];
     for (const asset of items) {
       if (asset.compression?.compressed === false) continue;
+      if (isAssetIdBlocked(asset.id)) continue;
       if (!isInCollection(asset, params.collectionPubkey)) continue;
       const stickerId = stickerIdFromAsset(asset);
       if (!stickerId) continue;

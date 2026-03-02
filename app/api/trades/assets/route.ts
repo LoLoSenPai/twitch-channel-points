@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Collection } from "@/lib/models";
 import { touchWalletForUser } from "@/lib/wallet-link";
+import { isAssetIdBlocked } from "@/lib/blocked-assets";
 
 type DasAsset = {
   id: string;
@@ -131,6 +132,7 @@ export async function GET(req: Request) {
 
   const assets = result
     .filter((asset) => asset.compression?.compressed !== false)
+    .filter((asset) => !isAssetIdBlocked(asset.id))
     .filter((asset) => isInCollection(asset, collectionPubkey))
     .map((asset) => {
       const stickerId = stickerIdFromAsset(asset);

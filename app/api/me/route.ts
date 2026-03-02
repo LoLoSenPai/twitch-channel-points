@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { Collection, Redemption, Mint, UserWallet } from "@/lib/models";
 import { touchWalletForUser } from "@/lib/wallet-link";
 import { STICKERS_TOTAL } from "@/lib/stickers";
+import { isAssetIdBlocked } from "@/lib/blocked-assets";
 
 interface TwitchUser {
   id: string;
@@ -91,6 +92,7 @@ async function fetchOwnerCollectionAssets(params: {
     const items = json.result?.items ?? [];
     for (const asset of items) {
       if (asset.compression?.compressed === false) continue;
+      if (isAssetIdBlocked(asset.id)) continue;
       if (!isInCollection(asset, params.collectionPubkey)) continue;
       const stickerId = stickerIdFromAsset(asset);
       if (!stickerId) continue;
