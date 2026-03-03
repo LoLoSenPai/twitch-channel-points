@@ -15,6 +15,11 @@ type InsightsResponse = {
   leaderboard: LeaderboardEntry[];
 };
 
+const LEADERBOARD_CACHE_TTL_MS = 20_000;
+let leaderboardSnapshot:
+  | { timestampMs: number; totalStickers: number; items: LeaderboardEntry[] }
+  | null = null;
+
 function short(v: string, head = 5, tail = 5) {
   if (!v) return "";
   if (v.length <= head + tail + 1) return v;
@@ -27,15 +32,33 @@ export function LeaderboardPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (options?: { preferCache?: boolean }) => {
+    if (options?.preferCache && leaderboardSnapshot) {
+      const ageMs = Date.now() - leaderboardSnapshot.timestampMs;
+      if (ageMs <= LEADERBOARD_CACHE_TTL_MS) {
+        setItems(leaderboardSnapshot.items);
+        setTotalStickers(leaderboardSnapshot.totalStickers);
+        setError("");
+        setLoading(false);
+        return;
+      }
+    }
+
     setLoading(true);
     setError("");
     try {
       const res = await fetch("/api/trades/insights", { cache: "no-store" });
       if (!res.ok) throw new Error(await res.text());
       const json = (await res.json()) as InsightsResponse;
-      setItems(json.leaderboard ?? []);
-      setTotalStickers(Number(json.totalStickers || 44));
+      const nextItems = json.leaderboard ?? [];
+      const nextTotalStickers = Number(json.totalStickers || 44);
+      setItems(nextItems);
+      setTotalStickers(nextTotalStickers);
+      leaderboardSnapshot = {
+        timestampMs: Date.now(),
+        totalStickers: nextTotalStickers,
+        items: nextItems,
+      };
     } catch (e) {
       setError((e as Error)?.message ?? "Erreur de chargement");
       setItems([]);
@@ -45,7 +68,7 @@ export function LeaderboardPanel() {
   }, []);
 
   useEffect(() => {
-    void refresh();
+    void refresh({ preferCache: true });
   }, [refresh]);
 
   return (

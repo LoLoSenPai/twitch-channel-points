@@ -156,6 +156,23 @@ const MARKET_LISTING_TTL_HOURS_UI = Number(
 const BOARD_GRID_STORAGE_KEY = "market.board.grid.cols";
 const MARKET_ACTIVE_TAB_STORAGE_KEY = "market.active.tab";
 const ACTIVE_LOCK_STATUSES = new Set(["DRAFT", "OPEN", "LOCKED"]);
+const MARKETPLACE_PUBLIC_CACHE_TTL_MS = 15_000;
+const MARKETPLACE_ASSETS_CACHE_TTL_MS = 10_000;
+
+type MarketplacePublicSnapshot = {
+  timestampMs: number;
+  offers: OffersResponse;
+  listings: ListingsResponse;
+  insights: InsightsResponse;
+};
+
+type MarketplaceAssetsSnapshot = {
+  timestampMs: number;
+  items: TradeAsset[];
+};
+
+let marketplacePublicSnapshot: MarketplacePublicSnapshot | null = null;
+const marketplaceAssetsSnapshotByWallet = new Map<string, MarketplaceAssetsSnapshot>();
 
 function short(v: string, head = 5, tail = 5) {
   if (!v) return "";
@@ -606,7 +623,33 @@ export function MarketplacePanel() {
   }, [wantedStickerSearch, wantedStickerIds]);
 
   const refresh = useCallback(
-    async (options?: { clearNotice?: boolean }) => {
+    async (options?: { clearNotice?: boolean; preferCache?: boolean }) => {
+      if (options?.preferCache) {
+        const now = Date.now();
+        const publicSnapshot = marketplacePublicSnapshot;
+        const hasFreshPublic =
+          Boolean(publicSnapshot) &&
+          now - (publicSnapshot?.timestampMs ?? 0) <= MARKETPLACE_PUBLIC_CACHE_TTL_MS;
+        const walletSnapshot = walletPk
+          ? marketplaceAssetsSnapshotByWallet.get(walletPk)
+          : null;
+        const hasFreshAssets = walletPk
+          ? Boolean(walletSnapshot) &&
+            now - (walletSnapshot?.timestampMs ?? 0) <= MARKETPLACE_ASSETS_CACHE_TTL_MS
+          : true;
+
+        if (hasFreshPublic && hasFreshAssets && publicSnapshot) {
+          setOffers(publicSnapshot.offers);
+          setListings(publicSnapshot.listings);
+          setInsights(publicSnapshot.insights);
+          setAssets(walletPk ? (walletSnapshot?.items ?? []) : []);
+          setDataLoading(false);
+          setAssetsLoading(false);
+          setLoading(false);
+          return;
+        }
+      }
+
       setLoading(true);
       setDataLoading(true);
       setAssetsLoading(Boolean(walletPk));
@@ -643,11 +686,21 @@ export function MarketplacePanel() {
         setOffers(offersJson);
         setListings(listingsJson);
         setInsights(insightsJson);
+        marketplacePublicSnapshot = {
+          timestampMs: Date.now(),
+          offers: offersJson,
+          listings: listingsJson,
+          insights: insightsJson,
+        };
 
         if (walletPk && assetsRes) {
           if (!assetsRes.ok) throw new Error(await assetsRes.text());
           const assetsJson = (await assetsRes.json()) as AssetsResponse;
           setAssets(assetsJson.items ?? []);
+          marketplaceAssetsSnapshotByWallet.set(walletPk, {
+            timestampMs: Date.now(),
+            items: assetsJson.items ?? [],
+          });
 
           if (assetsJson.items.length) {
             setMakerAssetId((prev) => prev || assetsJson.items[0].assetId);
@@ -678,7 +731,7 @@ export function MarketplacePanel() {
   }, [refresh]);
 
   useEffect(() => {
-    void refresh();
+    void refresh({ preferCache: true });
     return () => {
       for (const timer of refreshTimersRef.current) clearTimeout(timer);
       refreshTimersRef.current = [];
@@ -1959,7 +2012,7 @@ export function MarketplacePanel() {
             </div>
           </div>
           {dataLoading && !insights ? (
-            <div className="text-sm opacity-70">Chargement de l'historique...</div>
+            <div className="text-sm opacity-70">Chargement de l&apos;historique...</div>
           ) : tradeHistory.length ? (
             <div className="space-y-2">
               {tradeHistory.slice(0, 100).map((entry) => {
