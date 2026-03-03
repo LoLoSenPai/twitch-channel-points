@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
@@ -272,6 +272,26 @@ export function AlbumGrid() {
         setMounted(true);
     }, []);
 
+    useEffect(() => {
+        if (!selectedCard || typeof document === "undefined") return;
+
+        const html = document.documentElement;
+        const body = document.body;
+        const prevHtmlOverflow = html.style.overflow;
+        const prevBodyOverflow = body.style.overflow;
+        const prevBodyOverscroll = body.style.overscrollBehavior;
+
+        html.style.overflow = "hidden";
+        body.style.overflow = "hidden";
+        body.style.overscrollBehavior = "none";
+
+        return () => {
+            html.style.overflow = prevHtmlOverflow;
+            body.style.overflow = prevBodyOverflow;
+            body.style.overscrollBehavior = prevBodyOverscroll;
+        };
+    }, [selectedCard]);
+
     const ownedMap = useMemo(() => {
         const map = new Map<string, number>();
         for (const mint of me?.mints ?? []) {
@@ -406,7 +426,7 @@ export function AlbumGrid() {
 
                 <div className="album-stats">
                     <p>
-                        Possedés <strong>{uniqueOwnedCount}</strong> / <strong>{totalSlots}</strong>
+                        Possédés <strong>{uniqueOwnedCount}</strong> / <strong>{totalSlots}</strong>
                     </p>
                     <p>
                         NFTs mintés <strong>{mintedTotal}</strong>
@@ -417,7 +437,7 @@ export function AlbumGrid() {
                     <div className="album-progress" role="progressbar" aria-valuenow={completion} aria-valuemin={0} aria-valuemax={100}>
                         <div className="album-progress-fill" style={{ width: `${completion}%` }} />
                     </div>
-                    <p className="album-progress-label">Completion: {completion}%</p>
+                    <p className="album-progress-label">Complétion: {completion}%</p>
                 </div>
             </header>
 
@@ -448,7 +468,7 @@ export function AlbumGrid() {
                     onClick={() => moveTo(spreadIndex - 1, "prev")}
                     disabled={spreadIndex === 0}
                 >
-                    Page precedente
+                    Page précédente
                 </button>
 
                 <p className="album-control-label">
@@ -527,3 +547,4 @@ export function AlbumGrid() {
         </section>
     );
 }
+

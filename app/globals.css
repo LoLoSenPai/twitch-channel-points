@@ -655,6 +655,8 @@
     display: grid;
     place-items: center;
     padding: 1.2rem;
+    overscroll-behavior: contain;
+    touch-action: none;
   }
 
   .album-card-overlay-inner {
@@ -684,6 +686,7 @@
       box-shadow 180ms ease;
     will-change: transform;
     cursor: grab;
+    touch-action: none;
     transform: perspective(1100px) rotateX(var(--card-rotate-x, 0deg))
       rotateY(var(--card-rotate-y, 0deg));
   }
