@@ -75,12 +75,15 @@ type CanonicalIx = {
   dataB64: string;
 };
 
+const BUBBLEGUM_PROGRAM_ID = "BGUMAp9Gq7iTEuizy4pqaxsTyUCBK68MDfK752saRPUY";
+
 const ALLOWED_WALLET_EXTRA_PROGRAMS = new Set<string>([
   ComputeBudgetProgram.programId.toBase58(),
   // SPL Memo program.
   "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
   // Phantom wallet safety/guard wrapper program (seen in signed tx on some clients).
   "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95",
+  BUBBLEGUM_PROGRAM_ID,
 ]);
 
 function normalizeMessageForComparison(message: VersionedTransaction["message"]) {
@@ -220,6 +223,14 @@ function safeProgramList(message: VersionedTransaction["message"]) {
   }
 }
 
+function safePayer(message: VersionedTransaction["message"]) {
+  try {
+    return canonicalizeMessageForSemanticCompare(message).payer;
+  } catch {
+    return null;
+  }
+}
+
 function messagesMatchStrictOrIgnoringBlockhash(
   signed: VersionedTransaction["message"],
   prepared: VersionedTransaction["message"]
@@ -322,12 +333,33 @@ export async function POST(req: Request) {
     );
 
     if (!messagesMatchStrictOrIgnoringBlockhash(signedVtx.message, preparedVtx.message)) {
-      console.warn("mint/submit mismatch details", {
+      const signedPrograms = safeProgramList(signedVtx.message);
+      const preparedPrograms = safeProgramList(preparedVtx.message);
+      const signedPayer = safePayer(signedVtx.message);
+
+      const hasOnlyAllowedPrograms = signedPrograms.every((p) =>
+        ALLOWED_WALLET_EXTRA_PROGRAMS.has(p),
+      );
+      const hasBubblegum = signedPrograms.includes(BUBBLEGUM_PROGRAM_ID);
+      const preparedIsMintShape =
+        preparedPrograms.length === 1 && preparedPrograms[0] === BUBBLEGUM_PROGRAM_ID;
+      const payerMatchesIntent = signedPayer === String(intent.wallet ?? "");
+
+      if (!(hasOnlyAllowedPrograms && hasBubblegum && preparedIsMintShape && payerMatchesIntent)) {
+        console.warn("mint/submit mismatch details", {
+          intentId,
+          signedPrograms,
+          preparedPrograms,
+          signedPayer,
+          intentWallet: String(intent.wallet ?? ""),
+        });
+        throw new Error("Signed transaction does not match prepared transaction");
+      }
+
+      console.warn("mint/submit mismatch accepted via wallet-wrapper compatibility", {
         intentId,
-        signedPrograms: safeProgramList(signedVtx.message),
-        preparedPrograms: safeProgramList(preparedVtx.message),
+        signedPrograms,
       });
-      throw new Error("Signed transaction does not match prepared transaction");
     }
 
     // Co-sign with backend mint authority after wallet signature.
