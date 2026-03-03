@@ -91,7 +91,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
 
     const { tickets, refreshingUi, refresh: refreshTickets } = useTickets({
         enabled: !loading,
-        intervalMs: 3000,
+        intervalMs: 8000,
     });
 
     const walletOk = !!wallet.publicKey;

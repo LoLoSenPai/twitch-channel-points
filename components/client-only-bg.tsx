@@ -8,15 +8,49 @@ function isMobileUA() {
     return /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent);
 }
 
+function computeShouldRenderStatic() {
+    if (typeof window === "undefined" || typeof navigator === "undefined") return true;
+    try {
+        // Safe default: static background unless explicitly opted-in.
+        const bgMode = window.localStorage.getItem("site.bg_mode");
+        const forceAnimated = bgMode === "animated";
+        const mobile = isMobileUA() || window.matchMedia("(max-width: 768px)").matches;
+        const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const hardwareThreads =
+            typeof navigator.hardwareConcurrency === "number" ? navigator.hardwareConcurrency : 8;
+        const deviceMemory =
+            typeof (navigator as Navigator & { deviceMemory?: number }).deviceMemory === "number"
+                ? (navigator as Navigator & { deviceMemory?: number }).deviceMemory!
+                : 8;
+        const lowEndDevice = hardwareThreads <= 4 || deviceMemory <= 4;
+        const boosterMode = window.localStorage.getItem("mint.booster.render_mode");
+        const prefersLightBooster = boosterMode === "image";
+        if (!forceAnimated) return true;
+        return mobile || reducedMotion || lowEndDevice || prefersLightBooster;
+    } catch {
+        return true;
+    }
+}
+
 export default function ClientOnlyBackground() {
-    const [isMobile, setIsMobile] = useState(false);
+    const [renderStaticBg, setRenderStaticBg] = useState<boolean>(() => computeShouldRenderStatic());
 
     useEffect(() => {
-        setIsMobile(isMobileUA() || window.matchMedia("(max-width: 768px)").matches);
+        const onStorage = (event: StorageEvent) => {
+            if (
+                !event.key ||
+                event.key === "mint.booster.render_mode" ||
+                event.key === "site.bg_mode"
+            ) {
+                setRenderStaticBg(computeShouldRenderStatic());
+            }
+        };
+
+        window.addEventListener("storage", onStorage);
+        return () => window.removeEventListener("storage", onStorage);
     }, []);
 
-    // ✅ Mobile: background CSS (0 GPU)
-    if (isMobile) {
+    if (renderStaticBg) {
         return (
             <div className="pointer-events-none absolute inset-0 opacity-80">
                 <div className="absolute inset-0 bg-zinc-950" />
@@ -26,7 +60,6 @@ export default function ClientOnlyBackground() {
         );
     }
 
-    // ✅ Desktop: LightPillar
     return (
         <LightPillar
             topColor="#aa02f7"

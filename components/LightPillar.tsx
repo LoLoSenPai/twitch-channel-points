@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 
 interface LightPillarProps {
@@ -39,16 +39,11 @@ const LightPillar: React.FC<LightPillarProps> = ({
   const geometryRef = useRef<THREE.PlaneGeometry | null>(null);
   const mouseRef = useRef<THREE.Vector2>(new THREE.Vector2(0, 0));
   const timeRef = useRef<number>(0);
-  const [webGLSupported, setWebGLSupported] = useState<boolean>(true);
-
-  // Check WebGL support
-  useEffect(() => {
+  const webGLSupported = useMemo(() => {
+    if (typeof document === 'undefined') return true;
     const canvas = document.createElement('canvas');
     const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-    if (!gl) {
-      setWebGLSupported(false);
-      console.warn('WebGL is not supported in this browser');
-    }
+    return Boolean(gl);
   }, []);
 
   useEffect(() => {
@@ -76,12 +71,12 @@ const LightPillar: React.FC<LightPillarProps> = ({
       });
     } catch (error) {
       console.error('Failed to create WebGL renderer:', error);
-      setWebGLSupported(false);
       return;
     }
 
     renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Clamp DPR aggressively: full-screen shader on high-DPR screens can be expensive.
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.25));
     container.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
@@ -270,11 +265,15 @@ const LightPillar: React.FC<LightPillarProps> = ({
 
     // Animation loop with fixed timestep
     let lastTime = performance.now();
-    const targetFPS = 60;
+    const targetFPS = 30;
     const frameTime = 1000 / targetFPS;
 
     const animate = (currentTime: number) => {
       if (!materialRef.current || !rendererRef.current || !sceneRef.current || !cameraRef.current) return;
+      if (document.visibilityState !== 'visible') {
+        rafRef.current = requestAnimationFrame(animate);
+        return;
+      }
 
       const deltaTime = currentTime - lastTime;
 
