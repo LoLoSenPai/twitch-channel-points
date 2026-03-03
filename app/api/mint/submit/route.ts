@@ -67,7 +67,11 @@ function authorityKeypairFromEnv() {
 type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
 type CanonicalIx = {
   programId: string;
-  keys: string[];
+  keys: Array<{
+    pubkey: string;
+    isSigner: boolean;
+    isWritable: boolean;
+  }>;
   dataB64: string;
 };
 
@@ -75,6 +79,8 @@ const ALLOWED_WALLET_EXTRA_PROGRAMS = new Set<string>([
   ComputeBudgetProgram.programId.toBase58(),
   // SPL Memo program.
   "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
+  // Phantom wallet safety/guard wrapper program (seen in signed tx on some clients).
+  "L2TExMFKdjpN9kozasaurPirfHy9P8sbXoAN1qA3S95",
 ]);
 
 function normalizeMessageForComparison(message: VersionedTransaction["message"]) {
@@ -141,10 +147,11 @@ function normalizeMessageForComparison(message: VersionedTransaction["message"])
 function canonicalizeInstruction(ix: TransactionInstruction): CanonicalIx {
   return {
     programId: ix.programId.toBase58(),
-    keys: ix.keys.map(
-      (k) =>
-        `${k.pubkey.toBase58()}:${k.isSigner ? 1 : 0}:${k.isWritable ? 1 : 0}`,
-    ),
+    keys: ix.keys.map((k) => ({
+      pubkey: k.pubkey.toBase58(),
+      isSigner: Boolean(k.isSigner),
+      isWritable: Boolean(k.isWritable),
+    })),
     dataB64: Buffer.from(ix.data).toString("base64"),
   };
 }
@@ -170,24 +177,39 @@ function semanticMatchAllowingWalletExtras(
   const preparedCanon = canonicalizeMessageForSemanticCompare(prepared);
 
   if (signedCanon.payer !== preparedCanon.payer) return false;
+  const signerPubkeys = new Set<string>();
+  for (const ix of signedCanon.ixs) {
+    for (const key of ix.keys) {
+      if (key.isSigner) signerPubkeys.add(key.pubkey);
+    }
+  }
 
-  // Remove wallet-added benign instructions (compute budget / memo).
-  const signedFiltered = signedCanon.ixs.filter(
-    (ix) => !ALLOWED_WALLET_EXTRA_PROGRAMS.has(ix.programId),
-  );
-  const preparedFiltered = preparedCanon.ixs.filter(
-    (ix) => !ALLOWED_WALLET_EXTRA_PROGRAMS.has(ix.programId),
-  );
+  // Keep exactly one non-wallet signer: the user payer.
+  // This blocks malicious extras requiring backend authority signature.
+  if (signerPubkeys.size !== 1 || !signerPubkeys.has(signedCanon.payer)) {
+    return false;
+  }
 
-  if (signedFiltered.length !== preparedFiltered.length) return false;
+  // Subsequence match: prepared instructions must appear in order and unchanged.
+  let p = 0;
+  for (let s = 0; s < signedCanon.ixs.length; s += 1) {
+    if (p < preparedCanon.ixs.length) {
+      const signedIx = signedCanon.ixs[s];
+      const preparedIx = preparedCanon.ixs[p];
+      if (JSON.stringify(signedIx) === JSON.stringify(preparedIx)) {
+        p += 1;
+        continue;
+      }
+    }
 
-  for (let i = 0; i < signedFiltered.length; i += 1) {
-    if (JSON.stringify(signedFiltered[i]) !== JSON.stringify(preparedFiltered[i])) {
+    // Any non-matching signed instruction is an "extra" and must be explicitly whitelisted.
+    const extraIx = signedCanon.ixs[s];
+    if (!ALLOWED_WALLET_EXTRA_PROGRAMS.has(extraIx.programId)) {
       return false;
     }
   }
 
-  return true;
+  return p === preparedCanon.ixs.length;
 }
 
 function safeProgramList(message: VersionedTransaction["message"]) {
