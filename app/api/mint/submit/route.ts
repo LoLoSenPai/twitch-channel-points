@@ -57,6 +57,82 @@ function authorityKeypairFromEnv() {
   return Keypair.fromSecretKey(secret);
 }
 
+type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
+
+function normalizeMessageForComparison(message: VersionedTransaction["message"]) {
+  const asAny = message as unknown as Record<string, unknown>;
+
+  // V0-like message (compiled instructions + static keys + LUTs)
+  if (
+    Array.isArray(asAny.staticAccountKeys) &&
+    Array.isArray(asAny.compiledInstructions)
+  ) {
+    return {
+      kind: "v0",
+      header: asAny.header as Json,
+      staticAccountKeys: (asAny.staticAccountKeys as Array<{ toBase58?: () => string }>).map(
+        (k) => (typeof k?.toBase58 === "function" ? k.toBase58() : String(k))
+      ),
+      compiledInstructions: (asAny.compiledInstructions as Array<Record<string, unknown>>).map(
+        (ix) => ({
+          programIdIndex: Number(ix.programIdIndex ?? -1),
+          accountKeyIndexes: Array.isArray(ix.accountKeyIndexes)
+            ? (ix.accountKeyIndexes as unknown[]).map((n) => Number(n))
+            : [],
+          data: Buffer.from((ix.data as Uint8Array) ?? new Uint8Array()).toString("base64"),
+        })
+      ),
+      addressTableLookups: Array.isArray(asAny.addressTableLookups)
+        ? (asAny.addressTableLookups as Array<Record<string, unknown>>).map((lut) => ({
+            accountKey:
+              typeof (lut.accountKey as { toBase58?: () => string })?.toBase58 === "function"
+                ? (lut.accountKey as { toBase58: () => string }).toBase58()
+                : String(lut.accountKey ?? ""),
+            writableIndexes: Array.isArray(lut.writableIndexes)
+              ? (lut.writableIndexes as unknown[]).map((n) => Number(n))
+              : [],
+            readonlyIndexes: Array.isArray(lut.readonlyIndexes)
+              ? (lut.readonlyIndexes as unknown[]).map((n) => Number(n))
+              : [],
+          }))
+        : [],
+    };
+  }
+
+  // Legacy-like message (instructions + account keys)
+  return {
+    kind: "legacy",
+    header: asAny.header as Json,
+    accountKeys: Array.isArray(asAny.accountKeys)
+      ? (asAny.accountKeys as Array<{ toBase58?: () => string }>).map((k) =>
+          typeof k?.toBase58 === "function" ? k.toBase58() : String(k)
+        )
+      : [],
+    instructions: Array.isArray(asAny.instructions)
+      ? (asAny.instructions as Array<Record<string, unknown>>).map((ix) => ({
+          programIdIndex: Number(ix.programIdIndex ?? -1),
+          accounts: Array.isArray(ix.accounts)
+            ? (ix.accounts as unknown[]).map((n) => Number(n))
+            : [],
+          data: String(ix.data ?? ""),
+        }))
+      : [],
+  };
+}
+
+function messagesMatchStrictOrIgnoringBlockhash(
+  signed: VersionedTransaction["message"],
+  prepared: VersionedTransaction["message"]
+) {
+  const signedBytes = Buffer.from(signed.serialize());
+  const preparedBytes = Buffer.from(prepared.serialize());
+  if (signedBytes.equals(preparedBytes)) return true;
+
+  const signedNorm = normalizeMessageForComparison(signed);
+  const preparedNorm = normalizeMessageForComparison(prepared);
+  return JSON.stringify(signedNorm) === JSON.stringify(preparedNorm);
+}
+
 async function notifyTwitchBot(payload: NotifyPayload) {
   const url = process.env.TWITCH_BOT_NOTIFY_URL; // ex: https://...plesk.page/notify
 
@@ -137,10 +213,7 @@ export async function POST(req: Request) {
       Buffer.from(intent.preparedTxB64, "base64"),
     );
 
-    const signedMsg = Buffer.from(signedVtx.message.serialize());
-    const preparedMsg = Buffer.from(preparedVtx.message.serialize());
-
-    if (!signedMsg.equals(preparedMsg)) {
+    if (!messagesMatchStrictOrIgnoringBlockhash(signedVtx.message, preparedVtx.message)) {
       throw new Error("Signed transaction does not match prepared transaction");
     }
 
