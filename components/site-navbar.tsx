@@ -20,10 +20,13 @@ export default async function SiteNavbar() {
   const showLeaderboard = true;
 
   return (
-    <header className="border-b border-white/10 bg-black/25 backdrop-blur-xl">
+    <header className="border-b border-[color:var(--site-nav-border)] bg-[color:var(--site-nav-bg)] backdrop-blur-xl">
       <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-3 px-4 py-2 sm:px-6 lg:px-8">
         <div className="flex min-w-0 items-center">
-          <Link href="/" className="text-sm font-semibold tracking-wide text-white/95">
+          <Link
+            href="/"
+            className="text-sm font-semibold tracking-wide text-[color:var(--site-shell-text)]"
+          >
             <Image src="/nyls-pfp.jpg" alt="Nyls PFP" width={40} height={40} className="inline-block rounded-full" />
           </Link>
         </div>

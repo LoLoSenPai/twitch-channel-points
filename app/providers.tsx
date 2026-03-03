@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useMemo } from "react";
 import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-wallets";
+import ClickSpark from "@/components/ClickSpark";
 
 import "@solana/wallet-adapter-react-ui/styles.css";
 
@@ -30,7 +31,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return (
         <ConnectionProvider endpoint={endpoint}>
             <WalletProvider wallets={wallets} autoConnect localStorageKey={localStorageKey}>
-                <WalletModalProvider>{children}</WalletModalProvider>
+                <WalletModalProvider>
+                    <ClickSpark
+                        sparkColor="#c084fc"
+                        sparkSize={12}
+                        sparkRadius={22}
+                        sparkCount={12}
+                        duration={520}
+                        easing="ease-out"
+                        extraScale={1.15}
+                    >
+                        {children}
+                    </ClickSpark>
+                </WalletModalProvider>
             </WalletProvider>
         </ConnectionProvider>
     );

@@ -13,10 +13,30 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="fr" className="site-theme-dark" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var key = "site.theme";
+                  var raw = localStorage.getItem(key);
+                  var theme = raw === "light" ? "light" : "dark";
+                  var root = document.documentElement;
+                  root.classList.remove("site-theme-dark", "site-theme-light");
+                  root.classList.add(theme === "light" ? "site-theme-light" : "site-theme-dark");
+                  root.style.colorScheme = theme;
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <Providers>{children}</Providers>
       </body>
     </html>
   );
 }
+

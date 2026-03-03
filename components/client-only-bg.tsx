@@ -1,71 +1,56 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import LightPillar from "@/components/light-pillar";
-
-function isMobileUA() {
-    if (typeof navigator === "undefined") return false;
-    return /Android|iPhone|iPad|iPod|Mobile|Tablet/i.test(navigator.userAgent);
-}
-
-function computeShouldRenderStatic() {
-    if (typeof window === "undefined" || typeof navigator === "undefined") return true;
-    try {
-        // Safe default: static background unless explicitly opted-in.
-        const bgMode = window.localStorage.getItem("site.bg_mode");
-        const forceAnimated = bgMode === "animated";
-        const mobile = isMobileUA() || window.matchMedia("(max-width: 768px)").matches;
-        const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        const hardwareThreads =
-            typeof navigator.hardwareConcurrency === "number" ? navigator.hardwareConcurrency : 8;
-        const deviceMemory =
-            typeof (navigator as Navigator & { deviceMemory?: number }).deviceMemory === "number"
-                ? (navigator as Navigator & { deviceMemory?: number }).deviceMemory!
-                : 8;
-        const lowEndDevice = hardwareThreads <= 4 || deviceMemory <= 4;
-        const boosterMode = window.localStorage.getItem("mint.booster.render_mode");
-        const prefersLightBooster = boosterMode === "image";
-        if (!forceAnimated) return true;
-        return mobile || reducedMotion || lowEndDevice || prefersLightBooster;
-    } catch {
-        return true;
-    }
-}
+import {
+    getStoredSiteTheme,
+    SITE_THEME_EVENT,
+    SITE_THEME_STORAGE_KEY,
+    type SiteTheme,
+} from "@/lib/site-theme";
 
 export default function ClientOnlyBackground() {
-    const [renderStaticBg, setRenderStaticBg] = useState<boolean>(() => computeShouldRenderStatic());
+    const [theme, setTheme] = useState<SiteTheme>(() => getStoredSiteTheme());
+    const backgroundImageUrl = theme === "light" ? "/bg-light.webp" : "/bg-dark.webp";
 
     useEffect(() => {
         const onStorage = (event: StorageEvent) => {
-            if (
-                !event.key ||
-                event.key === "mint.booster.render_mode" ||
-                event.key === "site.bg_mode"
-            ) {
-                setRenderStaticBg(computeShouldRenderStatic());
+            if (!event.key || event.key === SITE_THEME_STORAGE_KEY) {
+                setTheme(getStoredSiteTheme());
             }
+        };
+        const onThemeChange = (event: Event) => {
+            const nextTheme = (event as CustomEvent<SiteTheme>)?.detail;
+            setTheme(nextTheme === "light" ? "light" : "dark");
         };
 
         window.addEventListener("storage", onStorage);
-        return () => window.removeEventListener("storage", onStorage);
+        window.addEventListener(SITE_THEME_EVENT, onThemeChange);
+        return () => {
+            window.removeEventListener("storage", onStorage);
+            window.removeEventListener(SITE_THEME_EVENT, onThemeChange);
+        };
     }, []);
 
-    if (renderStaticBg) {
-        return (
-            <div className="pointer-events-none absolute inset-0 opacity-80">
-                <div className="absolute inset-0 bg-zinc-950" />
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(99,21,193,.35),transparent_55%),radial-gradient(ellipse_at_bottom,rgba(46,220,89,.22),transparent_55%)]" />
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(120,80,255,.25),transparent_45%),radial-gradient(circle_at_70%_60%,rgba(46,220,89,.18),transparent_45%)]" />
-            </div>
-        );
-    }
-
     return (
-        <LightPillar
-            topColor="#aa02f7"
-            bottomColor="#2edc59"
-            className="pointer-events-none opacity-70"
-            mixBlendMode="screen"
-        />
+        <div className="pointer-events-none absolute inset-0 opacity-90">
+            <div
+                className={
+                    theme === "light"
+                        ? "absolute inset-0 bg-[linear-gradient(180deg,#f8fbff_0%,#e8f0f8_100%)]"
+                        : "absolute inset-0 bg-[linear-gradient(180deg,#030712_0%,#020617_100%)]"
+                }
+            />
+            <div
+                className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-70"
+                style={{ backgroundImage: `url("${backgroundImageUrl}")` }}
+            />
+            <div
+                className={
+                    theme === "light"
+                        ? "absolute inset-0 bg-[radial-gradient(circle_at_12%_10%,rgba(56,189,248,.16),transparent_48%),radial-gradient(circle_at_85%_15%,rgba(34,197,94,.18),transparent_45%),linear-gradient(180deg,rgba(255,255,255,.22),rgba(255,255,255,.07))]"
+                        : "absolute inset-0 bg-[radial-gradient(circle_at_12%_10%,rgba(120,80,255,.30),transparent_45%),radial-gradient(circle_at_80%_70%,rgba(46,220,89,.20),transparent_45%),linear-gradient(180deg,rgba(2,6,23,.42),rgba(2,6,23,.55))]"
+                }
+            />
+        </div>
     );
 }

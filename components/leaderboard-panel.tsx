@@ -72,17 +72,17 @@ export function LeaderboardPanel() {
   }, [refresh]);
 
   return (
-    <section className="rounded-3xl border border-white/20 bg-black/25 p-4 space-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] sm:p-6">
+    <section className="site-surface rounded-3xl space-y-4 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold">Leaderboard collection</h1>
-          <p className="text-sm opacity-70">
+          <p className="site-muted text-sm">
             Classement public par cartes uniques, puis total de cartes.
           </p>
         </div>
         <button
           type="button"
-          className="rounded-xl border px-3 py-2 text-sm transition-all duration-150 enabled:cursor-pointer enabled:hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60"
+          className="site-btn rounded-xl px-3 py-2 text-sm transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
           onClick={() => void refresh()}
           disabled={loading}
         >
@@ -96,10 +96,10 @@ export function LeaderboardPanel() {
         </div>
       ) : null}
 
-      <div className="overflow-auto rounded-xl border border-white/15">
+      <div className="rounded-xl border border-[color:var(--site-surface-border)] overflow-auto">
         <table className="w-full text-left text-sm">
-          <thead className="sticky top-0 bg-black/70 backdrop-blur-sm">
-            <tr className="border-b border-white/10">
+          <thead className="bg-[color:var(--site-menu-bg)] sticky top-0 backdrop-blur-sm">
+            <tr className="border-b border-[color:var(--site-surface-border)]">
               <th className="px-3 py-2 font-medium">#</th>
               <th className="px-3 py-2 font-medium">Joueur</th>
               <th className="px-3 py-2 font-medium">Uniques</th>
@@ -110,7 +110,7 @@ export function LeaderboardPanel() {
           <tbody>
             {!loading && !items.length ? (
               <tr>
-                <td colSpan={5} className="px-3 py-4 text-center text-sm opacity-70">
+                <td colSpan={5} className="site-muted px-3 py-4 text-center text-sm">
                   Aucun joueur classé pour le moment.
                 </td>
               </tr>
@@ -118,7 +118,7 @@ export function LeaderboardPanel() {
               items.slice(0, 100).map((entry, index) => (
                 <tr
                   key={`leader-${entry.twitchUserId}`}
-                  className="border-b border-white/10 last:border-b-0"
+                  className="border-b border-[color:var(--site-surface-border)] last:border-b-0"
                 >
                   <td className="px-3 py-2">{index + 1}</td>
                   <td className="px-3 py-2">{entry.displayName || short(entry.twitchUserId, 4, 4)}</td>
@@ -136,3 +136,4 @@ export function LeaderboardPanel() {
     </section>
   );
 }
+

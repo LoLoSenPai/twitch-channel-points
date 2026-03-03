@@ -20,7 +20,7 @@ export default function AlbumPage() {
             <main
                 className={`${albumTitle.variable} ${albumBody.variable} mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-10`}
             >
-                <h1 className="text-3xl font-semibold tracking-wide text-amber-100 sm:text-4xl">
+                <h1 className="text-3xl font-semibold tracking-wide text-[color:var(--site-shell-text)] sm:text-4xl">
                     Album Panini
                 </h1>
                 <AlbumGrid />

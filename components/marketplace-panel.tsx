@@ -183,16 +183,16 @@ function short(v: string, head = 5, tail = 5) {
 function statusBadgeClass(status: string) {
   switch (status) {
     case "OPEN":
-      return "border-emerald-400/40 bg-emerald-500/10 text-emerald-200";
+      return "border-[color:rgba(16,185,129,0.45)] bg-[color:rgba(16,185,129,0.14)]";
     case "LOCKED":
-      return "border-amber-400/40 bg-amber-500/10 text-amber-200";
+      return "border-[color:rgba(245,158,11,0.45)] bg-[color:rgba(245,158,11,0.14)]";
     case "DONE":
     case "SOLD":
-      return "border-sky-400/40 bg-sky-500/10 text-sky-200";
+      return "border-[color:rgba(56,189,248,0.45)] bg-[color:rgba(56,189,248,0.14)]";
     case "DRAFT":
-      return "border-zinc-400/40 bg-zinc-500/10 text-zinc-200";
+      return "border-[color:var(--site-surface-border)] bg-[color:var(--site-surface-soft-bg)]";
     default:
-      return "border-zinc-400/40 bg-zinc-500/10 text-zinc-200";
+      return "border-[color:var(--site-surface-border)] bg-[color:var(--site-surface-soft-bg)]";
   }
 }
 
@@ -202,30 +202,35 @@ function rarityBadgeMeta(value?: string | null) {
     case "mythic":
       return {
         label: "Mythic",
-        chipClass: "border-rose-300/35 bg-black/45 text-rose-100/90",
+        chipClass:
+          "border-[color:rgba(251,113,133,0.45)] bg-[color:rgba(251,113,133,0.14)]",
       };
     case "legendary":
     case "SSR":
       return {
         label: "Legendary",
-        chipClass: "border-amber-300/35 bg-black/45 text-amber-100/90",
+        chipClass:
+          "border-[color:rgba(252,211,77,0.45)] bg-[color:rgba(252,211,77,0.14)]",
       };
     case "rare":
     case "SR":
       return {
         label: "Rare",
-        chipClass: "border-sky-300/35 bg-black/45 text-sky-100/90",
+        chipClass:
+          "border-[color:rgba(125,211,252,0.45)] bg-[color:rgba(125,211,252,0.14)]",
       };
     case "uncommon":
       return {
         label: "Uncommon",
-        chipClass: "border-emerald-300/35 bg-black/45 text-emerald-100/90",
+        chipClass:
+          "border-[color:rgba(110,231,183,0.45)] bg-[color:rgba(110,231,183,0.14)]",
       };
     case "common":
     case "R":
       return {
         label: "Common",
-        chipClass: "border-zinc-300/30 bg-black/45 text-zinc-100/85",
+        chipClass:
+          "border-[color:var(--site-surface-border)] bg-[color:var(--site-surface-soft-bg)]",
       };
     default:
       return null;
@@ -453,19 +458,22 @@ export function MarketplacePanel() {
 
   const walletPk = wallet.publicKey?.toBase58() ?? "";
   const refreshTimersRef = useRef<Array<ReturnType<typeof setTimeout>>>([]);
-  const selectOptionStyle = { color: "#e5e7eb", backgroundColor: "#0b1020" };
+  const selectOptionStyle = {
+    color: "var(--site-shell-text)",
+    backgroundColor: "var(--site-menu-bg)",
+  };
   const selectClass =
-    "rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-sm text-white outline-none transition-all duration-150 cursor-pointer focus:border-emerald-300/45 focus:ring-2 focus:ring-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-60";
+    "site-input rounded-xl px-3 py-2 text-sm outline-none transition-all duration-150 cursor-pointer focus:border-[color:var(--site-link-active-border)] focus:ring-2 focus:ring-[color:var(--site-link-active-bg)] disabled:cursor-not-allowed disabled:opacity-60";
   const buttonClass =
-    "rounded-xl border px-3 py-2 text-sm transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-white/10 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
+    "site-btn rounded-xl px-3 py-2 text-sm transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
   const buttonPrimaryClass =
-    "rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100 transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-emerald-500/20 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
+    "site-btn-cta rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
   const buttonWideClass =
-    "w-full rounded-xl border px-3 py-2 text-sm transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-white/10 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
+    "site-btn w-full rounded-xl px-3 py-2 text-sm transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
   const buttonPrimaryWideClass =
-    "w-full rounded-xl border border-emerald-300/40 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100 transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-emerald-500/20 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
+    "site-btn-cta w-full rounded-xl px-3 py-2 text-sm font-medium transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]";
   const buttonSmallClass =
-    "rounded-md border px-2 py-0.5 text-xs transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 enabled:hover:bg-white/10 active:scale-[0.98]";
+    "site-btn rounded-md px-2 py-0.5 text-xs transition-all duration-150 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-60 active:scale-[0.98]";
 
   const stickerById = useMemo(() => {
     const map = new Map<string, StickerItem>();
@@ -1368,12 +1376,12 @@ export function MarketplacePanel() {
       </div>
 
       {notice ? (
-        <div className="rounded-xl border border-emerald-300/35 bg-emerald-500/10 p-3 text-sm whitespace-pre-line">
+        <div className="site-surface rounded-xl p-3 text-sm whitespace-pre-line">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 break-words">{notice}</div>
             <button
               type="button"
-              className="rounded-md border border-emerald-200/35 px-2 py-0.5 text-xs opacity-90 transition hover:bg-emerald-500/20"
+              className="site-btn rounded-md px-2 py-0.5 text-xs opacity-90 transition"
               onClick={() => setNotice("")}
             >
               Fermer
@@ -1384,38 +1392,38 @@ export function MarketplacePanel() {
 
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="max-w-full overflow-x-auto">
-          <div className="inline-flex min-w-max rounded-xl border border-white/20 bg-black/20 p-1 text-sm">
+          <div className="site-tabbar inline-flex min-w-max rounded-xl p-1 text-sm">
           <button
             type="button"
-            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "marketplace" ? "bg-emerald-500/20 text-emerald-100" : "opacity-70 hover:bg-white/10"}`}
+            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "marketplace" ? "site-tab-active" : "opacity-70 hover:bg-[color:var(--site-link-hover-bg)]"}`}
             onClick={() => setActiveTab("marketplace")}
           >
             Marketplace
           </button>
           <button
             type="button"
-            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "history" ? "bg-emerald-500/20 text-emerald-100" : "opacity-70 hover:bg-white/10"}`}
+            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "history" ? "site-tab-active" : "opacity-70 hover:bg-[color:var(--site-link-hover-bg)]"}`}
             onClick={() => setActiveTab("history")}
           >
             Historique
           </button>
           <button
             type="button"
-            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "create" ? "bg-emerald-500/20 text-emerald-100" : "opacity-70 hover:bg-white/10"}`}
+            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "create" ? "site-tab-active" : "opacity-70 hover:bg-[color:var(--site-link-hover-bg)]"}`}
             onClick={() => setActiveTab("create")}
           >
             Créer
           </button>
           <button
             type="button"
-            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "send" ? "bg-emerald-500/20 text-emerald-100" : "opacity-70 hover:bg-white/10"}`}
+            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "send" ? "site-tab-active" : "opacity-70 hover:bg-[color:var(--site-link-hover-bg)]"}`}
             onClick={() => setActiveTab("send")}
           >
             Envoyer
           </button>
           <button
             type="button"
-            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "mine" ? "bg-emerald-500/20 text-emerald-100" : "opacity-70 hover:bg-white/10"}`}
+            className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${activeTab === "mine" ? "site-tab-active" : "opacity-70 hover:bg-[color:var(--site-link-hover-bg)]"}`}
             onClick={() => setActiveTab("mine")}
           >
             Mes offres
@@ -1439,7 +1447,7 @@ export function MarketplacePanel() {
 
       {activeTab === "create" ? (
         <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-[1.25fr_0.75fr]" : "grid gap-4"}>
-          <div className="rounded-2xl border border-white/20 bg-black/25 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] space-y-4">
+          <div className="site-surface rounded-2xl p-4 space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="text-lg font-semibold">Proposer un échange</div>
@@ -1454,13 +1462,13 @@ export function MarketplacePanel() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 text-xs">
-                <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-1">
+                <span className="site-surface-soft rounded-full px-2.5 py-1">
                   Total: {assets.length}
                 </span>
-                <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-1">
+                <span className="site-surface-soft rounded-full px-2.5 py-1">
                   Distinctes: {ownedStickerGroups.length}
                 </span>
-                <span className="rounded-full border border-white/20 bg-white/5 px-2.5 py-1">
+                <span className="site-surface-soft rounded-full px-2.5 py-1">
                   Doublons: {duplicateCopiesCount}
                 </span>
               </div>
@@ -1470,12 +1478,12 @@ export function MarketplacePanel() {
               <div className="space-y-2">
                 <div className="text-xs uppercase tracking-[0.14em] opacity-60">Ta carte proposée</div>
                 <input
-                  className="rounded-xl border border-white/20 px-3 py-2 bg-black/25 text-sm"
+                  className="site-input rounded-xl px-3 py-2 text-sm"
                   placeholder="Filtrer ta carte (#14)"
                   value={makerAssetSearch}
                   onChange={(e) => setMakerAssetSearch(e.target.value)}
                 />
-                <label className="inline-flex w-fit items-center gap-2 rounded-xl border border-white/20 bg-black/20 px-3 py-1.5 text-xs">
+                <label className="site-surface-soft inline-flex w-fit items-center gap-2 rounded-xl px-3 py-1.5 text-xs">
                   <input
                     type="checkbox"
                     className="h-4 w-4 accent-emerald-400"
@@ -1487,7 +1495,7 @@ export function MarketplacePanel() {
                 <div className="text-[11px] opacity-65">
                   Les cartes verrouillées (offre/vente active) sont masquées des actions.
                 </div>
-                <div className="max-h-64 overflow-y-auto rounded-xl border border-white/20 bg-black/20 p-2">
+                <div className="site-surface-soft max-h-64 overflow-y-auto rounded-xl p-2">
                   {makerAssetOptions.length ? (
                     <div className="grid gap-2 sm:grid-cols-2">
                       {makerAssetOptions.map((group) => {
@@ -1499,10 +1507,10 @@ export function MarketplacePanel() {
                             type="button"
                             className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition-all duration-150 cursor-pointer ${
                               isDisabled
-                                ? "border-white/10 bg-black/10 opacity-45 cursor-not-allowed"
+                                ? "border-[color:var(--site-surface-border)] bg-[color:var(--site-surface-soft-bg)] opacity-45 cursor-not-allowed"
                                 : selected
-                                ? "bg-emerald-500/15 border-emerald-300/60 shadow-[0_0_0_1px_rgba(52,211,153,.15)]"
-                                : "border-white/15 bg-black/20 hover:bg-white/10"
+                                ? "site-tab-active border-[color:var(--site-link-active-border)]"
+                                : "site-surface-soft hover:bg-[color:var(--site-link-hover-bg)]"
                             }`}
                             onClick={() => {
                               if (!isDisabled) setMakerAssetId(group.primaryAssetId);
@@ -1514,7 +1522,7 @@ export function MarketplacePanel() {
                                 : `Sélectionner #${group.stickerId}`
                             }
                           >
-                            <div className="h-10 w-8 shrink-0 overflow-hidden rounded border border-white/15 bg-black/30">
+                            <div className="site-surface h-10 w-8 shrink-0 overflow-hidden rounded">
                               {group.imageSrc ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
@@ -1548,7 +1556,7 @@ export function MarketplacePanel() {
                   )}
                 </div>
                 {makerSelectedGroup ? (
-                  <div className="rounded-lg border border-emerald-300/25 bg-emerald-500/10 px-2.5 py-1.5 text-xs">
+                  <div className="site-surface-soft rounded-lg px-2.5 py-1.5 text-xs">
                     Carte proposée: <span className="font-medium">#{makerSelectedGroup.stickerId}</span>
                     {" · "}dispo x{makerSelectedGroup.availableCount}
                     {makerSelectedGroup.lockedCount > 0
@@ -1563,12 +1571,12 @@ export function MarketplacePanel() {
               <div className="space-y-2">
                 <div className="text-xs uppercase tracking-[0.14em] opacity-60">Cartes acceptées en retour</div>
                 <input
-                  className="rounded-xl border border-white/20 px-3 py-2 bg-black/25 text-sm"
+                  className="site-input rounded-xl px-3 py-2 text-sm"
                   placeholder="Rechercher une carte (#14)"
                   value={wantedStickerSearch}
                   onChange={(e) => setWantedStickerSearch(e.target.value)}
                 />
-                <div className="max-h-64 overflow-y-auto rounded-xl border border-white/20 bg-black/20 p-2">
+                <div className="site-surface-soft max-h-64 overflow-y-auto rounded-xl p-2">
                   {wantedStickerOptions.length ? (
                     <div className="grid gap-1.5 sm:grid-cols-2">
                       {wantedStickerOptions.map((item) => {
@@ -1576,10 +1584,10 @@ export function MarketplacePanel() {
                         return (
                           <label
                             key={`wanted-option-${item.id}`}
-                            className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-xs cursor-pointer transition-all duration-150 ${
+                          className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-xs cursor-pointer transition-all duration-150 ${
                               checked
-                                ? "border-cyan-300/60 bg-cyan-500/10"
-                                : "border-white/15 bg-black/20 hover:bg-white/10"
+                                ? "site-tab-active border-[color:var(--site-link-active-border)]"
+                                : "site-surface-soft hover:bg-[color:var(--site-link-hover-bg)]"
                             }`}
                           >
                             <input
@@ -1615,13 +1623,13 @@ export function MarketplacePanel() {
                   >
                     Vider
                   </button>
-                  <span className="rounded-full border border-white/15 bg-white/5 px-2 py-0.5">
+                  <span className="site-surface-soft rounded-full px-2 py-0.5">
                     {wantedStickerIds.length} cible(s)
                   </span>
                 </div>
 
                 {wantedStickerIds.length ? (
-                  <div className="rounded-lg border border-white/15 bg-black/20 p-2">
+                  <div className="site-surface-soft rounded-lg p-2">
                     <div className="mb-1 text-[11px] uppercase tracking-[0.12em] opacity-60">
                       Sélection actuelle
                     </div>
@@ -1630,7 +1638,7 @@ export function MarketplacePanel() {
                         <button
                           key={`wanted-${id}`}
                           type="button"
-                          className="rounded-full border border-cyan-300/30 bg-cyan-500/10 px-2 py-0.5 text-xs transition-all duration-150 enabled:cursor-pointer hover:bg-cyan-500/20"
+                          className="site-btn rounded-full px-2 py-0.5 text-xs transition-all duration-150 enabled:cursor-pointer"
                           onClick={() => removeWantedStickerId(id)}
                           title={`Retirer #${id}`}
                           disabled={loading}
@@ -1656,7 +1664,7 @@ export function MarketplacePanel() {
           </div>
 
           {SALES_UI_ENABLED ? (
-            <div className="rounded-2xl border border-white/20 bg-black/25 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,.06)] space-y-3">
+            <div className="site-surface rounded-2xl p-4 space-y-3">
               <div className="font-semibold">Mettre une carte en vente</div>
               <div className="grid gap-2">
                 <select
@@ -1678,13 +1686,13 @@ export function MarketplacePanel() {
                   ))}
                 </select>
                 <input
-                  className="rounded-xl border border-white/20 px-3 py-2 bg-black/25"
+                  className="site-input rounded-xl px-3 py-2"
                   placeholder="Prix en SOL (ex: 0.05)"
                   value={salePriceSol}
                   onChange={(e) => setSalePriceSol(e.target.value)}
                 />
                 {salePricePreview ? (
-                  <div className="rounded-lg border border-white/15 bg-black/20 p-2 text-xs opacity-80">
+                  <div className="site-surface-soft rounded-lg p-2 text-xs opacity-80">
                     Total acheteur: {lamportsToSol(salePricePreview.totalLamports)} SOL
                     {" · "}Tu reçois: {lamportsToSol(salePricePreview.sellerLamports)} SOL
                     {" · "}Frais: {lamportsToSol(salePricePreview.feeLamports)} SOL
@@ -1700,28 +1708,28 @@ export function MarketplacePanel() {
       ) : null}
 
       {activeTab === "marketplace" ? (
-        <section className="rounded-2xl border border-white/20 bg-black/25 p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
+        <section className="site-surface rounded-2xl p-4 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="font-semibold">Marketplace</div>
           <div className="flex flex-wrap items-center gap-2">
             {SALES_UI_ENABLED ? (
-              <div className="inline-flex rounded-xl border p-1 text-sm">
+              <div className="site-tabbar inline-flex rounded-xl p-1 text-sm">
                 <button
-                  className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "all" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+                  className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "all" ? "site-tab-active" : "opacity-70 hover:bg-[color:var(--site-link-hover-bg)]"}`}
                   onClick={() => setMarketMode("all")}
                   type="button"
                 >
                   Tout
                 </button>
                 <button
-                  className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "trade" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+                  className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "trade" ? "site-tab-active" : "opacity-70 hover:bg-[color:var(--site-link-hover-bg)]"}`}
                   onClick={() => setMarketMode("trade")}
                   type="button"
                 >
                   Echanges
                 </button>
                 <button
-                  className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "sale" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+                  className={`rounded-lg px-3 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${marketMode === "sale" ? "site-tab-active" : "opacity-70 hover:bg-[color:var(--site-link-hover-bg)]"}`}
                   onClick={() => setMarketMode("sale")}
                   type="button"
                 >
@@ -1729,13 +1737,13 @@ export function MarketplacePanel() {
                 </button>
               </div>
             ) : (
-              <div className="inline-flex rounded-xl border px-3 py-2 text-sm opacity-80">
+              <div className="site-surface-soft inline-flex rounded-xl px-3 py-2 text-sm opacity-80">
                 Echanges
               </div>
             )}
-            <div className="inline-flex rounded-xl border p-1 text-sm">
+            <div className="site-tabbar inline-flex rounded-xl p-1 text-sm">
               <button
-                className={`rounded-lg px-2 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${boardCols === "2" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+                className={`rounded-lg px-2 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${boardCols === "2" ? "site-tab-active" : "opacity-70 hover:bg-[color:var(--site-link-hover-bg)]"}`}
                 onClick={() => {
                   setBoardCols("2");
                   if (typeof window !== "undefined") {
@@ -1749,7 +1757,7 @@ export function MarketplacePanel() {
                 <GridColsIcon cols={2} />
               </button>
               <button
-                className={`rounded-lg px-2 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${boardCols === "3" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+                className={`rounded-lg px-2 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${boardCols === "3" ? "site-tab-active" : "opacity-70 hover:bg-[color:var(--site-link-hover-bg)]"}`}
                 onClick={() => {
                   setBoardCols("3");
                   if (typeof window !== "undefined") {
@@ -1763,7 +1771,7 @@ export function MarketplacePanel() {
                 <GridColsIcon cols={3} />
               </button>
               <button
-                className={`rounded-lg px-2 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${boardCols === "4" ? "bg-white/20" : "opacity-70 hover:bg-white/10"}`}
+                className={`rounded-lg px-2 py-1 transition-all duration-150 cursor-pointer active:scale-[0.98] ${boardCols === "4" ? "site-tab-active" : "opacity-70 hover:bg-[color:var(--site-link-hover-bg)]"}`}
                 onClick={() => {
                   setBoardCols("4");
                   if (typeof window !== "undefined") {
@@ -1836,17 +1844,17 @@ export function MarketplacePanel() {
                 .filter((group) => Boolean(group.primaryAssetId))
                 .sort((a, b) => compareStickerIds(a.stickerId, b.stickerId));
               return (
-                <article key={`trade-${offer.offerId}`} className="min-w-0 rounded-2xl border border-white/20 p-3 space-y-3 bg-black/30 backdrop-blur-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-cyan-300/35">
+                <article key={`trade-${offer.offerId}`} className="site-surface min-w-0 rounded-2xl p-3 space-y-3 transition-all duration-150 hover:-translate-y-0.5 hover:border-[color:var(--site-link-active-border)]">
                   <div className="flex items-center gap-2">
-                    <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-2 py-0.5 text-xs text-cyan-200">
+                    <span className="rounded-full border border-[color:rgba(45,212,191,0.45)] bg-[color:rgba(45,212,191,0.16)] px-2 py-0.5 text-xs">
                       Échange
                     </span>
-                    <span className="ml-auto rounded-full border border-white/15 bg-black/30 px-2 py-0.5 text-[11px] opacity-80">
+                    <span className="site-surface-soft ml-auto rounded-full px-2 py-0.5 text-[11px] opacity-80">
                       Expire dans: {countdownLabel}
                     </span>
                   </div>
 
-                  <div className="relative rounded-xl border border-white/15 overflow-hidden bg-black/30 aspect-[3/4]">
+                  <div className="site-surface relative rounded-xl overflow-hidden aspect-[3/4]">
                     {imageSrc ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={imageSrc} alt={sticker?.name ?? `Sticker #${offer.makerStickerId}`} className="h-full w-full object-cover" />
@@ -1877,7 +1885,7 @@ export function MarketplacePanel() {
                       Expire le: {formatDateTime(offer.expiresAt)}
                     </div>
                     {wantedCount > 4 ? (
-                      <details className="mt-2 rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-xs">
+                      <details className="site-surface-soft mt-2 rounded-lg px-2 py-1 text-xs">
                         <summary className="cursor-pointer select-none opacity-80">
                           Voir la liste complète ({wantedCount})
                         </summary>
@@ -1905,15 +1913,15 @@ export function MarketplacePanel() {
                       ))}
                     </select>
                     ) : !walletPk ? (
-                      <div className="rounded-xl border border-white/20 bg-black/25 px-3 py-2 text-sm opacity-70">
+                      <div className="site-surface-soft rounded-xl px-3 py-2 text-sm opacity-70">
                         Connecte ton wallet pour voir tes cartes compatibles.
                       </div>
                     ) : assetsLoading ? (
-                      <div className="rounded-xl border border-white/20 bg-black/25 px-3 py-2 text-sm opacity-70">
+                      <div className="site-surface-soft rounded-xl px-3 py-2 text-sm opacity-70">
                         Chargement de tes cartes...
                       </div>
                     ) : (
-                      <div className="rounded-xl border border-white/20 bg-black/25 px-3 py-2 text-sm opacity-70">
+                      <div className="site-surface-soft rounded-xl px-3 py-2 text-sm opacity-70">
                         Aucune carte compatible dans ton wallet.
                       </div>
                     )}
@@ -1938,17 +1946,17 @@ export function MarketplacePanel() {
               const countdownLabel = formatCountdown(remaining);
               const split = splitMarketSaleAmount(listing.priceLamports, marketFeeBps);
               return (
-                <article key={`sale-${listing.listingId}`} className="min-w-0 rounded-2xl border border-white/20 p-3 space-y-3 bg-black/30 backdrop-blur-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-fuchsia-300/35">
+                <article key={`sale-${listing.listingId}`} className="site-surface min-w-0 rounded-2xl p-3 space-y-3 transition-all duration-150 hover:-translate-y-0.5 hover:border-[color:var(--site-link-active-border)]">
                   <div className="flex items-center gap-2">
-                    <span className="rounded-full border border-fuchsia-400/40 bg-fuchsia-500/10 px-2 py-0.5 text-xs text-fuchsia-200">
+                    <span className="rounded-full border border-[color:rgba(217,70,239,0.45)] bg-[color:rgba(217,70,239,0.16)] px-2 py-0.5 text-xs">
                       Vente
                     </span>
-                    <span className="ml-auto rounded-full border border-white/15 bg-black/30 px-2 py-0.5 text-[11px] opacity-80">
+                    <span className="site-surface-soft ml-auto rounded-full px-2 py-0.5 text-[11px] opacity-80">
                       Expire dans: {countdownLabel}
                     </span>
                   </div>
 
-                  <div className="relative rounded-xl border border-white/15 overflow-hidden bg-black/30 aspect-[3/4]">
+                  <div className="site-surface relative rounded-xl overflow-hidden aspect-[3/4]">
                     {imageSrc ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={imageSrc} alt={sticker?.name ?? `Sticker #${listing.sellerStickerId}`} className="h-full w-full object-cover" />
@@ -1968,7 +1976,7 @@ export function MarketplacePanel() {
 
                   <div className="text-sm">
                     <div className="font-semibold">#{listing.sellerStickerId} - {sticker?.name ?? "Sticker"}</div>
-                    <div className="text-base font-semibold text-amber-200">{lamportsToSol(split.totalLamports)} SOL</div>
+                    <div className="text-base font-semibold text-[color:var(--site-accent-text)]">{lamportsToSol(split.totalLamports)} SOL</div>
                     <div className="opacity-70 text-xs">
                       Expire le: {formatDateTime(listing.expiresAt)}
                     </div>
@@ -2002,7 +2010,7 @@ export function MarketplacePanel() {
       ) : null}
 
       {activeTab === "history" ? (
-        <section className="rounded-2xl border border-white/20 bg-black/25 p-4 space-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
+        <section className="site-surface rounded-2xl p-4 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 className="text-lg font-semibold">Historique des échanges</h2>
@@ -2023,7 +2031,7 @@ export function MarketplacePanel() {
                 return (
                   <div
                     key={`history-${entry.offerId}`}
-                    className="rounded-xl border border-white/15 bg-black/25 p-3 text-sm"
+                    className="site-surface-soft rounded-xl p-3 text-sm"
                   >
                     <div className="font-medium">
                       #{entry.makerStickerId}
@@ -2061,7 +2069,7 @@ export function MarketplacePanel() {
       ) : null}
 
       {activeTab === "send" ? (
-        <section className="rounded-2xl border border-white/20 bg-black/25 p-4 space-y-4 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
+        <section className="site-surface rounded-2xl p-4 space-y-4">
           <div>
             <h2 className="text-lg font-semibold">Envoyer des cartes</h2>
             <p className="text-xs opacity-70">
@@ -2071,7 +2079,7 @@ export function MarketplacePanel() {
 
           <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-center">
             <input
-              className="rounded-xl border border-white/20 bg-black/30 px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-emerald-300/45 focus:ring-2 focus:ring-emerald-400/20"
+              className="site-input rounded-xl px-3 py-2 text-sm outline-none transition-all duration-150 focus:border-[color:var(--site-link-active-border)] focus:ring-2 focus:ring-[color:var(--site-link-active-bg)]"
               placeholder="Wallet destination (adresse Solana)"
               value={sendRecipientWallet}
               onChange={(e) => setSendRecipientWallet(e.target.value)}
@@ -2096,7 +2104,7 @@ export function MarketplacePanel() {
             </button>
           </div>
 
-          <div className="rounded-xl border border-white/15 bg-black/20 p-2">
+          <div className="site-surface-soft rounded-xl p-2">
             {sendAssetOptions.length ? (
               <div className="grid max-h-96 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
                 {sendAssetOptions.map((asset) => {
@@ -2112,10 +2120,10 @@ export function MarketplacePanel() {
                       key={`send-asset-${asset.assetId}`}
                       className={`flex items-center gap-2 rounded-lg border px-2 py-2 text-sm transition ${
                         isLocked
-                          ? "border-amber-300/30 bg-amber-500/10 opacity-70"
+                          ? "border-[color:rgba(245,158,11,0.35)] bg-[color:rgba(245,158,11,0.12)] opacity-70"
                           : selected
-                          ? "border-emerald-300/45 bg-emerald-500/10"
-                          : "border-white/15 bg-black/25 hover:bg-white/5"
+                          ? "site-tab-active border-[color:var(--site-link-active-border)]"
+                          : "site-surface-soft hover:bg-[color:var(--site-link-hover-bg)]"
                       }`}
                     >
                       <input
@@ -2133,7 +2141,7 @@ export function MarketplacePanel() {
                           Asset: {short(asset.assetId, 7, 7)}
                         </div>
                         {isLocked ? (
-                          <div className="truncate text-xs text-amber-200/90">
+                          <div className="truncate text-xs">
                             Verrouillée: {lockReason}
                           </div>
                         ) : null}
@@ -2162,7 +2170,7 @@ export function MarketplacePanel() {
 
       {activeTab === "mine" ? (
         <section className={SALES_UI_ENABLED ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"}>
-        <div className="rounded-2xl border border-white/20 bg-black/25 p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
+        <div className="site-surface rounded-2xl p-4 space-y-3">
           <div className="font-semibold">Mes offres d’échange</div>
           {dataLoading && !offers ? (
             <div className="text-sm opacity-70">Chargement de tes offres...</div>
@@ -2176,7 +2184,7 @@ export function MarketplacePanel() {
                 const remaining = remainingMsUntil(offer.expiresAt, nowMs);
                 const countdownLabel = formatCountdown(remaining);
                 return (
-                  <div key={offer.offerId} className="rounded-xl border border-white/15 bg-black/25 p-3 text-sm space-y-1">
+                  <div key={offer.offerId} className="site-surface-soft rounded-xl p-3 text-sm space-y-1">
                     <div className="flex items-center justify-between gap-2">
                       <div>
                         #{offer.makerStickerId} contre{" "}
@@ -2191,7 +2199,7 @@ export function MarketplacePanel() {
                       Expire dans: {countdownLabel} · {formatDateTime(offer.expiresAt)}
                     </div>
                     {wantedCount > 4 ? (
-                      <details className="rounded-lg border border-white/10 bg-black/20 px-2 py-1 text-xs">
+                      <details className="site-surface rounded-lg px-2 py-1 text-xs">
                         <summary className="cursor-pointer select-none opacity-80">
                           Voir la liste complète ({wantedCount})
                         </summary>
@@ -2290,7 +2298,7 @@ export function MarketplacePanel() {
         </div>
 
         {SALES_UI_ENABLED ? (
-          <div className="rounded-2xl border border-white/20 bg-black/25 p-4 space-y-3 shadow-[inset_0_1px_0_rgba(255,255,255,.06)]">
+          <div className="site-surface rounded-2xl p-4 space-y-3">
             <div className="font-semibold">Mes ventes</div>
             {dataLoading && !listings ? (
               <div className="text-sm opacity-70">Chargement de tes ventes...</div>
@@ -2301,7 +2309,7 @@ export function MarketplacePanel() {
                   const remaining = remainingMsUntil(listing.expiresAt, nowMs);
                   const countdownLabel = formatCountdown(remaining);
                   return (
-                    <div key={listing.listingId} className="rounded-xl border border-white/15 bg-black/25 p-3 text-sm space-y-1">
+                    <div key={listing.listingId} className="site-surface-soft rounded-xl p-3 text-sm space-y-1">
                       <div className="flex items-center justify-between gap-2">
                         <div>#{listing.sellerStickerId} - {lamportsToSol(split.totalLamports)} SOL</div>
                         <span className={`rounded-full border px-2 py-0.5 text-xs ${statusBadgeClass(listing.status)}`}>

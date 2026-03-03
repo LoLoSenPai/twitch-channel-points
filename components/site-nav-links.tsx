@@ -53,8 +53,8 @@ export function SiteNavLinks({
               "rounded-lg border px-2.5 py-1.5 transition",
               isVertical && "w-full text-left",
               active
-                ? "border-white/30 bg-white/15 text-white shadow-[inset_0_1px_0_rgba(255,255,255,.12)]"
-                : "border-transparent text-white/80 hover:border-white/15 hover:bg-white/10 hover:text-white"
+                ? "border-[color:var(--site-link-active-border)] bg-[color:var(--site-link-active-bg)] text-[color:var(--site-shell-text)] shadow-[inset_0_1px_0_rgba(255,255,255,.12)]"
+                : "border-transparent text-[color:var(--site-link-text)] hover:border-[color:var(--site-nav-border)] hover:bg-[color:var(--site-link-hover-bg)] hover:text-[color:var(--site-shell-text)]"
             )}
             aria-current={active ? "page" : undefined}
             onClick={onNavigate}

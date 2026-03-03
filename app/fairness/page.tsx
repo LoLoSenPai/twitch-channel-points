@@ -1,4 +1,4 @@
-import { notFound } from "next/navigation";
+﻿import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Mint } from "@/lib/models";
@@ -69,25 +69,25 @@ export default async function FairnessPage() {
 
   const latestMintTx = String(latestMintProof?.mintTx ?? "").trim();
   const hasProof = Boolean(
-    latestMintProof?.randomnessProvider && latestMintProof?.randomnessValueHex && latestMintTx,
+    latestMintProof?.randomnessProvider && latestMintProof?.randomnessValueHex && latestMintTx
   );
   const proofPath = hasProof ? `/api/mint/proof/${latestMintTx}` : null;
 
   return (
     <PageShell>
       <main className="mx-auto max-w-6xl space-y-6 p-4 sm:p-6 lg:p-10">
-        <section className="rounded-3xl border border-white/10 bg-black/30 p-6 shadow-[0_20px_80px_rgba(0,0,0,.35)] backdrop-blur md:p-8">
-          <p className="text-xs uppercase tracking-[0.2em] text-emerald-200/70">Fairness</p>
+        <section className="site-surface rounded-3xl p-6 md:p-8">
+          <p className="text-xs uppercase tracking-[0.2em] text-emerald-300/80">Fairness</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">
             Vérifier le tirage de mint
           </h1>
-          <p className="mt-3 text-sm text-white/80 sm:text-base">
+          <p className="site-muted mt-3 text-sm sm:text-base">
             Le mint est tiré avec une random vérifiable (Switchboard), puis le NFT est choisi
             uniformément parmi les IDs encore mintables.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <a
-              className="rounded-xl border border-white/20 px-3 py-2 text-sm transition hover:bg-white/10"
+              className="site-btn rounded-xl px-3 py-2 text-sm"
               href="https://docs.switchboard.xyz/docs-by-chain/solana-svm/randomness/randomness-tutorial"
               target="_blank"
               rel="noreferrer"
@@ -98,12 +98,12 @@ export default async function FairnessPage() {
         </section>
 
         {!session?.user ? (
-          <section className="rounded-2xl border border-white/10 bg-black/20 p-5 text-sm text-white/80">
+          <section className="site-surface-soft rounded-2xl p-5 text-sm">
             Connecte-toi pour voir la preuve de ton dernier mint.
           </section>
         ) : null}
 
-        <section className="rounded-3xl border border-white/10 bg-black/25 p-5 md:p-6">
+        <section className="site-surface rounded-3xl p-5 md:p-6">
           <h2 className="text-xl font-semibold">Dernière preuve</h2>
           <FairnessPanel
             hasProof={hasProof}
@@ -125,24 +125,17 @@ export default async function FairnessPage() {
           />
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-black/20 p-5 md:p-6">
+        <section className="site-surface-soft rounded-3xl p-5 md:p-6">
           <h2 className="text-xl font-semibold">Comment vérifier</h2>
-          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm text-white/80">
+          <ol className="site-muted mt-3 list-decimal space-y-2 pl-5 text-sm">
+            <li>Clique d&apos;abord sur Vérifier automatiquement dans Dernière preuve.</li>
+            <li>Si les checks sont &quot;OK&quot;, le mint est cohérent (random + calcul + tx).</li>
+            <li>Tu peux ensuite ouvrir Mint tx / Commit tx / Reveal tx pour un audit manuel.</li>
             <li>
-              Clique d&apos;abord sur "Vérifier automatiquement" dans le bloc "Dernière preuve".
-            </li>
-            <li>
-              Si les checks sont "OK", le mint est cohérent (random + calcul + tx).
-            </li>
-            <li>
-              Tu peux ensuite ouvrir Mint tx / Commit tx / Reveal tx pour un audit manuel.
-            </li>
-            <li>
-              Pour les curieux, l&apos;algorithme détaillé reste visible dans
-              "détails techniques" et dans le JSON de preuve.
+              L&apos;algorithme détaillé reste visible dans les &quot;détails techniques&quot; et le JSON de preuve.
             </li>
           </ol>
-          <div className="mt-4 rounded-xl border border-white/10 bg-black/30 p-3 font-mono text-xs text-white/75">
+          <div className="site-surface mt-4 rounded-xl p-3 font-mono text-xs">
             GET /api/mint/proof/{`{mintTx}`}
           </div>
         </section>

@@ -284,7 +284,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
         0.02 + glow * rarityBoostMultiplier(rarity);
 
     return (
-        <div className="rounded-2xl border p-4 space-y-4 bg-linear-to-br from-zinc-900/70 via-black/60 to-zinc-900/70">
+        <div className="site-surface rounded-2xl p-4 space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
                 <div>
                     <div className="text-lg font-semibold">Collection #1</div>
@@ -307,19 +307,27 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
 
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
                 {/* LEFT */}
-                <div className="rounded-2xl border p-4">
+                <div className="site-surface-soft rounded-2xl p-4">
                     <div className="mb-3 flex items-center justify-end gap-2 text-xs">
                         <span className="opacity-70">Mode booster</span>
                         <button
                             type="button"
-                            className={`rounded-lg border px-2 py-1 cursor-pointer transition ${boosterRenderMode === "3d" ? "border-emerald-300/50 bg-emerald-500/10 text-emerald-100" : "border-white/20 opacity-80 hover:bg-white/10"}`}
+                            className={`rounded-lg border px-2 py-1 cursor-pointer transition ${
+                                boosterRenderMode === "3d"
+                                    ? "site-tab-active border-[color:var(--site-link-active-border)]"
+                                    : "site-btn opacity-80"
+                            }`}
                             onClick={() => setBoosterRenderMode("3d")}
                         >
                             3D
                         </button>
                         <button
                             type="button"
-                            className={`rounded-lg border px-2 py-1 cursor-pointer transition ${boosterRenderMode === "image" ? "border-emerald-300/50 bg-emerald-500/10 text-emerald-100" : "border-white/20 opacity-80 hover:bg-white/10"}`}
+                            className={`rounded-lg border px-2 py-1 cursor-pointer transition ${
+                                boosterRenderMode === "image"
+                                    ? "site-tab-active border-[color:var(--site-link-active-border)]"
+                                    : "site-btn opacity-80"
+                            }`}
                             onClick={() => setBoosterRenderMode("image")}
                         >
                             Léger
@@ -342,7 +350,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                             type="button"
                             onClick={openBooster}
                             disabled={loading || phase !== "idle"}
-                            className="group block w-full rounded-2xl border border-white/20 bg-black/30 p-4 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                            className="site-surface group block w-full rounded-2xl p-4 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
@@ -370,7 +378,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                 </div>
 
                 {/* RIGHT */}
-                <div className="rounded-2xl border p-4">
+                <div className="site-surface-soft rounded-2xl p-4">
                     <div className="flex flex-wrap gap-2 pt-1 pb-3">
                         <span className={`rounded-full border px-3 py-1 text-xs ${walletOk ? "opacity-90" : "opacity-60"}`}>
                             {walletOk ? "OK Wallet" : "Wallet"}
@@ -396,23 +404,30 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                     </p> */}
 
                     <div className="mt-5 space-y-3 text-sm">
-                        <div className="rounded-xl border p-3">
+                        <div className="site-surface rounded-xl p-3">
                             <div className="font-medium">Où trouver mes tickets ?</div>
                             <div className="opacity-70 mt-1">
                                 Les tickets viennent des rewards Twitch dispo sur
-                                <Link href="https://www.twitch.tv/nylstv" target="_blank" rel="noopener noreferrer" className="text-fuchsia-400 font-bold"> ma chaine</Link>
+                                <Link
+                                    href="https://www.twitch.tv/nylstv"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-semibold text-[color:var(--site-accent-text)]"
+                                >
+                                    {" "}ma chaîne
+                                </Link>
                                 .
                             </div>
                         </div>
 
-                        <div className="rounded-xl border p-3">
+                        <div className="site-surface rounded-xl p-3">
                             <div className="font-medium">Ça coûte quoi ?</div>
                             <div className="opacity-70 mt-1">
                                 1 ticket + les frais réseau Solana.
                             </div>
                         </div>
 
-                        <div className="rounded-xl border p-3">
+                        <div className="site-surface rounded-xl p-3">
                             <div className="font-medium">Où je vois mes cartes ?</div>
                             <div className="opacity-70 mt-1">Dans l&apos;album, et tu peux aussi les échanger sur le marketplace.</div>
                         </div>
@@ -451,7 +466,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
             ) : null}
 
             {reveal ? (
-                <div className="rounded-2xl border p-4 space-y-3">
+                <div className="site-surface-soft rounded-2xl p-4 space-y-3">
                     <div className="text-sm opacity-70">Nouveau sticker !</div>
 
                     {reveal.image ? (
@@ -470,7 +485,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                         </div>
 
                         <button
-                            className="rounded-xl border px-3 py-2 text-sm cursor-pointer"
+                            className="site-btn rounded-xl px-3 py-2 text-sm cursor-pointer"
                             onClick={() => setReveal(null)}
                         >
                             Fermer
@@ -478,12 +493,12 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                        <a className="rounded-xl border px-3 py-2 text-sm cursor-pointer" href="/album">
+                        <a className="site-btn rounded-xl px-3 py-2 text-sm cursor-pointer" href="/album">
                             Voir dans l&apos;album
                         </a>
 
                         <a
-                            className="rounded-xl border px-3 py-2 text-sm opacity-80 cursor-pointer"
+                            className="site-btn rounded-xl px-3 py-2 text-sm opacity-80 cursor-pointer"
                             href={solscanTxUrl(reveal.tx)}
                             target="_blank"
                             rel="noreferrer"
@@ -492,7 +507,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                         </a>
                         {showProofLinks ? (
                             <a
-                                className="rounded-xl border px-3 py-2 text-sm opacity-80 cursor-pointer"
+                                className="site-btn rounded-xl px-3 py-2 text-sm opacity-80 cursor-pointer"
                                 href={`/api/mint/proof/${reveal.tx}`}
                                 target="_blank"
                                 rel="noreferrer"
@@ -569,7 +584,7 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, show
                                         className="h-full w-full object-cover"
                                     />
                                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 text-center text-sm text-white/90">
-                                        Clique pour reveler
+                                        Clique pour révéler
                                     </div>
                                 </div>
 
@@ -631,27 +646,3 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, show
     );
 }
 
-function Step({
-    title,
-    ok,
-    pending,
-    detail,
-}: {
-    title: string;
-    ok: boolean;
-    pending?: boolean;
-    detail?: string;
-}) {
-    const icon = pending ? "ÃƒÂ¢Ã‚ÂÃ‚Â³" : ok ? "ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦" : "ÃƒÂ¢Ã‚Â¬Ã…â€œ";
-    const text = pending ? "opacity-90" : ok ? "opacity-90" : "opacity-60";
-
-    return (
-        <div className="flex items-start gap-2">
-            <div className="mt-[2px]">{icon}</div>
-            <div className="min-w-0">
-                <div className={`text-sm font-medium ${text}`}>{title}</div>
-                {detail ? <div className="text-xs opacity-60 mt-0.5">{detail}</div> : null}
-            </div>
-        </div>
-    );
-}
