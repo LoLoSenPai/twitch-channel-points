@@ -3,7 +3,14 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Redemption, MintIntent, Mint } from "@/lib/models";
 import { getSticker, type StickerRarity } from "@/lib/stickers";
-import { Connection, Keypair, VersionedTransaction } from "@solana/web3.js";
+import {
+  ComputeBudgetProgram,
+  Connection,
+  Keypair,
+  TransactionInstruction,
+  TransactionMessage,
+  VersionedTransaction,
+} from "@solana/web3.js";
 
 type SessionUser = {
   id?: string;
@@ -58,6 +65,17 @@ function authorityKeypairFromEnv() {
 }
 
 type Json = string | number | boolean | null | Json[] | { [k: string]: Json };
+type CanonicalIx = {
+  programId: string;
+  keys: string[];
+  dataB64: string;
+};
+
+const ALLOWED_WALLET_EXTRA_PROGRAMS = new Set<string>([
+  ComputeBudgetProgram.programId.toBase58(),
+  // SPL Memo program.
+  "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr",
+]);
 
 function normalizeMessageForComparison(message: VersionedTransaction["message"]) {
   const asAny = message as unknown as Record<string, unknown>;
@@ -120,6 +138,66 @@ function normalizeMessageForComparison(message: VersionedTransaction["message"])
   };
 }
 
+function canonicalizeInstruction(ix: TransactionInstruction): CanonicalIx {
+  return {
+    programId: ix.programId.toBase58(),
+    keys: ix.keys.map(
+      (k) =>
+        `${k.pubkey.toBase58()}:${k.isSigner ? 1 : 0}:${k.isWritable ? 1 : 0}`,
+    ),
+    dataB64: Buffer.from(ix.data).toString("base64"),
+  };
+}
+
+function canonicalizeMessageForSemanticCompare(
+  message: VersionedTransaction["message"],
+) {
+  const decompiled = TransactionMessage.decompile(message, {
+    addressLookupTableAccounts: [],
+  });
+
+  return {
+    payer: decompiled.payerKey.toBase58(),
+    ixs: decompiled.instructions.map(canonicalizeInstruction),
+  };
+}
+
+function semanticMatchAllowingWalletExtras(
+  signed: VersionedTransaction["message"],
+  prepared: VersionedTransaction["message"],
+) {
+  const signedCanon = canonicalizeMessageForSemanticCompare(signed);
+  const preparedCanon = canonicalizeMessageForSemanticCompare(prepared);
+
+  if (signedCanon.payer !== preparedCanon.payer) return false;
+
+  // Remove wallet-added benign instructions (compute budget / memo).
+  const signedFiltered = signedCanon.ixs.filter(
+    (ix) => !ALLOWED_WALLET_EXTRA_PROGRAMS.has(ix.programId),
+  );
+  const preparedFiltered = preparedCanon.ixs.filter(
+    (ix) => !ALLOWED_WALLET_EXTRA_PROGRAMS.has(ix.programId),
+  );
+
+  if (signedFiltered.length !== preparedFiltered.length) return false;
+
+  for (let i = 0; i < signedFiltered.length; i += 1) {
+    if (JSON.stringify(signedFiltered[i]) !== JSON.stringify(preparedFiltered[i])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function safeProgramList(message: VersionedTransaction["message"]) {
+  try {
+    return canonicalizeMessageForSemanticCompare(message).ixs.map((ix) => ix.programId);
+  } catch {
+    return [];
+  }
+}
+
 function messagesMatchStrictOrIgnoringBlockhash(
   signed: VersionedTransaction["message"],
   prepared: VersionedTransaction["message"]
@@ -130,7 +208,15 @@ function messagesMatchStrictOrIgnoringBlockhash(
 
   const signedNorm = normalizeMessageForComparison(signed);
   const preparedNorm = normalizeMessageForComparison(prepared);
-  return JSON.stringify(signedNorm) === JSON.stringify(preparedNorm);
+  if (JSON.stringify(signedNorm) === JSON.stringify(preparedNorm)) return true;
+
+  // Some wallets may recompile message keys and inject safe extras.
+  // Accept only semantic equivalence with strict whitelist for extras.
+  try {
+    return semanticMatchAllowingWalletExtras(signed, prepared);
+  } catch {
+    return false;
+  }
 }
 
 async function notifyTwitchBot(payload: NotifyPayload) {
@@ -214,6 +300,11 @@ export async function POST(req: Request) {
     );
 
     if (!messagesMatchStrictOrIgnoringBlockhash(signedVtx.message, preparedVtx.message)) {
+      console.warn("mint/submit mismatch details", {
+        intentId,
+        signedPrograms: safeProgramList(signedVtx.message),
+        preparedPrograms: safeProgramList(preparedVtx.message),
+      });
       throw new Error("Signed transaction does not match prepared transaction");
     }
 
