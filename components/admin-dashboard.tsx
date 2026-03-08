@@ -117,8 +117,10 @@ function isHttpErrorText(t: string) {
 export function AdminDashboard({ initialData }: { initialData: AdminData }) {
     const [data, setData] = useState<AdminData>(initialData);
 
-    const [seedUserId, setSeedUserId] = useState("");
+    const [seedViewer, setSeedViewer] = useState("");
     const [seedCount, setSeedCount] = useState(5);
+    const [seedBusy, setSeedBusy] = useState(false);
+    const [seedMsg, setSeedMsg] = useState("");
 
     const [newColName, setNewColName] = useState("Panini V0");
     const [newTree, setNewTree] = useState("");
@@ -174,12 +176,35 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
     }, [data.supply, refresh]);
 
     async function seedTickets() {
-        await fetch("/api/admin/seed", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify({ twitchUserId: seedUserId, count: seedCount }),
-        });
-        await refresh();
+        if (seedBusy) return;
+        setSeedBusy(true);
+        setSeedMsg("");
+        try {
+            const response = await fetch("/api/admin/seed", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ viewer: seedViewer, count: seedCount }),
+            });
+            const text = await response.text().catch(() => "");
+            if (!response.ok) {
+                setSeedMsg(text || "Échec de l'ajout des tickets.");
+                return;
+            }
+            const payload = (text ? JSON.parse(text) : null) as {
+                inserted?: number;
+                displayName?: string;
+                login?: string;
+                twitchUserId?: string;
+            } | null;
+            setSeedMsg(
+                `OK: ${payload?.inserted ?? seedCount} ticket(s) ajoutés pour ${payload?.displayName ?? payload?.login ?? payload?.twitchUserId ?? seedViewer}.`
+            );
+            await refresh();
+        } catch (error) {
+            setSeedMsg(`Erreur: ${(error as Error).message}`);
+        } finally {
+            setSeedBusy(false);
+        }
     }
 
     async function unlockIntent(intentId: string) {
@@ -513,16 +538,17 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                 <div className="grid gap-2 md:grid-cols-3">
                     <input
                         className={inputClass}
-                        placeholder="twitchUserId (viewer)"
-                        value={seedUserId}
-                        onChange={(e) => setSeedUserId(e.target.value)}
+                        placeholder="Pseudo Twitch ou ID viewer"
+                        value={seedViewer}
+                        onChange={(e) => setSeedViewer(e.target.value)}
                     />
                     <input className={inputClass} type="number" value={seedCount} onChange={(e) => setSeedCount(Number(e.target.value))} />
-                    <button className={buttonClass} onClick={seedTickets}>
-                        Ajouter
+                    <button className={buttonClass} onClick={seedTickets} disabled={seedBusy || !seedViewer.trim()}>
+                        {seedBusy ? "Envoi..." : "Ajouter"}
                     </button>
                 </div>
-                <div className="text-xs opacity-70">Astuce: récupère ton twitchUserId via /api/me (en étant loggé).</div>
+                <div className="text-xs opacity-70">Tu peux coller un pseudo Twitch ou un twitchUserId. La résolution se fait côté serveur.</div>
+                {seedMsg ? <div className="text-xs opacity-80">{seedMsg}</div> : null}
             </section>
 
             <section className={panelClass}>
