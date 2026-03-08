@@ -20,6 +20,8 @@ type PendingTicket = {
     redemptionId: string;
     twitchUserId: string;
     lockedByIntentId: string | null;
+    twitchDisplayName?: string | null;
+    twitchLogin?: string | null;
 };
 
 type PreparedIntent = {
@@ -615,7 +617,16 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                         <div key={t.redemptionId} className={`${itemClass} flex items-center justify-between gap-3`}>
                             <div className="break-all text-xs">
                                 <div>
-                                    <span className="opacity-70">user:</span> {t.twitchUserId}
+                                    <span className="opacity-70">user:</span>{" "}
+                                    {t.twitchDisplayName ? (
+                                        <>
+                                            {t.twitchDisplayName}
+                                            {t.twitchLogin && t.twitchLogin !== t.twitchDisplayName ? ` (@${t.twitchLogin})` : ""}
+                                            <span className="opacity-60"> · {t.twitchUserId}</span>
+                                        </>
+                                    ) : (
+                                        t.twitchUserId
+                                    )}
                                 </div>
                                 <div>
                                     <span className="opacity-70">redemption:</span> {t.redemptionId}

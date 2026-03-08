@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { requireAdmin } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { Redemption, Mint, MintIntent, Collection, TradeOffer } from "@/lib/models";
+import { fetchTwitchUsersByIds } from "@/lib/twitch/users";
 import { AdminDashboard } from "@/components/admin-dashboard";
 import PageShell from "@/components/page-shell";
 
@@ -10,6 +11,8 @@ type PendingTicketRow = {
     redemptionId?: string;
     twitchUserId?: string;
     lockedByIntentId?: string | null;
+    twitchDisplayName?: string | null;
+    twitchLogin?: string | null;
 };
 
 type PreparedIntentRow = {
@@ -95,10 +98,21 @@ export default async function AdminPage() {
         TradeOffer.find({ status: "LOCKED" }).sort({ updatedAt: -1 }).limit(30).lean(),
     ]);
 
+    const ticketUsersById = await fetchTwitchUsersByIds(
+        (pendingTickets as PendingTicketRow[])
+            .map((row) => String(row.twitchUserId ?? "").trim())
+            .filter(Boolean)
+    ).catch((error) => {
+        console.warn("admin/page: twitch ticket name lookup failed", error);
+        return new Map();
+    });
+
     const pendingTicketsSafe = (pendingTickets as PendingTicketRow[]).map((row) => ({
         redemptionId: String(row.redemptionId ?? ""),
         twitchUserId: String(row.twitchUserId ?? ""),
         lockedByIntentId: row.lockedByIntentId ? String(row.lockedByIntentId) : null,
+        twitchDisplayName: ticketUsersById.get(String(row.twitchUserId ?? "").trim())?.displayName ?? null,
+        twitchLogin: ticketUsersById.get(String(row.twitchUserId ?? "").trim())?.login ?? null,
     }));
 
     const preparedIntentsSafe = (preparedIntents as PreparedIntentRow[]).map((row) => ({

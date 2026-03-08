@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/admin";
 import { db } from "@/lib/db";
 import { Redemption } from "@/lib/models";
+import { fetchTwitchUsersByIds } from "@/lib/twitch/users";
 
 export async function GET(req: Request) {
   const guard = await requireAdmin();
@@ -21,7 +22,23 @@ export async function GET(req: Request) {
     .limit(limit)
     .lean();
 
-  return NextResponse.json({ items });
+  const userIds = items.map((item) => String(item.twitchUserId ?? "").trim()).filter(Boolean);
+  const usersById = await fetchTwitchUsersByIds(userIds).catch((error) => {
+    console.warn("admin/redemptions: twitch name lookup failed", error);
+    return new Map();
+  });
+
+  const enrichedItems = items.map((item) => {
+    const twitchUserId = String(item.twitchUserId ?? "").trim();
+    const user = usersById.get(twitchUserId);
+    return {
+      ...item,
+      twitchDisplayName: user?.displayName ?? null,
+      twitchLogin: user?.login ?? null,
+    };
+  });
+
+  return NextResponse.json({ items: enrichedItems });
 }
 
 export async function POST(req: Request) {
