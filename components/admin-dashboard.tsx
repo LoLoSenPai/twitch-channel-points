@@ -118,7 +118,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
     const [data, setData] = useState<AdminData>(initialData);
 
     const [seedViewer, setSeedViewer] = useState("");
-    const [seedCount, setSeedCount] = useState(5);
+    const [seedCount, setSeedCount] = useState(1);
     const [seedBusy, setSeedBusy] = useState(false);
     const [seedMsg, setSeedMsg] = useState("");
 
@@ -187,17 +187,29 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
             });
             const text = await response.text().catch(() => "");
             if (!response.ok) {
+                try {
+                    const payload = JSON.parse(text) as { notFound?: string[] };
+                    if (payload.notFound?.length) {
+                        setSeedMsg(`Aucun viewer trouvé: ${payload.notFound.join(", ")}`);
+                        return;
+                    }
+                } catch { }
                 setSeedMsg(text || "Échec de l'ajout des tickets.");
                 return;
             }
             const payload = (text ? JSON.parse(text) : null) as {
                 inserted?: number;
-                displayName?: string;
-                login?: string;
-                twitchUserId?: string;
+                resolvedUsers?: Array<{ displayName?: string; login?: string; twitchUserId?: string }>;
+                notFound?: string[];
+                perViewerCount?: number;
             } | null;
+            const resolvedLabel = (payload?.resolvedUsers ?? [])
+                .map((entry) => entry.displayName ?? entry.login ?? entry.twitchUserId ?? "")
+                .filter(Boolean)
+                .join(", ");
+            const missingLabel = (payload?.notFound ?? []).length ? ` | introuvables: ${(payload?.notFound ?? []).join(", ")}` : "";
             setSeedMsg(
-                `OK: ${payload?.inserted ?? seedCount} ticket(s) ajoutés pour ${payload?.displayName ?? payload?.login ?? payload?.twitchUserId ?? seedViewer}.`
+                `OK: ${payload?.inserted ?? seedCount} ticket(s) ajoutés${resolvedLabel ? ` pour ${resolvedLabel}` : ""}${missingLabel}.`
             );
             await refresh();
         } catch (error) {
@@ -534,11 +546,11 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
             </section>
 
             <section className={panelClass}>
-                <div className="font-semibold">Seed tickets (test)</div>
+                <div className="font-semibold">Giveaway tickets</div>
                 <div className="grid gap-2 md:grid-cols-3">
                     <input
                         className={inputClass}
-                        placeholder="Pseudo Twitch ou ID viewer"
+                        placeholder="Pseudo(s) Twitch ou ID(s)"
                         value={seedViewer}
                         onChange={(e) => setSeedViewer(e.target.value)}
                     />
@@ -547,7 +559,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                         {seedBusy ? "Envoi..." : "Ajouter"}
                     </button>
                 </div>
-                <div className="text-xs opacity-70">Tu peux coller un pseudo Twitch ou un twitchUserId. La résolution se fait côté serveur.</div>
+                <div className="text-xs opacity-70">Tu peux coller un ou plusieurs pseudos/IDs séparés par une virgule, un point-virgule ou un retour à la ligne. Le nombre saisi est appliqué à chaque viewer.</div>
                 {seedMsg ? <div className="text-xs opacity-80">{seedMsg}</div> : null}
             </section>
 
@@ -597,7 +609,7 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
             </section>
 
             <section className={panelClass}>
-                <div className="font-semibold">Tickets PENDING (30 derniers)</div>
+                <div className="font-semibold">Tickets disponibles / bloqués (30 derniers)</div>
                 <div className="space-y-2">
                     {data.pendingTickets.map((t) => (
                         <div key={t.redemptionId} className={`${itemClass} flex items-center justify-between gap-3`}>
@@ -612,9 +624,11 @@ export function AdminDashboard({ initialData }: { initialData: AdminData }) {
                                     <span className="opacity-70">locked:</span> {t.lockedByIntentId ?? "-"}
                                 </div>
                             </div>
-                            <button className={buttonClass} onClick={() => forceUnlockTicket(t.redemptionId)}>
-                                Unlock
-                            </button>
+                            {t.lockedByIntentId ? (
+                                <button className={buttonClass} onClick={() => forceUnlockTicket(t.redemptionId)}>
+                                    Unlock
+                                </button>
+                            ) : null}
                         </div>
                     ))}
                 </div>
