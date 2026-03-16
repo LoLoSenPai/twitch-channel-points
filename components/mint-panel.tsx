@@ -45,6 +45,13 @@ const CLIENT_RPC_URL =
     process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() || "https://api.mainnet-beta.solana.com";
 type BoosterRenderMode = "3d" | "image";
 
+function shouldUseWalletSend(walletName: string | undefined) {
+    const normalized = String(walletName ?? "").trim().toLowerCase();
+    if (!normalized) return true;
+    if (normalized.includes("phantom")) return false;
+    return true;
+}
+
 function solscanTxUrl(signature: string) {
     const sig = String(signature ?? "").trim();
     if (!sig) return "#";
@@ -131,11 +138,17 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
         let mintSubmitted = false;
 
         try {
+            const walletName = wallet.wallet?.adapter?.name;
+            const useWalletSend = !!wallet.sendTransaction && shouldUseWalletSend(walletName);
+
             // 1) prepare
             const prep = await fetch("/api/mint/prepare", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
-                body: JSON.stringify({ walletPubkey: wallet.publicKey.toBase58() }),
+                body: JSON.stringify({
+                    walletPubkey: wallet.publicKey.toBase58(),
+                    clientSend: useWalletSend,
+                }),
             });
             if (!prep.ok) throw new Error(await prep.text());
 
@@ -147,7 +160,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
             const vtx = VersionedTransaction.deserialize(txBytes);
             let sub: Response;
 
-            if (wallet.sendTransaction) {
+            if (useWalletSend) {
                 const connection = new Connection(CLIENT_RPC_URL, "confirmed");
                 const txSig = await wallet.sendTransaction(vtx, connection, {
                     skipPreflight: false,

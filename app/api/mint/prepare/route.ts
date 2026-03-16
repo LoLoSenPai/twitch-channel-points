@@ -46,6 +46,7 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => null);
   const walletPubkey = body?.walletPubkey as string | undefined;
+  const clientSend = body?.clientSend === true;
   if (!walletPubkey)
     return new NextResponse("Missing walletPubkey", { status: 400 });
 
@@ -124,6 +125,7 @@ export async function POST(req: Request) {
     const umi = umiServer();
     const ownerPk = publicKey(walletPubkey);
     const feePayer = createNoopSigner(ownerPk);
+    const authorityNoop = createNoopSigner(umi.identity.publicKey);
 
     const metaBase = process.env.METADATA_BASE_URI;
     if (!metaBase)
@@ -156,12 +158,11 @@ export async function POST(req: Request) {
       merkleTree,
       leafOwner: ownerPk,
       payer: feePayer,
-      // Pre-sign with backend authority so wallets can send the tx directly.
-      treeCreatorOrDelegate: umi.identity,
+      treeCreatorOrDelegate: clientSend ? umi.identity : authorityNoop,
       ...(coreCollectionPk
         ? {
             coreCollection: coreCollectionPk,
-            collectionAuthority: umi.identity,
+            collectionAuthority: clientSend ? umi.identity : authorityNoop,
             metadata: {
               name: onchainName,
               uri,
