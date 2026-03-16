@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "skills": {
+    "metaplex": {
+      "source": "sendaifun/skills",
+      "sourceType": "github",
+      "computedHash": "16d1da6ab0bbf966889c16cce934e0168fc26b45de81e1865dc69391912a373f"
+    },
+    "solana-kit": {
+      "source": "sendaifun/skills",
+      "sourceType": "github",
+      "computedHash": "03dfe9ce0cbecda78445798f80dd25391f90f0a2379275117e83ba9ff8a766bb"
+    },
+    "solana-kit-migration": {
+      "source": "sendaifun/skills",
+      "sourceType": "github",
+      "computedHash": "1b2dee78da3100c6d4b440d2b3f1d2c72542bfa2032fea541b5def21f6da1615"
+    }
+  }
+}

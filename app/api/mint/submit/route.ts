@@ -293,25 +293,6 @@ async function notifyTwitchBot(payload: NotifyPayload) {
   }
 }
 
-async function fetchConfirmedTransactionWithRetries(
-  connection: Connection,
-  signature: string,
-  attempts = 8,
-  delayMs = 750,
-) {
-  for (let i = 0; i < attempts; i += 1) {
-    const tx = await connection.getTransaction(signature, {
-      commitment: "confirmed",
-      maxSupportedTransactionVersion: 0,
-    });
-    if (tx?.transaction) return tx;
-    if (i < attempts - 1) {
-      await new Promise((resolve) => setTimeout(resolve, delayMs));
-    }
-  }
-  return null;
-}
-
 export async function POST(req: Request) {
   const session = await auth();
   const twitchUserId = (session?.user as SessionUser)?.id;
@@ -320,9 +301,8 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const intentId = body?.intentId as string | undefined;
   const signedTxB64 = body?.signedTxB64 as string | undefined;
-  const txSig = body?.txSig as string | undefined;
 
-  if (!intentId || (!signedTxB64 && !txSig)) {
+  if (!intentId || !signedTxB64) {
     return new NextResponse("Missing params", { status: 400 });
   }
 
@@ -344,83 +324,61 @@ export async function POST(req: Request) {
   });
 
   try {
+    const raw = Buffer.from(signedTxB64, "base64");
+
+    // ✅ Anti-triche: vérifie que la tx signée correspond à la tx préparée (message identique)
+    const signedVtx = VersionedTransaction.deserialize(raw);
     const preparedVtx = VersionedTransaction.deserialize(
       Buffer.from(intent.preparedTxB64, "base64"),
     );
-    let sig = txSig ?? "";
 
-    if (txSig) {
-      const conf = await connection.confirmTransaction(txSig, "confirmed");
-      if (conf.value.err) {
-        throw new Error(`Tx failed: ${JSON.stringify(conf.value.err)}`);
-      }
+    if (!messagesMatchStrictOrIgnoringBlockhash(signedVtx.message, preparedVtx.message)) {
+      const signedPrograms = safeProgramList(signedVtx.message);
+      const preparedPrograms = safeProgramList(preparedVtx.message);
+      const signedPayer = safePayer(signedVtx.message);
 
-      const submittedTx = await fetchConfirmedTransactionWithRetries(connection, txSig);
-      if (!submittedTx?.transaction) {
-        throw new Error("Unable to fetch confirmed transaction");
-      }
+      const hasOnlyAllowedPrograms = signedPrograms.every((p) =>
+        ALLOWED_WALLET_EXTRA_PROGRAMS.has(p),
+      );
+      const hasBubblegum = signedPrograms.includes(BUBBLEGUM_PROGRAM_ID);
+      const preparedIsMintShape =
+        preparedPrograms.length === 1 && preparedPrograms[0] === BUBBLEGUM_PROGRAM_ID;
+      const payerMatchesIntent = signedPayer === String(intent.wallet ?? "");
 
-      if (!messagesMatchStrictOrIgnoringBlockhash(submittedTx.transaction.message, preparedVtx.message)) {
+      if (!(hasOnlyAllowedPrograms && hasBubblegum && preparedIsMintShape && payerMatchesIntent)) {
         console.warn("mint/submit mismatch details", {
           intentId,
-          signedPrograms: safeProgramList(submittedTx.transaction.message),
-          preparedPrograms: safeProgramList(preparedVtx.message),
-          signedPayer: safePayer(submittedTx.transaction.message),
+          signedPrograms,
+          preparedPrograms,
+          signedPayer,
           intentWallet: String(intent.wallet ?? ""),
         });
-        throw new Error("Submitted transaction does not match prepared transaction");
-      }
-    } else {
-      const raw = Buffer.from(signedTxB64!, "base64");
-
-      // Anti-triche: v?rifie que la tx sign?e correspond ? la tx pr?par?e.
-      const signedVtx = VersionedTransaction.deserialize(raw);
-
-      if (!messagesMatchStrictOrIgnoringBlockhash(signedVtx.message, preparedVtx.message)) {
-        const signedPrograms = safeProgramList(signedVtx.message);
-        const preparedPrograms = safeProgramList(preparedVtx.message);
-        const signedPayer = safePayer(signedVtx.message);
-
-        const hasOnlyAllowedPrograms = signedPrograms.every((p) =>
-          ALLOWED_WALLET_EXTRA_PROGRAMS.has(p),
-        );
-        const hasBubblegum = signedPrograms.includes(BUBBLEGUM_PROGRAM_ID);
-        const preparedIsMintShape =
-          preparedPrograms.length === 1 && preparedPrograms[0] === BUBBLEGUM_PROGRAM_ID;
-        const payerMatchesIntent = signedPayer === String(intent.wallet ?? "");
-
-        if (!(hasOnlyAllowedPrograms && hasBubblegum && preparedIsMintShape && payerMatchesIntent)) {
-          console.warn("mint/submit mismatch details", {
-            intentId,
-            signedPrograms,
-            preparedPrograms,
-            signedPayer,
-            intentWallet: String(intent.wallet ?? ""),
-          });
-          throw new Error("Signed transaction does not match prepared transaction");
-        }
-
-        console.warn("mint/submit mismatch accepted via wallet-wrapper compatibility", {
-          intentId,
-          signedPrograms,
-        });
+        throw new Error("Signed transaction does not match prepared transaction");
       }
 
-      // Legacy fallback path for wallets that only support signTransaction.
-      const authority = authorityKeypairFromEnv();
-      signedVtx.sign([authority]);
-      const signedAndCosignedRaw = Buffer.from(signedVtx.serialize());
-
-      sig = await connection.sendRawTransaction(signedAndCosignedRaw, {
-        skipPreflight: false,
-        maxRetries: 3,
-        preflightCommitment: "processed",
+      console.warn("mint/submit mismatch accepted via wallet-wrapper compatibility", {
+        intentId,
+        signedPrograms,
       });
+    }
 
-      const conf = await connection.confirmTransaction(sig, "confirmed");
-      if (conf.value.err) {
-        throw new Error(`Tx failed: ${JSON.stringify(conf.value.err)}`);
-      }
+    // Co-sign with backend mint authority after wallet signature.
+    // This avoids sending a pre-signed backend tx to the wallet popup.
+    const authority = authorityKeypairFromEnv();
+    signedVtx.sign([authority]);
+    const signedAndCosignedRaw = Buffer.from(signedVtx.serialize());
+
+    // 1) envoi
+    const sig = await connection.sendRawTransaction(signedAndCosignedRaw, {
+      skipPreflight: false,
+      maxRetries: 3,
+      preflightCommitment: "processed",
+    });
+
+    // 2) confirmation
+    const conf = await connection.confirmTransaction(sig, "confirmed");
+    if (conf.value.err) {
+      throw new Error(`Tx failed: ${JSON.stringify(conf.value.err)}`);
     }
 
     // 3) DB uniquement après succès

@@ -46,7 +46,6 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => null);
   const walletPubkey = body?.walletPubkey as string | undefined;
-  const clientSend = body?.clientSend === true;
   if (!walletPubkey)
     return new NextResponse("Missing walletPubkey", { status: 400 });
 
@@ -76,7 +75,7 @@ export async function POST(req: Request) {
 
   const intentId = rid();
 
-  // 1) lock 1 ticket atomically
+  // 1) lock 1 ticket atomiquement
 
   const ticket = await Redemption.findOneAndUpdate(
     {
@@ -154,15 +153,17 @@ export async function POST(req: Request) {
 
     const coreCollectionPk = safePublicKey(coreCollectionStr);
 
-    let builder = await mintV2(umi, {
+    const builder = await mintV2(umi, {
       merkleTree,
       leafOwner: ownerPk,
       payer: feePayer,
-      treeCreatorOrDelegate: clientSend ? umi.identity : authorityNoop,
+      // Keep the authority pubkey in the required signers list without
+      // pre-signing at prepare time. User signs first in wallet.
+      treeCreatorOrDelegate: authorityNoop,
       ...(coreCollectionPk
         ? {
             coreCollection: coreCollectionPk,
-            collectionAuthority: clientSend ? umi.identity : authorityNoop,
+            collectionAuthority: authorityNoop,
             metadata: {
               name: onchainName,
               uri,
@@ -181,10 +182,6 @@ export async function POST(req: Request) {
             },
           }),
     });
-
-    if (!clientSend) {
-      builder = builder.useLegacyVersion();
-    }
 
     const built = await (
       await builder.setFeePayer(feePayer).setLatestBlockhash(umi)

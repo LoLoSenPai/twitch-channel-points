@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import { Connection, VersionedTransaction } from "@solana/web3.js";
+import { VersionedTransaction } from "@solana/web3.js";
 import { useTickets } from "@/lib/hooks/use-tickets";
 import { BoosterScene } from "@/components/booster-model";
 import Link from "next/link";
@@ -41,16 +41,7 @@ const stickerRarityMap = new Map(
 const SOLSCAN_CLUSTER = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "";
 const BOOSTER_ASSET_VERSION = process.env.NEXT_PUBLIC_BOOSTER_ASSET_VERSION?.trim() ?? "1";
 const BOOSTER_RENDER_MODE_KEY = "mint.booster.render_mode";
-const CLIENT_RPC_URL =
-    process.env.NEXT_PUBLIC_SOLANA_RPC_URL?.trim() || "https://api.mainnet-beta.solana.com";
 type BoosterRenderMode = "3d" | "image";
-
-function shouldUseWalletSend(walletName: string | undefined) {
-    const normalized = String(walletName ?? "").trim().toLowerCase();
-    if (!normalized) return true;
-    if (normalized.includes("phantom")) return false;
-    return true;
-}
 
 function solscanTxUrl(signature: string) {
     const sig = String(signature ?? "").trim();
@@ -130,7 +121,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
     }, [boosterRenderMode]);
 
     async function mintOnce(): Promise<Reveal> {
-        if (!wallet.publicKey || (!wallet.signTransaction && !wallet.sendTransaction)) {
+        if (!wallet.publicKey || !wallet.signTransaction) {
             throw new Error("Wallet not ready");
         }
 
@@ -138,54 +129,29 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
         let mintSubmitted = false;
 
         try {
-            const walletName = wallet.wallet?.adapter?.name;
-            const useWalletSend = !!wallet.sendTransaction && shouldUseWalletSend(walletName);
-
             // 1) prepare
             const prep = await fetch("/api/mint/prepare", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
-                body: JSON.stringify({
-                    walletPubkey: wallet.publicKey.toBase58(),
-                    clientSend: useWalletSend,
-                }),
+                body: JSON.stringify({ walletPubkey: wallet.publicKey.toBase58() }),
             });
             if (!prep.ok) throw new Error(await prep.text());
 
             const prepJson = (await prep.json()) as { intentId: string; txB64: string };
             intentId = prepJson.intentId;
 
-            // 2) sign / send
+            // 2) sign
             const txBytes = Uint8Array.from(Buffer.from(prepJson.txB64, "base64"));
             const vtx = VersionedTransaction.deserialize(txBytes);
-            let sub: Response;
+            const signed = await wallet.signTransaction(vtx);
+            const signedTxB64 = Buffer.from(signed.serialize()).toString("base64");
 
-            if (useWalletSend) {
-                const connection = new Connection(CLIENT_RPC_URL, "confirmed");
-                const txSig = await wallet.sendTransaction(vtx, connection, {
-                    skipPreflight: false,
-                    maxRetries: 3,
-                    preflightCommitment: "processed",
-                });
-
-                sub = await fetch("/api/mint/submit", {
-                    method: "POST",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ intentId, txSig }),
-                });
-            } else {
-                if (!wallet.signTransaction) {
-                    throw new Error("Wallet not ready");
-                }
-                const signed = await wallet.signTransaction(vtx);
-                const signedTxB64 = Buffer.from(signed.serialize()).toString("base64");
-
-                sub = await fetch("/api/mint/submit", {
-                    method: "POST",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ intentId, signedTxB64 }),
-                });
-            }
+            // 3) submit
+            const sub = await fetch("/api/mint/submit", {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify({ intentId, signedTxB64 }),
+            });
             if (!sub.ok) throw new Error(await sub.text());
 
             mintSubmitted = true;
