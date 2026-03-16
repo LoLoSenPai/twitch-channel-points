@@ -154,7 +154,7 @@ export async function POST(req: Request) {
 
     const coreCollectionPk = safePublicKey(coreCollectionStr);
 
-    const builder = await mintV2(umi, {
+    let builder = await mintV2(umi, {
       merkleTree,
       leafOwner: ownerPk,
       payer: feePayer,
@@ -181,6 +181,10 @@ export async function POST(req: Request) {
             },
           }),
     });
+
+    if (!clientSend) {
+      builder = builder.useLegacyVersion();
+    }
 
     const built = await (
       await builder.setFeePayer(feePayer).setLatestBlockhash(umi)
