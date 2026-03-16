@@ -75,7 +75,7 @@ export async function POST(req: Request) {
 
   const intentId = rid();
 
-  // 1) lock 1 ticket atomiquement
+  // 1) lock 1 ticket atomically
 
   const ticket = await Redemption.findOneAndUpdate(
     {
@@ -124,7 +124,6 @@ export async function POST(req: Request) {
     const umi = umiServer();
     const ownerPk = publicKey(walletPubkey);
     const feePayer = createNoopSigner(ownerPk);
-    const authorityNoop = createNoopSigner(umi.identity.publicKey);
 
     const metaBase = process.env.METADATA_BASE_URI;
     if (!metaBase)
@@ -157,13 +156,12 @@ export async function POST(req: Request) {
       merkleTree,
       leafOwner: ownerPk,
       payer: feePayer,
-      // Keep the authority pubkey in the required signers list without
-      // pre-signing at prepare time. User signs first in wallet.
-      treeCreatorOrDelegate: authorityNoop,
+      // Pre-sign with backend authority so wallets can send the tx directly.
+      treeCreatorOrDelegate: umi.identity,
       ...(coreCollectionPk
         ? {
             coreCollection: coreCollectionPk,
-            collectionAuthority: authorityNoop,
+            collectionAuthority: umi.identity,
             metadata: {
               name: onchainName,
               uri,
