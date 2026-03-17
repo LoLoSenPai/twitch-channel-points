@@ -11,17 +11,7 @@ import {
 import { drawConfiguredRandomness } from "@/lib/solana/randomness";
 
 import { umiServer } from "@/lib/solana/umi";
-import {
-  MINT_BACKEND_FLOW_VERSION,
-  MINT_PROGRAM_FLOW_VERSION,
-  findMintProgramClaimReceiptPda,
-  findMintProgramConfigPda,
-  getMintProgramIdFromEnv,
-} from "@/lib/solana/mint-program";
-import {
-  buildMintProgramClaimPayload,
-  signMintProgramPayload,
-} from "@/lib/solana/mint-program-server";
+import { MINT_BACKEND_FLOW_VERSION } from "@/lib/solana/mint-program";
 import { mintV2 } from "@metaplex-foundation/mpl-bubblegum";
 import { createNoopSigner, publicKey } from "@metaplex-foundation/umi";
 import { some, none } from "@metaplex-foundation/umi";
@@ -87,11 +77,9 @@ export async function POST(req: Request) {
   const intentId = rid();
   const configuredMintFlowVersion = process.env.MINT_FLOW_VERSION?.trim();
   const mintFlowVersion =
-    configuredMintFlowVersion === MINT_PROGRAM_FLOW_VERSION
-      ? MINT_PROGRAM_FLOW_VERSION
-      : configuredMintFlowVersion === MINT_BACKEND_FLOW_VERSION
-        ? MINT_BACKEND_FLOW_VERSION
-        : "legacy";
+    configuredMintFlowVersion === MINT_BACKEND_FLOW_VERSION
+      ? MINT_BACKEND_FLOW_VERSION
+      : "legacy";
 
   // 1) lock 1 ticket atomiquement
 
@@ -165,90 +153,6 @@ export async function POST(req: Request) {
       process.env.CORE_COLLECTION_PUBKEY;
 
     const coreCollectionPk = safePublicKey(coreCollectionStr);
-    const expiresAt = new Date(
-      Date.now() + Number(process.env.MINT_PROGRAM_PERMIT_TTL_SECONDS ?? 300) * 1000,
-    );
-
-    if (mintFlowVersion === MINT_PROGRAM_FLOW_VERSION) {
-      if (!coreCollectionPk) {
-        return new NextResponse("Missing CORE_COLLECTION_PUBKEY", { status: 500 });
-      }
-
-      const programId = getMintProgramIdFromEnv();
-      const { claimHash, payloadBytes } = buildMintProgramClaimPayload({
-        programId,
-        wallet: walletPubkey,
-        intentId,
-        redemptionId: ticket.redemptionId,
-        stickerId: String(stickerId),
-        name: onchainName,
-        uri,
-        expiresAtUnix: Math.floor(expiresAt.getTime() / 1000),
-      });
-      const { signature, publicKey: permitSignerPubkey } =
-        signMintProgramPayload(payloadBytes);
-      const [configPda] = findMintProgramConfigPda(programId);
-      const [claimReceiptPda] = findMintProgramClaimReceiptPda(
-        programId,
-        claimHash,
-      );
-
-      await MintIntent.create({
-        intentId,
-        twitchUserId,
-        wallet: walletPubkey,
-        redemptionId: ticket.redemptionId,
-        stickerId,
-        flowVersion: MINT_PROGRAM_FLOW_VERSION,
-        claimHash: claimHash.toString("hex"),
-        permitExpiresAt: expiresAt,
-        randomnessProvider: randomnessProof.provider,
-        randomnessQueuePubkey: randomnessProof.queuePubkey,
-        randomnessAccount: randomnessProof.randomnessAccount,
-        randomnessCommitTx: randomnessProof.commitTx,
-        randomnessRevealTx: randomnessProof.revealTx,
-        randomnessCloseTx: randomnessProof.closeTx,
-        randomnessValueHex: randomnessProof.randomHex,
-        randomnessSeedSlot: randomnessProof.seedSlot,
-        randomnessRevealSlot: randomnessProof.revealSlot,
-        drawAvailableStickerIds: availableStickerIds,
-        drawIndex: draw.index,
-        status: "PREPARED",
-      });
-
-      return NextResponse.json({
-        flowVersion: MINT_PROGRAM_FLOW_VERSION,
-        intentId,
-        redemptionId: ticket.redemptionId,
-        stickerId: String(stickerId),
-        programId: programId.toString(),
-        configPda: configPda.toString(),
-        claimReceiptPda: claimReceiptPda.toString(),
-        permitPayloadB64: Buffer.from(payloadBytes).toString("base64"),
-        permitSignatureB64: Buffer.from(signature).toString("base64"),
-        permitSignerPubkey: permitSignerPubkey.toString(),
-        claimHashHex: claimHash.toString("hex"),
-        expiresAt: expiresAt.toISOString(),
-        metadata: {
-          name: onchainName,
-          uri,
-        },
-        merkleTreePubkey: merkleTree.toString(),
-        coreCollectionPubkey: coreCollectionPk.toString(),
-        proof: {
-          provider: randomnessProof.provider,
-          queuePubkey: randomnessProof.queuePubkey,
-          randomnessAccount: randomnessProof.randomnessAccount,
-          commitTx: randomnessProof.commitTx,
-          revealTx: randomnessProof.revealTx,
-          closeTx: randomnessProof.closeTx,
-          randomHex: randomnessProof.randomHex,
-          drawIndex: draw.index,
-          availableCount: availableStickerIds.length,
-        },
-      });
-    }
-
     if (mintFlowVersion === MINT_BACKEND_FLOW_VERSION) {
       await MintIntent.create({
         intentId,
@@ -257,7 +161,6 @@ export async function POST(req: Request) {
         redemptionId: ticket.redemptionId,
         stickerId,
         flowVersion: MINT_BACKEND_FLOW_VERSION,
-        permitExpiresAt: expiresAt,
         randomnessProvider: randomnessProof.provider,
         randomnessQueuePubkey: randomnessProof.queuePubkey,
         randomnessAccount: randomnessProof.randomnessAccount,
@@ -338,7 +241,6 @@ export async function POST(req: Request) {
       redemptionId: ticket.redemptionId,
       stickerId,
       flowVersion: "legacy",
-      permitExpiresAt: expiresAt,
       randomnessProvider: randomnessProof.provider,
       randomnessQueuePubkey: randomnessProof.queuePubkey,
       randomnessAccount: randomnessProof.randomnessAccount,

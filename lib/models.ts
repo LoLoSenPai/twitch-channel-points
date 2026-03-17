@@ -57,8 +57,6 @@ const MintIntentSchema = new Schema(
     stickerId: String,
     flowVersion: { type: String, default: "legacy", index: true },
     preparedTxB64: { type: String, default: null },
-    claimHash: { type: String, default: null, index: true },
-    permitExpiresAt: { type: Date, default: null, index: true },
     submittedTxSig: { type: String, default: null },
     mintTx: { type: String, default: null },
     randomnessProvider: { type: String, default: null },

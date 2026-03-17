@@ -1,16 +1,9 @@
 import { NextResponse } from "next/server";
-import bs58 from "bs58";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Collection, Redemption, MintIntent, Mint } from "@/lib/models";
 import { getSticker, type StickerRarity } from "@/lib/stickers";
-import {
-  MINT_BACKEND_FLOW_VERSION,
-  MINT_PROGRAM_CLAIM_MINT_DISCRIMINATOR,
-  MINT_PROGRAM_FLOW_VERSION,
-  findMintProgramClaimReceiptPda,
-  getMintProgramIdFromEnv,
-} from "@/lib/solana/mint-program";
+import { MINT_BACKEND_FLOW_VERSION } from "@/lib/solana/mint-program";
 import { umiServer } from "@/lib/solana/umi";
 import { mintV2 } from "@metaplex-foundation/mpl-bubblegum";
 import { none, publicKey, some } from "@metaplex-foundation/umi";
@@ -18,8 +11,6 @@ import {
   ComputeBudgetProgram,
   Connection,
   Keypair,
-  ParsedInstruction,
-  PartiallyDecodedInstruction,
   TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
@@ -42,8 +33,6 @@ type IntentDoc = {
   status: "PREPARED" | "SUBMITTED" | "DONE" | "FAILED";
   flowVersion?: string | null;
   preparedTxB64?: string | null;
-  claimHash?: string | null;
-  permitExpiresAt?: Date | string | null;
   submittedTxSig?: string | null;
   mintTx?: string | null;
   randomnessProvider?: string | null;
@@ -399,24 +388,6 @@ async function finalizeMintSuccess(params: {
   await notifyTwitchBot(payload);
 }
 
-function hasMintProgramClaimMintInstruction(
-  instructions: Array<ParsedInstruction | PartiallyDecodedInstruction>,
-  mintProgramId: string,
-) {
-  return instructions.some((ix) => {
-    if (ix.programId.toBase58() !== mintProgramId) return false;
-    if (!("data" in ix) || typeof ix.data !== "string") return false;
-
-    try {
-      const data = Buffer.from(bs58.decode(ix.data));
-      return data.subarray(0, 8).equals(
-        Buffer.from(MINT_PROGRAM_CLAIM_MINT_DISCRIMINATOR),
-      );
-    } catch {
-      return false;
-    }
-  });
-}
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -428,7 +399,6 @@ export async function POST(req: Request) {
     typeof body?.intentId === "string" ? body.intentId.trim() : undefined;
   const signedTxB64 =
     typeof body?.signedTxB64 === "string" ? body.signedTxB64 : undefined;
-  const txSig = typeof body?.txSig === "string" ? body.txSig.trim() : undefined;
 
   if (!intentId) {
     return new NextResponse("Missing params", { status: 400 });
@@ -585,116 +555,6 @@ export async function POST(req: Request) {
         },
       });
     }
-
-    if ((intent.flowVersion ?? "legacy") === MINT_PROGRAM_FLOW_VERSION) {
-      const submittedTxSig = txSig || String(intent.submittedTxSig ?? "").trim();
-      if (!submittedTxSig) {
-        return new NextResponse("Missing txSig", { status: 400 });
-      }
-      if (!intent.claimHash) {
-        throw new Error("Mint intent missing claimHash");
-      }
-
-      if (intent.status === "PREPARED") {
-        await MintIntent.updateOne(
-          { intentId, status: "PREPARED" },
-          {
-            $set: {
-              status: "SUBMITTED",
-              submittedTxSig,
-              error: null,
-            },
-          },
-        );
-      } else if (
-        intent.submittedTxSig &&
-        String(intent.submittedTxSig).trim() &&
-        String(intent.submittedTxSig).trim() !== submittedTxSig
-      ) {
-        throw new Error("Intent already submitted with a different transaction");
-      } else if (String(intent.submittedTxSig ?? "").trim() !== submittedTxSig) {
-        await MintIntent.updateOne(
-          { intentId },
-          { $set: { submittedTxSig, error: null } },
-        );
-      }
-
-      const conf = await connection.confirmTransaction(submittedTxSig, "confirmed");
-      if (conf.value.err) {
-        throw new Error(`Tx failed: ${JSON.stringify(conf.value.err)}`);
-      }
-
-      const parsedTx = await connection.getParsedTransaction(submittedTxSig, {
-        commitment: "confirmed",
-        maxSupportedTransactionVersion: 0,
-      });
-      if (!parsedTx) {
-        throw new Error("Submitted transaction not found on chain");
-      }
-      if (parsedTx.meta?.err) {
-        throw new Error(
-          `Submitted transaction failed: ${JSON.stringify(parsedTx.meta.err)}`,
-        );
-      }
-
-      const signerKeys = parsedTx.transaction.message.accountKeys
-        .filter((key) => key.signer)
-        .map((key) => key.pubkey.toBase58());
-      if (!signerKeys.includes(String(intent.wallet))) {
-        throw new Error("Wallet signer missing from submitted transaction");
-      }
-
-      const mintProgramId = getMintProgramIdFromEnv();
-      if (
-        !hasMintProgramClaimMintInstruction(
-          parsedTx.transaction.message.instructions,
-          mintProgramId.toBase58(),
-        )
-      ) {
-        throw new Error(
-          "Mint claim_mint instruction missing from submitted transaction",
-        );
-      }
-
-      const [claimReceiptPda] = findMintProgramClaimReceiptPda(
-        mintProgramId,
-        Buffer.from(intent.claimHash, "hex"),
-      );
-      const claimReceiptInfo = await connection.getAccountInfo(claimReceiptPda, {
-        commitment: "confirmed",
-      });
-      if (!claimReceiptInfo) {
-        throw new Error("Claim receipt missing after confirmed mint transaction");
-      }
-
-      await finalizeMintSuccess({
-        intentId,
-        twitchUserId,
-        intent,
-        txSig: submittedTxSig,
-        displayName,
-      });
-
-      return NextResponse.json({
-        ok: true,
-        tx: submittedTxSig,
-        stickerId: String(intent.stickerId),
-        proof: {
-          provider: intent.randomnessProvider ?? null,
-          queuePubkey: intent.randomnessQueuePubkey ?? null,
-          randomnessAccount: intent.randomnessAccount ?? null,
-          commitTx: intent.randomnessCommitTx ?? null,
-          revealTx: intent.randomnessRevealTx ?? null,
-          closeTx: intent.randomnessCloseTx ?? null,
-          randomHex: intent.randomnessValueHex ?? null,
-          drawIndex: typeof intent.drawIndex === "number" ? intent.drawIndex : null,
-          availableCount: Array.isArray(intent.drawAvailableStickerIds)
-            ? intent.drawAvailableStickerIds.length
-            : null,
-        },
-      });
-    }
-
     if (!signedTxB64) {
       return new NextResponse("Missing signedTxB64", { status: 400 });
     }
@@ -786,24 +646,6 @@ export async function POST(req: Request) {
     if ((intent.flowVersion ?? "legacy") === MINT_BACKEND_FLOW_VERSION) {
       const submittedTxSig =
         backendSubmittedTxSig || String(intent.submittedTxSig ?? "").trim();
-      await MintIntent.updateOne(
-        { intentId },
-        {
-          $set: {
-            status: submittedTxSig ? "SUBMITTED" : "FAILED",
-            submittedTxSig: submittedTxSig || null,
-            error: errorMessage,
-          },
-        },
-      );
-      if (!submittedTxSig) {
-        await Redemption.updateOne(
-          { redemptionId: intent.redemptionId },
-          { $set: { lockedByIntentId: null } },
-        );
-      }
-    } else if ((intent.flowVersion ?? "legacy") === MINT_PROGRAM_FLOW_VERSION) {
-      const submittedTxSig = txSig || String(intent.submittedTxSig ?? "").trim();
       await MintIntent.updateOne(
         { intentId },
         {

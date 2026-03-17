@@ -1,25 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import {
-    Ed25519Program,
-    Transaction,
-    VersionedTransaction,
-} from "@solana/web3.js";
+import { VersionedTransaction } from "@solana/web3.js";
 import { useTickets } from "@/lib/hooks/use-tickets";
 import { BoosterScene } from "@/components/booster-model";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import stickers from "@/stickers/stickers.json";
 import { normalizeRarity } from "@/lib/stickers";
-import {
-    MINT_BACKEND_FLOW_VERSION,
-    MINT_PROGRAM_FLOW_VERSION,
-    buildClaimMintInstruction,
-} from "@/lib/solana/mint-program";
-import bs58 from "bs58";
+import { MINT_BACKEND_FLOW_VERSION } from "@/lib/solana/mint-program";
 
 type Reveal = {
     id: string;
@@ -39,31 +30,10 @@ type MintBackendPrepareResponse = {
     intentId: string;
 };
 
-type MintProgramPrepareResponse = {
-    flowVersion: typeof MINT_PROGRAM_FLOW_VERSION;
-    intentId: string;
-    redemptionId: string;
-    stickerId: string;
-    programId: string;
-    configPda: string;
-    claimReceiptPda: string;
-    permitPayloadB64: string;
-    permitSignatureB64: string;
-    permitSignerPubkey: string;
-    claimHashHex: string;
-    expiresAt: string;
-    metadata: {
-        name: string;
-        uri: string;
-    };
-    merkleTreePubkey: string;
-    coreCollectionPubkey: string;
-};
 
 type PrepareResponse =
     | LegacyPrepareResponse
-    | MintBackendPrepareResponse
-    | MintProgramPrepareResponse;
+    | MintBackendPrepareResponse;
 
 type PullPhase = "idle" | "charging" | "flash" | "cardBack" | "cardFront";
 
@@ -126,7 +96,6 @@ function rarityBoostMultiplier(r: Rarity | null) {
 
 
 export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean }) {
-    const { connection } = useConnection();
     const wallet = useWallet();
     const [loading, setLoading] = useState(false);
     const [reveal, setReveal] = useState<Reveal | null>(null);
@@ -136,16 +105,31 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
     const [rarity, setRarity] = useState<Rarity | null>(null);
     const [resetOrbitKey, setResetOrbitKey] = useState(0);
     const [boosterRenderMode, setBoosterRenderMode] = useState<BoosterRenderMode>("3d");
+    const [refreshCooldownUntil, setRefreshCooldownUntil] = useState(0);
+    const [refreshCooldownNow, setRefreshCooldownNow] = useState(Date.now());
 
     const { tickets, refreshingUi, refresh: refreshTickets } = useTickets({
         enabled: !loading,
-        intervalMs: 8000,
+        intervalMs: 30000,
+        refreshOnVisibility: false,
     });
+
+    useEffect(() => {
+        if (refreshCooldownUntil <= refreshCooldownNow) return;
+
+        const timer = window.setTimeout(() => {
+            setRefreshCooldownNow(Date.now());
+        }, 250);
+
+        return () => window.clearTimeout(timer);
+    }, [refreshCooldownUntil, refreshCooldownNow]);
 
     const walletOk = !!wallet.publicKey;
     const ticketsKnown = tickets !== undefined;
     const ticketsOk = (tickets ?? 0) > 0;
     const ready = walletOk && ticketsOk && !loading && phase === "idle";
+    const refreshCooldownSeconds = Math.max(0, Math.ceil((refreshCooldownUntil - refreshCooldownNow) / 1000));
+    const canRefreshTickets = !loading && !refreshingUi && refreshCooldownSeconds === 0;
 
     const [hint, setHint] = useState<string | null>(null);
 
@@ -189,64 +173,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
 
             let tx: string;
             let stickerId: string;
-
-            if (prepJson.flowVersion === MINT_PROGRAM_FLOW_VERSION) {
-                if (!wallet.sendTransaction) {
-                    throw new Error("Wallet cannot send transactions");
-                }
-
-                const permitPayload = Buffer.from(prepJson.permitPayloadB64, "base64");
-                const permitSignature = Buffer.from(prepJson.permitSignatureB64, "base64");
-                const claimHash = Buffer.from(prepJson.claimHashHex, "hex");
-
-                const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
-                    publicKey: bs58.decode(prepJson.permitSignerPubkey),
-                    message: new Uint8Array(permitPayload),
-                    signature: new Uint8Array(permitSignature),
-                });
-
-                const claimIx = buildClaimMintInstruction({
-                    programId: prepJson.programId,
-                    payer: wallet.publicKey.toBase58(),
-                    configPda: prepJson.configPda,
-                    claimReceiptPda: prepJson.claimReceiptPda,
-                    merkleTree: prepJson.merkleTreePubkey,
-                    coreCollection: prepJson.coreCollectionPubkey,
-                    args: {
-                        intentId: prepJson.intentId,
-                        redemptionId: prepJson.redemptionId,
-                        stickerId: prepJson.stickerId,
-                        name: prepJson.metadata.name,
-                        uri: prepJson.metadata.uri,
-                        expiresAtUnix: Math.floor(new Date(prepJson.expiresAt).getTime() / 1000),
-                        claimHash,
-                    },
-                });
-
-                const txRequest = new Transaction();
-                txRequest.feePayer = wallet.publicKey;
-                txRequest.recentBlockhash = (
-                    await connection.getLatestBlockhash("confirmed")
-                ).blockhash;
-                txRequest.add(ed25519Ix, claimIx);
-
-                tx = await wallet.sendTransaction(txRequest, connection, {
-                    preflightCommitment: "confirmed",
-                    maxRetries: 3,
-                });
-                mintSubmitted = true;
-
-                const sub = await fetch("/api/mint/submit", {
-                    method: "POST",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify({ intentId, txSig: tx }),
-                });
-                if (!sub.ok) throw new Error(await sub.text());
-
-                const subJson = (await sub.json()) as { ok: true; tx: string; stickerId: string };
-                tx = subJson.tx;
-                stickerId = subJson.stickerId;
-            } else if (prepJson.flowVersion === MINT_BACKEND_FLOW_VERSION) {
+            if (prepJson.flowVersion === MINT_BACKEND_FLOW_VERSION) {
                 mintSubmitted = true;
 
                 const sub = await fetch("/api/mint/submit", {
@@ -411,14 +338,33 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                 <div>
                     <div className="text-lg font-semibold">Collection #1: Promesses & Liquidations</div>
 
-                    <div className="text-sm opacity-70 flex items-center gap-2">
-                        Tickets:{" "}
-                        <span className="font-medium">
-                            {tickets === undefined ? "..." : tickets}
+                    <div className="flex flex-wrap items-center gap-2 text-sm opacity-70">
+                        <span>
+                            Tickets:{" "}
+                            <span className="font-medium">
+                                {tickets === undefined ? "..." : tickets}
+                            </span>
                         </span>
                         {refreshingUi ? (
                             <span className="inline-block h-2 w-2 rounded-full bg-current opacity-50" />
                         ) : null}
+                        <button
+                            type="button"
+                            className="site-btn rounded-lg px-2 py-1 text-xs cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                            onClick={() => {
+                                if (!canRefreshTickets) return;
+                                setRefreshCooldownUntil(Date.now() + 5000);
+                                setRefreshCooldownNow(Date.now());
+                                void refreshTickets();
+                            }}
+                            disabled={!canRefreshTickets}
+                        >
+                            {refreshingUi
+                                ? "Actualisation..."
+                                : refreshCooldownSeconds > 0
+                                    ? `Actualiser (${refreshCooldownSeconds}s)`
+                                    : "Actualiser"}
+                        </button>
                     </div>
                 </div>
 
@@ -493,7 +439,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                         ) : tickets <= 0 ? (
                             <div>Tu n&apos;as aucun ticket. Récupère-en via les rewards Twitch.</div>
                         ) : (
-                            <div>Clique sur le booster pour mint (1 ticket consommé).</div>
+                            <div>Clique sur le booster pour lancer un mint sans frais (1 ticket consommé).</div>
                         )}
                     </div>
 

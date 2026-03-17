@@ -5,7 +5,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export function useTickets({
   enabled = true,
   intervalMs = 3000,
-}: { enabled?: boolean; intervalMs?: number } = {}) {
+  refreshOnVisibility = true,
+}: { enabled?: boolean; intervalMs?: number; refreshOnVisibility?: boolean } = {}) {
   const [tickets, setTickets] = useState<number | undefined>(undefined);
   const [refreshingUi, setRefreshingUi] = useState(false);
 
@@ -61,14 +62,18 @@ export function useTickets({
     const onVis = () => {
       if (document.visibilityState === "visible") void refresh();
     };
-    document.addEventListener("visibilitychange", onVis);
+    if (refreshOnVisibility) {
+      document.addEventListener("visibilitychange", onVis);
+    }
 
     return () => {
       if (timer.current) window.clearTimeout(timer.current);
       if (uiTimer.current) window.clearTimeout(uiTimer.current);
-      document.removeEventListener("visibilitychange", onVis);
+      if (refreshOnVisibility) {
+        document.removeEventListener("visibilitychange", onVis);
+      }
     };
-  }, [enabled, intervalMs, refresh]);
+  }, [enabled, intervalMs, refresh, refreshOnVisibility]);
 
   return { tickets, refreshingUi, refresh };
 }
