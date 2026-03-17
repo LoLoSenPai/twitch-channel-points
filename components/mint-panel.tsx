@@ -409,7 +409,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
         <div className="site-surface rounded-2xl p-4 space-y-4">
             <div className="flex flex-wrap items-start justify-between gap-3 sm:items-center">
                 <div>
-                    <div className="text-lg font-semibold">Collection #1</div>
+                    <div className="text-lg font-semibold">Collection #1: Promesses & Liquidations</div>
 
                     <div className="text-sm opacity-70 flex items-center gap-2">
                         Tickets:{" "}
