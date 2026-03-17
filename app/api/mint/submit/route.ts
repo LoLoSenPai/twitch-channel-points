@@ -1,12 +1,25 @@
 import { NextResponse } from "next/server";
+import bs58 from "bs58";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { Redemption, MintIntent, Mint } from "@/lib/models";
+import { Collection, Redemption, MintIntent, Mint } from "@/lib/models";
 import { getSticker, type StickerRarity } from "@/lib/stickers";
+import {
+  MINT_BACKEND_FLOW_VERSION,
+  MINT_PROGRAM_CLAIM_MINT_DISCRIMINATOR,
+  MINT_PROGRAM_FLOW_VERSION,
+  findMintProgramClaimReceiptPda,
+  getMintProgramIdFromEnv,
+} from "@/lib/solana/mint-program";
+import { umiServer } from "@/lib/solana/umi";
+import { mintV2 } from "@metaplex-foundation/mpl-bubblegum";
+import { none, publicKey, some } from "@metaplex-foundation/umi";
 import {
   ComputeBudgetProgram,
   Connection,
   Keypair,
+  ParsedInstruction,
+  PartiallyDecodedInstruction,
   TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
@@ -26,8 +39,13 @@ type IntentDoc = {
   wallet: string;
   stickerId: string | number;
   redemptionId: string;
-  status: "PREPARED" | "DONE" | "FAILED";
-  preparedTxB64: string;
+  status: "PREPARED" | "SUBMITTED" | "DONE" | "FAILED";
+  flowVersion?: string | null;
+  preparedTxB64?: string | null;
+  claimHash?: string | null;
+  permitExpiresAt?: Date | string | null;
+  submittedTxSig?: string | null;
+  mintTx?: string | null;
   randomnessProvider?: string | null;
   randomnessQueuePubkey?: string | null;
   randomnessAccount?: string | null;
@@ -48,6 +66,16 @@ type NotifyPayload = {
   rarity: StickerRarity;
   tx: string;
 };
+
+function safePublicKey(input?: string | null) {
+  const v = (input ?? "").trim();
+  if (!v) return null;
+  try {
+    return publicKey(v);
+  } catch {
+    return null;
+  }
+}
 
 function authorityKeypairFromEnv() {
   const raw = String(process.env.SOLANA_AUTHORITY_SECRET ?? "").trim();
@@ -293,16 +321,116 @@ async function notifyTwitchBot(payload: NotifyPayload) {
   }
 }
 
+async function finalizeMintSuccess(params: {
+  intentId: string;
+  twitchUserId: string;
+  intent: IntentDoc;
+  txSig: string;
+  displayName: string;
+}) {
+  const { intentId, twitchUserId, intent, txSig, displayName } = params;
+
+  const existingMint = await Mint.findOne({ mintTx: txSig }).lean();
+  if (!existingMint) {
+    await Mint.create({
+      twitchUserId,
+      wallet: intent.wallet,
+      stickerId: String(intent.stickerId),
+      mintTx: txSig,
+      randomnessProvider: intent.randomnessProvider ?? null,
+      randomnessQueuePubkey: intent.randomnessQueuePubkey ?? null,
+      randomnessAccount: intent.randomnessAccount ?? null,
+      randomnessCommitTx: intent.randomnessCommitTx ?? null,
+      randomnessRevealTx: intent.randomnessRevealTx ?? null,
+      randomnessCloseTx: intent.randomnessCloseTx ?? null,
+      randomnessValueHex: intent.randomnessValueHex ?? null,
+      randomnessSeedSlot:
+        typeof intent.randomnessSeedSlot === "number"
+          ? intent.randomnessSeedSlot
+          : null,
+      randomnessRevealSlot:
+        typeof intent.randomnessRevealSlot === "number"
+          ? intent.randomnessRevealSlot
+          : null,
+      drawAvailableStickerIds: Array.isArray(intent.drawAvailableStickerIds)
+        ? intent.drawAvailableStickerIds.map(String)
+        : [],
+      drawIndex: typeof intent.drawIndex === "number" ? intent.drawIndex : null,
+    });
+  }
+
+  await Redemption.updateOne(
+    { redemptionId: intent.redemptionId },
+    { $set: { status: "CONSUMED", consumedAt: new Date(), mintTx: txSig } },
+  );
+
+  await MintIntent.updateOne(
+    { intentId },
+    { $set: { status: "DONE", mintTx: txSig, submittedTxSig: txSig, error: null } },
+  );
+
+  let stickerName = `Panini #${String(intent.stickerId)}`;
+  try {
+    const base = process.env.METADATA_BASE_URI;
+    if (base) {
+      const metaUrl = `${base}/${String(intent.stickerId)}.json`;
+      const metaRes = await fetch(metaUrl, { cache: "no-store" });
+      if (metaRes.ok) {
+        const meta = (await metaRes.json()) as { name?: string };
+        if (meta?.name) stickerName = meta.name;
+      }
+    }
+  } catch {}
+
+  const payload: NotifyPayload = {
+    displayName,
+    stickerName,
+    stickerId: String(intent.stickerId),
+    rarity:
+      getSticker(String(intent.stickerId))?.rarity ??
+      (String(intent.stickerId) === "3"
+        ? "SSR"
+        : String(intent.stickerId) === "2"
+          ? "SR"
+          : "R"),
+    tx: txSig,
+  };
+
+  await notifyTwitchBot(payload);
+}
+
+function hasMintProgramClaimMintInstruction(
+  instructions: Array<ParsedInstruction | PartiallyDecodedInstruction>,
+  mintProgramId: string,
+) {
+  return instructions.some((ix) => {
+    if (ix.programId.toBase58() !== mintProgramId) return false;
+    if (!("data" in ix) || typeof ix.data !== "string") return false;
+
+    try {
+      const data = Buffer.from(bs58.decode(ix.data));
+      return data.subarray(0, 8).equals(
+        Buffer.from(MINT_PROGRAM_CLAIM_MINT_DISCRIMINATOR),
+      );
+    } catch {
+      return false;
+    }
+  });
+}
+
 export async function POST(req: Request) {
   const session = await auth();
   const twitchUserId = (session?.user as SessionUser)?.id;
   if (!twitchUserId) return new NextResponse("Unauthorized", { status: 401 });
 
   const body = await req.json().catch(() => null);
-  const intentId = body?.intentId as string | undefined;
-  const signedTxB64 = body?.signedTxB64 as string | undefined;
+  const intentId =
+    typeof body?.intentId === "string" ? body.intentId.trim() : undefined;
+  const signedTxB64 =
+    typeof body?.signedTxB64 === "string" ? body.signedTxB64 : undefined;
+  const txSig = typeof body?.txSig === "string" ? body.txSig.trim() : undefined;
 
-  if (!intentId || !signedTxB64) {
+  if (!intentId) {
     return new NextResponse("Missing params", { status: 400 });
   }
 
@@ -311,9 +439,10 @@ export async function POST(req: Request) {
   const intent = (await MintIntent.findOne({
     intentId,
     twitchUserId,
+    status: { $in: ["PREPARED", "SUBMITTED", "DONE"] },
   }).lean()) as (IntentDoc & { _id?: unknown }) | null;
 
-  if (!intent || intent.status !== "PREPARED") {
+  if (!intent) {
     return new NextResponse("Bad intent", { status: 409 });
   }
 
@@ -322,11 +451,258 @@ export async function POST(req: Request) {
     commitment: "confirmed",
     confirmTransactionInitialTimeout: 60_000,
   });
+  const displayName =
+    (session?.user as ExtendedSessionUser)?.displayName ??
+    (session?.user as ExtendedSessionUser)?.name ??
+    "Quelqu'un";
+  let backendSubmittedTxSig: string | null = null;
 
   try {
-    const raw = Buffer.from(signedTxB64, "base64");
+    if (intent.status === "DONE" && intent.mintTx) {
+      return NextResponse.json({
+        ok: true,
+        tx: String(intent.mintTx),
+        stickerId: String(intent.stickerId),
+        proof: {
+          provider: intent.randomnessProvider ?? null,
+          queuePubkey: intent.randomnessQueuePubkey ?? null,
+          randomnessAccount: intent.randomnessAccount ?? null,
+          commitTx: intent.randomnessCommitTx ?? null,
+          revealTx: intent.randomnessRevealTx ?? null,
+          closeTx: intent.randomnessCloseTx ?? null,
+          randomHex: intent.randomnessValueHex ?? null,
+          drawIndex: typeof intent.drawIndex === "number" ? intent.drawIndex : null,
+          availableCount: Array.isArray(intent.drawAvailableStickerIds)
+            ? intent.drawAvailableStickerIds.length
+            : null,
+        },
+      });
+    }
 
-    // ✅ Anti-triche: vérifie que la tx signée correspond à la tx préparée (message identique)
+    if ((intent.flowVersion ?? "legacy") === MINT_BACKEND_FLOW_VERSION) {
+      if (intent.status === "PREPARED") {
+        await MintIntent.updateOne(
+          { intentId, status: "PREPARED" },
+          { $set: { status: "SUBMITTED", error: null } },
+        );
+      }
+
+      const active = await Collection.findOne({ isActive: true }).lean();
+      const merkleTreePk =
+        (active?.merkleTreePubkey as string | undefined) ??
+        process.env.MERKLE_TREE_PUBKEY;
+      const coreCollectionStr =
+        (active?.coreCollectionPubkey as string | undefined) ??
+        process.env.CORE_COLLECTION_PUBKEY;
+
+      const merkleTree = safePublicKey(merkleTreePk);
+      const coreCollectionPk = safePublicKey(coreCollectionStr);
+      if (!merkleTree) {
+        throw new Error("Missing MERKLE_TREE_PUBKEY");
+      }
+      if (!coreCollectionPk) {
+        throw new Error("Missing CORE_COLLECTION_PUBKEY");
+      }
+
+      const metaBase = process.env.METADATA_BASE_URI;
+      if (!metaBase) {
+        throw new Error("Missing METADATA_BASE_URI");
+      }
+
+      const umi = umiServer();
+      const stickerId = String(intent.stickerId);
+      const sticker = getSticker(stickerId);
+      const onchainName = sticker?.name ?? `Panini #${stickerId}`;
+      const uri = `${metaBase}/${stickerId}.json`;
+
+      const builder = await mintV2(umi, {
+        merkleTree,
+        leafOwner: publicKey(intent.wallet),
+        payer: umi.identity,
+        treeCreatorOrDelegate: umi.identity,
+        ...(coreCollectionPk
+          ? {
+              coreCollection: coreCollectionPk,
+              collectionAuthority: umi.identity,
+              metadata: {
+                name: onchainName,
+                uri,
+                sellerFeeBasisPoints: 0,
+                collection: some(coreCollectionPk),
+                creators: [],
+              },
+            }
+          : {
+              metadata: {
+                name: onchainName,
+                uri,
+                sellerFeeBasisPoints: 0,
+                collection: none(),
+                creators: [],
+              },
+            }),
+      });
+
+      const result = await builder.sendAndConfirm(umi);
+      const submittedTxSig = result.signature.toString();
+      backendSubmittedTxSig = submittedTxSig;
+
+      await MintIntent.updateOne(
+        { intentId },
+        {
+          $set: {
+            submittedTxSig,
+            status: "SUBMITTED",
+            error: null,
+          },
+        },
+      );
+
+      await finalizeMintSuccess({
+        intentId,
+        twitchUserId,
+        intent,
+        txSig: submittedTxSig,
+        displayName,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        tx: submittedTxSig,
+        stickerId,
+        proof: {
+          provider: intent.randomnessProvider ?? null,
+          queuePubkey: intent.randomnessQueuePubkey ?? null,
+          randomnessAccount: intent.randomnessAccount ?? null,
+          commitTx: intent.randomnessCommitTx ?? null,
+          revealTx: intent.randomnessRevealTx ?? null,
+          closeTx: intent.randomnessCloseTx ?? null,
+          randomHex: intent.randomnessValueHex ?? null,
+          drawIndex: typeof intent.drawIndex === "number" ? intent.drawIndex : null,
+          availableCount: Array.isArray(intent.drawAvailableStickerIds)
+            ? intent.drawAvailableStickerIds.length
+            : null,
+        },
+      });
+    }
+
+    if ((intent.flowVersion ?? "legacy") === MINT_PROGRAM_FLOW_VERSION) {
+      const submittedTxSig = txSig || String(intent.submittedTxSig ?? "").trim();
+      if (!submittedTxSig) {
+        return new NextResponse("Missing txSig", { status: 400 });
+      }
+      if (!intent.claimHash) {
+        throw new Error("Mint intent missing claimHash");
+      }
+
+      if (intent.status === "PREPARED") {
+        await MintIntent.updateOne(
+          { intentId, status: "PREPARED" },
+          {
+            $set: {
+              status: "SUBMITTED",
+              submittedTxSig,
+              error: null,
+            },
+          },
+        );
+      } else if (
+        intent.submittedTxSig &&
+        String(intent.submittedTxSig).trim() &&
+        String(intent.submittedTxSig).trim() !== submittedTxSig
+      ) {
+        throw new Error("Intent already submitted with a different transaction");
+      } else if (String(intent.submittedTxSig ?? "").trim() !== submittedTxSig) {
+        await MintIntent.updateOne(
+          { intentId },
+          { $set: { submittedTxSig, error: null } },
+        );
+      }
+
+      const conf = await connection.confirmTransaction(submittedTxSig, "confirmed");
+      if (conf.value.err) {
+        throw new Error(`Tx failed: ${JSON.stringify(conf.value.err)}`);
+      }
+
+      const parsedTx = await connection.getParsedTransaction(submittedTxSig, {
+        commitment: "confirmed",
+        maxSupportedTransactionVersion: 0,
+      });
+      if (!parsedTx) {
+        throw new Error("Submitted transaction not found on chain");
+      }
+      if (parsedTx.meta?.err) {
+        throw new Error(
+          `Submitted transaction failed: ${JSON.stringify(parsedTx.meta.err)}`,
+        );
+      }
+
+      const signerKeys = parsedTx.transaction.message.accountKeys
+        .filter((key) => key.signer)
+        .map((key) => key.pubkey.toBase58());
+      if (!signerKeys.includes(String(intent.wallet))) {
+        throw new Error("Wallet signer missing from submitted transaction");
+      }
+
+      const mintProgramId = getMintProgramIdFromEnv();
+      if (
+        !hasMintProgramClaimMintInstruction(
+          parsedTx.transaction.message.instructions,
+          mintProgramId.toBase58(),
+        )
+      ) {
+        throw new Error(
+          "Mint claim_mint instruction missing from submitted transaction",
+        );
+      }
+
+      const [claimReceiptPda] = findMintProgramClaimReceiptPda(
+        mintProgramId,
+        Buffer.from(intent.claimHash, "hex"),
+      );
+      const claimReceiptInfo = await connection.getAccountInfo(claimReceiptPda, {
+        commitment: "confirmed",
+      });
+      if (!claimReceiptInfo) {
+        throw new Error("Claim receipt missing after confirmed mint transaction");
+      }
+
+      await finalizeMintSuccess({
+        intentId,
+        twitchUserId,
+        intent,
+        txSig: submittedTxSig,
+        displayName,
+      });
+
+      return NextResponse.json({
+        ok: true,
+        tx: submittedTxSig,
+        stickerId: String(intent.stickerId),
+        proof: {
+          provider: intent.randomnessProvider ?? null,
+          queuePubkey: intent.randomnessQueuePubkey ?? null,
+          randomnessAccount: intent.randomnessAccount ?? null,
+          commitTx: intent.randomnessCommitTx ?? null,
+          revealTx: intent.randomnessRevealTx ?? null,
+          closeTx: intent.randomnessCloseTx ?? null,
+          randomHex: intent.randomnessValueHex ?? null,
+          drawIndex: typeof intent.drawIndex === "number" ? intent.drawIndex : null,
+          availableCount: Array.isArray(intent.drawAvailableStickerIds)
+            ? intent.drawAvailableStickerIds.length
+            : null,
+        },
+      });
+    }
+
+    if (!signedTxB64) {
+      return new NextResponse("Missing signedTxB64", { status: 400 });
+    }
+    if (!intent.preparedTxB64) {
+      throw new Error("Mint intent missing prepared transaction");
+    }
+
+    const raw = Buffer.from(signedTxB64, "base64");
     const signedVtx = VersionedTransaction.deserialize(raw);
     const preparedVtx = VersionedTransaction.deserialize(
       Buffer.from(intent.preparedTxB64, "base64"),
@@ -362,96 +738,28 @@ export async function POST(req: Request) {
       });
     }
 
-    // Co-sign with backend mint authority after wallet signature.
-    // This avoids sending a pre-signed backend tx to the wallet popup.
     const authority = authorityKeypairFromEnv();
     signedVtx.sign([authority]);
     const signedAndCosignedRaw = Buffer.from(signedVtx.serialize());
 
-    // 1) envoi
     const sig = await connection.sendRawTransaction(signedAndCosignedRaw, {
       skipPreflight: false,
       maxRetries: 3,
       preflightCommitment: "processed",
     });
 
-    // 2) confirmation
     const conf = await connection.confirmTransaction(sig, "confirmed");
     if (conf.value.err) {
       throw new Error(`Tx failed: ${JSON.stringify(conf.value.err)}`);
     }
 
-    // 3) DB uniquement après succès
-    await Mint.create({
+    await finalizeMintSuccess({
+      intentId,
       twitchUserId,
-      wallet: intent.wallet,
-      stickerId: String(intent.stickerId),
-      mintTx: sig,
-      randomnessProvider: intent.randomnessProvider ?? null,
-      randomnessQueuePubkey: intent.randomnessQueuePubkey ?? null,
-      randomnessAccount: intent.randomnessAccount ?? null,
-      randomnessCommitTx: intent.randomnessCommitTx ?? null,
-      randomnessRevealTx: intent.randomnessRevealTx ?? null,
-      randomnessCloseTx: intent.randomnessCloseTx ?? null,
-      randomnessValueHex: intent.randomnessValueHex ?? null,
-      randomnessSeedSlot:
-        typeof intent.randomnessSeedSlot === "number"
-          ? intent.randomnessSeedSlot
-          : null,
-      randomnessRevealSlot:
-        typeof intent.randomnessRevealSlot === "number"
-          ? intent.randomnessRevealSlot
-          : null,
-      drawAvailableStickerIds: Array.isArray(intent.drawAvailableStickerIds)
-        ? intent.drawAvailableStickerIds.map(String)
-        : [],
-      drawIndex: typeof intent.drawIndex === "number" ? intent.drawIndex : null,
+      intent,
+      txSig: sig,
+      displayName,
     });
-
-    await Redemption.updateOne(
-      { redemptionId: intent.redemptionId },
-      { $set: { status: "CONSUMED", consumedAt: new Date(), mintTx: sig } },
-    );
-
-    await MintIntent.updateOne(
-      { intentId },
-      { $set: { status: "DONE", mintTx: sig } },
-    );
-
-    // 4) notification Twitch bot
-    let stickerName = `Panini #${String(intent.stickerId)}`;
-
-    try {
-      const base = process.env.METADATA_BASE_URI; // ✅ tu l'as déjà
-      if (base) {
-        const metaUrl = `${base}/${String(intent.stickerId)}.json`;
-        const metaRes = await fetch(metaUrl, { cache: "no-store" });
-        if (metaRes.ok) {
-          const meta = (await metaRes.json()) as { name?: string };
-          if (meta?.name) stickerName = meta.name;
-        }
-      }
-    } catch {}
-
-    const payload: NotifyPayload = {
-      displayName:
-        (session?.user as ExtendedSessionUser)?.displayName ??
-        (session?.user as ExtendedSessionUser)?.name ??
-        "Quelqu'un",
-      stickerName, // ✅ ex: "Gardien du Bitcoin Déchu"
-      stickerId: String(intent.stickerId),
-      rarity:
-        getSticker(String(intent.stickerId))?.rarity ??
-        (String(intent.stickerId) === "3"
-          ? "SSR"
-          : String(intent.stickerId) === "2"
-            ? "SR"
-            : "R"),
-      tx: sig,
-    };
-
-    // 🚀 fire-and-forget (ne bloque jamais la réponse API)
-    await notifyTwitchBot(payload);
 
     return NextResponse.json({
       ok: true,
@@ -474,15 +782,55 @@ export async function POST(req: Request) {
   } catch (e) {
     console.error("mint/submit failed", e);
 
-    await MintIntent.updateOne(
-      { intentId },
-      { $set: { status: "FAILED", error: (e as Error)?.message ?? "unknown" } },
-    );
+    const errorMessage = (e as Error)?.message ?? "unknown";
+    if ((intent.flowVersion ?? "legacy") === MINT_BACKEND_FLOW_VERSION) {
+      const submittedTxSig =
+        backendSubmittedTxSig || String(intent.submittedTxSig ?? "").trim();
+      await MintIntent.updateOne(
+        { intentId },
+        {
+          $set: {
+            status: submittedTxSig ? "SUBMITTED" : "FAILED",
+            submittedTxSig: submittedTxSig || null,
+            error: errorMessage,
+          },
+        },
+      );
+      if (!submittedTxSig) {
+        await Redemption.updateOne(
+          { redemptionId: intent.redemptionId },
+          { $set: { lockedByIntentId: null } },
+        );
+      }
+    } else if ((intent.flowVersion ?? "legacy") === MINT_PROGRAM_FLOW_VERSION) {
+      const submittedTxSig = txSig || String(intent.submittedTxSig ?? "").trim();
+      await MintIntent.updateOne(
+        { intentId },
+        {
+          $set: {
+            status: submittedTxSig ? "SUBMITTED" : "FAILED",
+            submittedTxSig: submittedTxSig || null,
+            error: errorMessage,
+          },
+        },
+      );
+      if (!submittedTxSig) {
+        await Redemption.updateOne(
+          { redemptionId: intent.redemptionId },
+          { $set: { lockedByIntentId: null } },
+        );
+      }
+    } else {
+      await MintIntent.updateOne(
+        { intentId },
+        { $set: { status: "FAILED", error: errorMessage } },
+      );
 
-    await Redemption.updateOne(
-      { redemptionId: intent.redemptionId },
-      { $set: { lockedByIntentId: null } },
-    );
+      await Redemption.updateOne(
+        { redemptionId: intent.redemptionId },
+        { $set: { lockedByIntentId: null } },
+      );
+    }
 
     return new NextResponse("Mint failed", { status: 500 });
   }

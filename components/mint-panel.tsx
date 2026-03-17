@@ -1,15 +1,25 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
-import { VersionedTransaction } from "@solana/web3.js";
+import {
+    Ed25519Program,
+    Transaction,
+    VersionedTransaction,
+} from "@solana/web3.js";
 import { useTickets } from "@/lib/hooks/use-tickets";
 import { BoosterScene } from "@/components/booster-model";
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import stickers from "@/stickers/stickers.json";
 import { normalizeRarity } from "@/lib/stickers";
+import {
+    MINT_BACKEND_FLOW_VERSION,
+    MINT_PROGRAM_FLOW_VERSION,
+    buildClaimMintInstruction,
+} from "@/lib/solana/mint-program";
+import bs58 from "bs58";
 
 type Reveal = {
     id: string;
@@ -17,6 +27,43 @@ type Reveal = {
     image: string;
     tx: string;
 };
+
+type LegacyPrepareResponse = {
+    flowVersion?: "legacy";
+    intentId: string;
+    txB64: string;
+};
+
+type MintBackendPrepareResponse = {
+    flowVersion: typeof MINT_BACKEND_FLOW_VERSION;
+    intentId: string;
+};
+
+type MintProgramPrepareResponse = {
+    flowVersion: typeof MINT_PROGRAM_FLOW_VERSION;
+    intentId: string;
+    redemptionId: string;
+    stickerId: string;
+    programId: string;
+    configPda: string;
+    claimReceiptPda: string;
+    permitPayloadB64: string;
+    permitSignatureB64: string;
+    permitSignerPubkey: string;
+    claimHashHex: string;
+    expiresAt: string;
+    metadata: {
+        name: string;
+        uri: string;
+    };
+    merkleTreePubkey: string;
+    coreCollectionPubkey: string;
+};
+
+type PrepareResponse =
+    | LegacyPrepareResponse
+    | MintBackendPrepareResponse
+    | MintProgramPrepareResponse;
 
 type PullPhase = "idle" | "charging" | "flash" | "cardBack" | "cardFront";
 
@@ -79,6 +126,7 @@ function rarityBoostMultiplier(r: Rarity | null) {
 
 
 export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean }) {
+    const { connection } = useConnection();
     const wallet = useWallet();
     const [loading, setLoading] = useState(false);
     const [reveal, setReveal] = useState<Reveal | null>(null);
@@ -121,7 +169,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
     }, [boosterRenderMode]);
 
     async function mintOnce(): Promise<Reveal> {
-        if (!wallet.publicKey || !wallet.signTransaction) {
+        if (!wallet.publicKey) {
             throw new Error("Wallet not ready");
         }
 
@@ -129,7 +177,6 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
         let mintSubmitted = false;
 
         try {
-            // 1) prepare
             const prep = await fetch("/api/mint/prepare", {
                 method: "POST",
                 headers: { "content-type": "application/json" },
@@ -137,31 +184,108 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
             });
             if (!prep.ok) throw new Error(await prep.text());
 
-            const prepJson = (await prep.json()) as { intentId: string; txB64: string };
+            const prepJson = (await prep.json()) as PrepareResponse;
             intentId = prepJson.intentId;
 
-            // 2) sign
-            const txBytes = Uint8Array.from(Buffer.from(prepJson.txB64, "base64"));
-            const vtx = VersionedTransaction.deserialize(txBytes);
-            const signed = await wallet.signTransaction(vtx);
-            const signedTxB64 = Buffer.from(signed.serialize()).toString("base64");
+            let tx: string;
+            let stickerId: string;
 
-            // 3) submit
-            const sub = await fetch("/api/mint/submit", {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify({ intentId, signedTxB64 }),
-            });
-            if (!sub.ok) throw new Error(await sub.text());
+            if (prepJson.flowVersion === MINT_PROGRAM_FLOW_VERSION) {
+                if (!wallet.sendTransaction) {
+                    throw new Error("Wallet cannot send transactions");
+                }
 
-            mintSubmitted = true;
+                const permitPayload = Buffer.from(prepJson.permitPayloadB64, "base64");
+                const permitSignature = Buffer.from(prepJson.permitSignatureB64, "base64");
+                const claimHash = Buffer.from(prepJson.claimHashHex, "hex");
 
-            const { tx, stickerId } = (await sub.json()) as { ok: true; tx: string; stickerId: string };
+                const ed25519Ix = Ed25519Program.createInstructionWithPublicKey({
+                    publicKey: bs58.decode(prepJson.permitSignerPubkey),
+                    message: new Uint8Array(permitPayload),
+                    signature: new Uint8Array(permitSignature),
+                });
+
+                const claimIx = buildClaimMintInstruction({
+                    programId: prepJson.programId,
+                    payer: wallet.publicKey.toBase58(),
+                    configPda: prepJson.configPda,
+                    claimReceiptPda: prepJson.claimReceiptPda,
+                    merkleTree: prepJson.merkleTreePubkey,
+                    coreCollection: prepJson.coreCollectionPubkey,
+                    args: {
+                        intentId: prepJson.intentId,
+                        redemptionId: prepJson.redemptionId,
+                        stickerId: prepJson.stickerId,
+                        name: prepJson.metadata.name,
+                        uri: prepJson.metadata.uri,
+                        expiresAtUnix: Math.floor(new Date(prepJson.expiresAt).getTime() / 1000),
+                        claimHash,
+                    },
+                });
+
+                const txRequest = new Transaction();
+                txRequest.feePayer = wallet.publicKey;
+                txRequest.recentBlockhash = (
+                    await connection.getLatestBlockhash("confirmed")
+                ).blockhash;
+                txRequest.add(ed25519Ix, claimIx);
+
+                tx = await wallet.sendTransaction(txRequest, connection, {
+                    preflightCommitment: "confirmed",
+                    maxRetries: 3,
+                });
+                mintSubmitted = true;
+
+                const sub = await fetch("/api/mint/submit", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ intentId, txSig: tx }),
+                });
+                if (!sub.ok) throw new Error(await sub.text());
+
+                const subJson = (await sub.json()) as { ok: true; tx: string; stickerId: string };
+                tx = subJson.tx;
+                stickerId = subJson.stickerId;
+            } else if (prepJson.flowVersion === MINT_BACKEND_FLOW_VERSION) {
+                mintSubmitted = true;
+
+                const sub = await fetch("/api/mint/submit", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ intentId }),
+                });
+                if (!sub.ok) throw new Error(await sub.text());
+
+                const subJson = (await sub.json()) as { ok: true; tx: string; stickerId: string };
+                tx = subJson.tx;
+                stickerId = subJson.stickerId;
+            } else {
+                if (!wallet.signTransaction) {
+                    throw new Error("Wallet cannot sign transactions");
+                }
+
+                const txBytes = Uint8Array.from(Buffer.from(prepJson.txB64, "base64"));
+                const vtx = VersionedTransaction.deserialize(txBytes);
+                const signed = await wallet.signTransaction(vtx);
+                const signedTxB64 = Buffer.from(signed.serialize()).toString("base64");
+
+                const sub = await fetch("/api/mint/submit", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify({ intentId, signedTxB64 }),
+                });
+                if (!sub.ok) throw new Error(await sub.text());
+
+                mintSubmitted = true;
+
+                const subJson = (await sub.json()) as { ok: true; tx: string; stickerId: string };
+                tx = subJson.tx;
+                stickerId = subJson.stickerId;
+            }
 
             const r = rarityFromStickerId(String(stickerId));
             setRarity(r);
 
-            // 4) on prépare un reveal immédiat (ne bloque jamais l'animation)
             const baseReveal: Reveal = {
                 id: String(stickerId),
                 name: `Panini #${String(stickerId)}`,
@@ -169,10 +293,8 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                 tx,
             };
 
-            // refresh tickets en background (ne bloque pas)
             void refreshTickets().catch(() => { });
 
-            // metadata en background (ne bloque pas)
             void (async () => {
                 try {
                     const metaBase = process.env.NEXT_PUBLIC_METADATA_BASE_URI;

@@ -43,6 +43,9 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 _tmp_*
+/.tmp/
+/target
+/tmp_anchor_probe/
 
 # env files (can opt-in for committing if needed)
 .env
@@ -60,3 +63,8 @@ next-env.d.ts
 
 # Solana Skills
 .agents
+
+/scripts
+/docs
+/programs
+Cargo.*
