@@ -491,7 +491,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                         ) : tickets === undefined ? (
                             <div>Chargement des tickets...</div>
                         ) : tickets <= 0 ? (
-                            <div>Tu n&apos;as aucun ticket. Récupère-en via les rewards Twitch.</div>
+                            <div>Tu n&apos;as aucun ticket. R\u00e9cup\u00e8re-en via les rewards Twitch.</div>
                         ) : (
                             <div>Clique sur le booster pour mint (1 ticket consommé).</div>
                         )}
@@ -568,10 +568,6 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                     tx={pendingReveal?.tx ?? null}
                     accent={glowColor}
                     showProofLinks={showProofLinks}
-                    onSkip={() => {
-                        if (pendingReveal) setReveal(pendingReveal);
-                        setPhase("cardFront");
-                    }}
                     onFlip={() => {
                         if (phase === "cardBack" && pendingReveal) {
                             setReveal(pendingReveal);
@@ -644,16 +640,16 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
     );
 }
 
-function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, showProofLinks }: {
+function PullOverlay({ phase, sticker, onFlip, onClose, accent, tx, showProofLinks }: {
     phase: "charging" | "flash" | "cardBack" | "cardFront";
     sticker: { id: string; name: string; image: string } | null;
     tx: string | null;
     showProofLinks: boolean;
     onFlip: () => void;
     onClose: () => void;
-    onSkip: () => void;
     accent: string;
 }) {
+    const showLoading = phase === "charging";
     const showFlash = phase === "flash";
     const showCard = phase === "cardBack" || phase === "cardFront";
     const flipped = phase === "cardFront";
@@ -663,28 +659,27 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, show
 
     return createPortal(
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/70 text-white backdrop-blur-sm">
-            {/* bouton skip */}
-            <button
-                className="absolute right-4 top-4 rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-sm cursor-pointer"
-                onClick={onSkip}
-            >
-                Passer
-            </button>
-
-            {/* flash blanc */}
             <div
                 className={`absolute inset-0 transition-opacity duration-150 ${showFlash ? "opacity-100" : "opacity-0 pointer-events-none"
                     } bg-white`}
             />
 
-            {/* overlay couleur accent */}
             <div
                 className={`absolute inset-0 transition-opacity duration-200 ${showFlash ? "opacity-35" : "opacity-0 pointer-events-none"
                     }`}
                 style={{ background: accent }}
             />
 
-            {/* carte */}
+            {showLoading ? (
+                <div className="site-surface-soft relative mx-auto flex w-full max-w-[min(92vw,420px)] flex-col items-center rounded-3xl border border-white/10 px-6 py-8 text-center shadow-2xl">
+                    <div className="mb-5 h-12 w-12 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+                    <div className="text-lg font-semibold">Mint en cours...</div>
+                    <div className="mt-2 max-w-[28ch] text-sm text-white/75">
+                        Le booster s&apos;ouvre dès que la transaction est confirmée. Ne ferme pas et ne recharge pas la page.
+                    </div>
+                </div>
+            ) : null}
+
             {showCard ? (
                 <div className="relative mx-auto flex w-full max-w-[min(92vw,420px)] flex-col items-center">
                     <div className="[perspective:1200px]">
@@ -697,7 +692,6 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, show
                                 className={`absolute inset-0 transition-transform duration-700 transform-3d ${flipped ? "transform-[rotateY(180deg)]" : ""
                                     }`}
                             >
-                                {/* BACK */}
                                 <div className="absolute inset-0 rounded-2xl border border-white/20 bg-black shadow-xl [backface-visibility:hidden] overflow-hidden">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
                                     <img
@@ -706,11 +700,10 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, show
                                         className="h-full w-full object-cover"
                                     />
                                     <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3 text-center text-sm text-white/90">
-                                        Clique pour révéler
+                                        Clique pour révéler ta carte !
                                     </div>
                                 </div>
 
-                                {/* FRONT */}
                                 <div className="absolute inset-0 rounded-2xl border border-white/20 bg-black shadow-xl transform-[rotateY(180deg)] backface-hidden overflow-hidden">
                                     {sticker?.image ? (
                                         // eslint-disable-next-line @next/next/no-img-element
@@ -725,7 +718,6 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, show
                         </button>
                     </div>
 
-                    {/* actions */}
                     <div className="mt-4 flex w-full max-w-[300px] flex-wrap justify-center gap-2">
                         <a
                             className="min-w-[92px] rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
@@ -767,4 +759,3 @@ function PullOverlay({ phase, sticker, onFlip, onClose, onSkip, accent, tx, show
         document.body
     );
 }
-
