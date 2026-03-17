@@ -491,7 +491,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                         ) : tickets === undefined ? (
                             <div>Chargement des tickets...</div>
                         ) : tickets <= 0 ? (
-                            <div>Tu n&apos;as aucun ticket. R\u00e9cup\u00e8re-en via les rewards Twitch.</div>
+                            <div>Tu n&apos;as aucun ticket. Récupère-en via les rewards Twitch.</div>
                         ) : (
                             <div>Clique sur le booster pour mint (1 ticket consommé).</div>
                         )}
