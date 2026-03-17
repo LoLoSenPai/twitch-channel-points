@@ -518,7 +518,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                     <ol className="mt-3 space-y-2 text-sm opacity-80 list-decimal pl-5">
                         <li>Récupère un ticket via le reward Twitch.</li>
                         <li>Connecte ton wallet Solana.</li>
-                        <li>Clique sur le booster, signe la transaction, puis révèle ta carte.</li>
+                        <li>Clique sur le booster pour lancer un mint sans frais, puis révèle ta carte.</li>
                     </ol>
                     {/* <p className="mt-3 text-xs opacity-75">
                         Tirage vérifiable: la preuve de ton dernier mint est visible directement dans
@@ -545,13 +545,13 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                         <div className="site-surface rounded-xl p-3">
                             <div className="font-medium">Ça coûte quoi ?</div>
                             <div className="opacity-70 mt-1">
-                                1 ticket + les frais réseau Solana.
+                                1 ticket. Aucun frais (gasless).
                             </div>
                         </div>
 
                         <div className="site-surface rounded-xl p-3">
                             <div className="font-medium">Où je vois mes cartes ?</div>
-                            <div className="opacity-70 mt-1">Dans l&apos;album, et tu peux aussi les échanger sur le marketplace.</div>
+                            <div className="opacity-70 mt-1">Dans l&apos;album, dans la marketplace, et directement dans ton wallet.</div>
                         </div>
                     </div>
                 </div>
