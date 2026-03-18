@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { SaleListing } from "@/lib/models";
-import { assertSignedTxMatchesPrepared, sendSignedTxB64 } from "@/lib/solana/trades";
+import {
+  assertSignedTxMatchesPrepared,
+  confirmTxSig,
+  getTradeAssetState,
+  sendSignedTxB64,
+} from "@/lib/solana/trades";
 
 type Params = { id: string };
 
@@ -20,8 +25,9 @@ export async function POST(
 
   const body = await req.json().catch(() => null);
   const signedTxB64 = String(body?.signedTxB64 ?? "").trim();
+  const txSig = String(body?.txSig ?? "").trim();
   const walletPubkey = String(body?.walletPubkey ?? "").trim();
-  if (!signedTxB64 || !walletPubkey) {
+  if ((!signedTxB64 && !txSig) || !walletPubkey) {
     return new NextResponse("Missing params", { status: 400 });
   }
 
@@ -42,8 +48,18 @@ export async function POST(
   }
 
   try {
-    assertSignedTxMatchesPrepared(signedTxB64, listing.preparedBuyTxB64);
-    const sig = await sendSignedTxB64(signedTxB64);
+    let sig = txSig;
+    if (signedTxB64) {
+      assertSignedTxMatchesPrepared(signedTxB64, listing.preparedBuyTxB64);
+      sig = await sendSignedTxB64(signedTxB64);
+    } else {
+      sig = await confirmTxSig(txSig);
+    }
+
+    const state = await getTradeAssetState(String(listing.sellerAssetId));
+    if (state.leafOwner !== String(listing.buyerWallet)) {
+      throw new Error("Purchase did not transfer asset to buyer");
+    }
 
     await SaleListing.updateOne(
       { listingId, status: "LOCKED" },

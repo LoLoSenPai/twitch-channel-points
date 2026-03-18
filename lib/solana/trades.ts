@@ -9,8 +9,6 @@ import {
 } from "@solana/web3.js";
 import {
   AssetWithProof,
-  TokenProgramVersion,
-  TokenStandard,
   delegateV2,
   getAssetWithProof,
   transferV2,
@@ -21,10 +19,8 @@ import {
   createNoopSigner,
   none,
   publicKey,
-  publicKeyBytes,
   some,
   transactionBuilder,
-  wrapNullable,
 } from "@metaplex-foundation/umi";
 import { umiTradeDelegate } from "@/lib/solana/umi";
 import { isAssetIdBlocked } from "@/lib/blocked-assets";
@@ -36,6 +32,21 @@ function rpcConnection() {
     commitment: "confirmed",
     confirmTransactionInitialTimeout: 60_000,
   });
+}
+
+export async function confirmTxSig(
+  txSig: string,
+  options?: { commitment?: "processed" | "confirmed" | "finalized" }
+) {
+  const connection = rpcConnection();
+  const conf = await connection.confirmTransaction(
+    txSig,
+    options?.commitment ?? "confirmed"
+  );
+  if (conf.value.err) {
+    throw new Error(`Tx failed: ${JSON.stringify(conf.value.err)}`);
+  }
+  return txSig;
 }
 
 function pk(v: string) {
@@ -151,6 +162,19 @@ export async function getAssetWithTradeProof(
     umi,
     asset,
     stickerId: parseStickerId(asset),
+  };
+}
+
+export async function getTradeAssetState(
+  assetId: string,
+  options?: { truncateCanopy?: boolean }
+) {
+  const { asset, stickerId } = await getAssetWithTradeProof(assetId, options);
+  return {
+    stickerId,
+    leafOwner: String(asset.leafOwner),
+    leafDelegate: String(asset.leafDelegate),
+    merkleTree: String(asset.merkleTree),
   };
 }
 

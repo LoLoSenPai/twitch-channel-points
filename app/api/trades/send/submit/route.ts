@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { TransferIntent } from "@/lib/models";
 import {
+  confirmTxSig,
+  getTradeAssetState,
   sendSignedTxB64,
   signedTxMatchesPrepared,
 } from "@/lib/solana/trades";
@@ -27,9 +29,10 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const intentId = String(body?.intentId ?? "").trim();
   const signedTxB64 = String(body?.signedTxB64 ?? "").trim();
+  const txSig = String(body?.txSig ?? "").trim();
   const walletPubkey = normalizeWallet(body?.walletPubkey);
 
-  if (!intentId || !signedTxB64 || !walletPubkey) {
+  if (!intentId || (!signedTxB64 && !txSig) || !walletPubkey) {
     return new NextResponse("Missing params", { status: 400 });
   }
 
@@ -54,31 +57,41 @@ export async function POST(req: Request) {
   }
 
   try {
-    const matchesPrepared = signedTxMatchesPrepared(
-      signedTxB64,
-      String(intent.preparedTxB64 ?? "")
-    );
-    if (!matchesPrepared) {
-      console.warn("trades/send/submit: signed tx differs from prepared tx", {
-        intentId,
-      });
+    let finalTxSig = txSig;
+    if (signedTxB64) {
+      const matchesPrepared = signedTxMatchesPrepared(
+        signedTxB64,
+        String(intent.preparedTxB64 ?? "")
+      );
+      if (!matchesPrepared) {
+        console.warn("trades/send/submit: signed tx differs from prepared tx", {
+          intentId,
+        });
+      }
+
+      finalTxSig = await sendSignedTxB64(signedTxB64);
+    } else {
+      finalTxSig = await confirmTxSig(txSig);
     }
 
-    const txSig = await sendSignedTxB64(signedTxB64);
+    const state = await getTradeAssetState(String(intent.assetId));
+    if (state.leafOwner !== String(intent.recipientWallet)) {
+      throw new Error("Transfer did not move asset to recipient");
+    }
 
     await TransferIntent.updateOne(
       { intentId, status: "PREPARED" },
       {
         $set: {
           status: "DONE",
-          txSig,
+          txSig: finalTxSig,
           error: null,
           preparedTxB64: null,
         },
       }
     );
 
-    return NextResponse.json({ ok: true, intentId, tx: txSig });
+    return NextResponse.json({ ok: true, intentId, tx: finalTxSig });
   } catch (e) {
     const message = (e as Error)?.message ?? "Transfer submit failed";
     await TransferIntent.updateOne(

@@ -3,7 +3,9 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { TradeOffer } from "@/lib/models";
 import {
+  confirmTxSig,
   executeDelegatedSwap,
+  getTradeAssetState,
   signedTxMatchesPrepared,
   sendSignedTxB64,
 } from "@/lib/solana/trades";
@@ -25,8 +27,9 @@ export async function POST(
 
   const body = await req.json().catch(() => null);
   const signedTxB64 = String(body?.signedTxB64 ?? "").trim();
+  const txSig = String(body?.txSig ?? "").trim();
   const walletPubkey = String(body?.walletPubkey ?? "").trim();
-  if (!signedTxB64 || !walletPubkey) {
+  if ((!signedTxB64 && !txSig) || !walletPubkey) {
     return new NextResponse("Missing params", { status: 400 });
   }
 
@@ -48,11 +51,22 @@ export async function POST(
 
   let takerDelegationTxSig: string | null = null;
   try {
-    // Keep compatibility with wallet providers that may re-serialize.
-    // Mismatch is tolerated, since relay executes only taker-signed payload.
-    signedTxMatchesPrepared(signedTxB64, offer.takerPreparedDelegationTxB64);
+    if (signedTxB64) {
+      // Keep compatibility with wallet providers that may re-serialize.
+      // Mismatch is tolerated, since relay executes only taker-signed payload.
+      signedTxMatchesPrepared(signedTxB64, offer.takerPreparedDelegationTxB64);
+      takerDelegationTxSig = await sendSignedTxB64(signedTxB64);
+    } else {
+      takerDelegationTxSig = await confirmTxSig(txSig);
+    }
 
-    takerDelegationTxSig = await sendSignedTxB64(signedTxB64);
+    const takerAssetState = await getTradeAssetState(String(offer.takerAssetId));
+    if (takerAssetState.leafOwner !== String(offer.takerWallet)) {
+      throw new Error("Taker no longer owns the offered asset");
+    }
+    if (takerAssetState.leafDelegate !== tradeDelegatePublicKeyBase58()) {
+      throw new Error("Taker asset is not delegated to trade authority");
+    }
 
     const settlementTxSig = await executeDelegatedSwap({
       makerAssetId: String(offer.makerAssetId),

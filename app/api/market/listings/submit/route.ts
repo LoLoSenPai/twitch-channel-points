@@ -2,7 +2,13 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { SaleListing } from "@/lib/models";
-import { sendSignedTxB64, signedTxMatchesPrepared } from "@/lib/solana/trades";
+import {
+  confirmTxSig,
+  getTradeAssetState,
+  sendSignedTxB64,
+  signedTxMatchesPrepared,
+} from "@/lib/solana/trades";
+import { tradeDelegatePublicKeyBase58 } from "@/lib/solana/umi";
 
 export async function POST(req: Request) {
   const session = await auth();
@@ -12,8 +18,9 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const listingId = String(body?.listingId ?? "").trim();
   const signedTxB64 = String(body?.signedTxB64 ?? "").trim();
+  const txSig = String(body?.txSig ?? "").trim();
   const walletPubkey = String(body?.walletPubkey ?? "").trim();
-  if (!listingId || !signedTxB64 || !walletPubkey) {
+  if (!listingId || (!signedTxB64 && !txSig) || !walletPubkey) {
     return new NextResponse("Missing params", { status: 400 });
   }
 
@@ -42,17 +49,31 @@ export async function POST(req: Request) {
   }
 
   try {
-    const matchesPrepared = signedTxMatchesPrepared(
-      signedTxB64,
-      listing.preparedDelegationTxB64
-    );
-    if (!matchesPrepared) {
-      console.warn("market/listings/submit: signed tx differs from prepared tx", {
-        listingId,
-      });
+    let sig = txSig;
+    if (signedTxB64) {
+      const matchesPrepared = signedTxMatchesPrepared(
+        signedTxB64,
+        listing.preparedDelegationTxB64
+      );
+      if (!matchesPrepared) {
+        console.warn("market/listings/submit: signed tx differs from prepared tx", {
+          listingId,
+        });
+      }
+
+      sig = await sendSignedTxB64(signedTxB64);
+    } else {
+      sig = await confirmTxSig(txSig);
     }
 
-    const sig = await sendSignedTxB64(signedTxB64);
+    const state = await getTradeAssetState(String(listing.sellerAssetId));
+    if (state.leafOwner !== String(listing.sellerWallet)) {
+      throw new Error("Seller no longer owns listed asset");
+    }
+    if (state.leafDelegate !== tradeDelegatePublicKeyBase58()) {
+      throw new Error("Listed asset is not delegated to trade authority");
+    }
+
     await SaleListing.updateOne(
       { listingId, status: "DRAFT" },
       {

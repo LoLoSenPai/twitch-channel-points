@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import { PublicKey, VersionedTransaction } from "@solana/web3.js";
 import { normalizeRarity } from "@/lib/stickers";
@@ -421,6 +421,7 @@ function normalizeWallet(value: string) {
 
 export function MarketplacePanel() {
   const wallet = useWallet();
+  const { connection } = useConnection();
 
   const [offers, setOffers] = useState<OffersResponse | null>(null);
   const [listings, setListings] = useState<ListingsResponse | null>(null);
@@ -887,14 +888,27 @@ export function MarketplacePanel() {
     (showTrades ? openTrades.length : 0) +
     (showSales ? openSales.length : 0);
 
-  async function signPreparedTx(txB64: string) {
-    if (!wallet.signTransaction || !wallet.publicKey) {
+  async function prepareWalletSubmission(txB64: string) {
+    if (!wallet.publicKey) {
       throw new Error("Wallet non connecte");
     }
     const txBytes = Uint8Array.from(Buffer.from(txB64, "base64"));
     const vtx = VersionedTransaction.deserialize(txBytes);
+    if (wallet.sendTransaction) {
+      const txSig = await wallet.sendTransaction(vtx, connection, {
+        preflightCommitment: "processed",
+        maxRetries: 3,
+        skipPreflight: false,
+      });
+      return { txSig };
+    }
+    if (!wallet.signTransaction) {
+      throw new Error("Ce wallet ne supporte pas la signature de transaction");
+    }
     const signed = await wallet.signTransaction(vtx);
-    return Buffer.from(signed.serialize()).toString("base64");
+    return {
+      signedTxB64: Buffer.from(signed.serialize()).toString("base64"),
+    };
   }
 
   async function copyTx(signature: string, label: string) {
@@ -985,7 +999,7 @@ export function MarketplacePanel() {
         if (!prep.ok) throw new Error(await prep.text());
         const prepJson = (await prep.json()) as TransferPrepareResponse;
 
-        const signedTxB64 = await signPreparedTx(prepJson.txB64);
+        const walletSubmit = await prepareWalletSubmission(prepJson.txB64);
 
         const sub = await fetch("/api/trades/send/submit", {
           method: "POST",
@@ -993,7 +1007,7 @@ export function MarketplacePanel() {
           body: JSON.stringify({
             intentId: prepJson.intentId,
             walletPubkey: walletPk,
-            signedTxB64,
+            ...walletSubmit,
           }),
         });
         if (!sub.ok) throw new Error(await sub.text());
@@ -1053,7 +1067,7 @@ export function MarketplacePanel() {
 
       const prepJson = (await prep.json()) as { offerId: string; txB64: string };
       preparedOfferId = prepJson.offerId;
-      const signedTxB64 = await signPreparedTx(prepJson.txB64);
+      const walletSubmit = await prepareWalletSubmission(prepJson.txB64);
 
       const sub = await fetch("/api/trades/offers/submit", {
         method: "POST",
@@ -1061,7 +1075,7 @@ export function MarketplacePanel() {
         body: JSON.stringify({
           offerId: prepJson.offerId,
           walletPubkey: walletPk,
-          signedTxB64,
+          ...walletSubmit,
         }),
       });
       if (!sub.ok) throw new Error(await sub.text());
@@ -1135,7 +1149,7 @@ export function MarketplacePanel() {
 
       const prepJson = (await prep.json()) as { listingId: string; txB64: string };
       preparedListingId = prepJson.listingId;
-      const signedTxB64 = await signPreparedTx(prepJson.txB64);
+      const walletSubmit = await prepareWalletSubmission(prepJson.txB64);
 
       const sub = await fetch("/api/market/listings/submit", {
         method: "POST",
@@ -1143,7 +1157,7 @@ export function MarketplacePanel() {
         body: JSON.stringify({
           listingId: prepJson.listingId,
           walletPubkey: walletPk,
-          signedTxB64,
+          ...walletSubmit,
         }),
       });
       if (!sub.ok) throw new Error(await sub.text());
@@ -1209,12 +1223,12 @@ export function MarketplacePanel() {
       if (!prep.ok) throw new Error(await prep.text());
       const prepJson = (await prep.json()) as { txB64: string };
 
-      const signedTxB64 = await signPreparedTx(prepJson.txB64);
+      const walletSubmit = await prepareWalletSubmission(prepJson.txB64);
 
       const sub = await fetch(`/api/trades/offers/${offer.offerId}/accept/submit`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ walletPubkey: walletPk, signedTxB64 }),
+        body: JSON.stringify({ walletPubkey: walletPk, ...walletSubmit }),
       });
       if (!sub.ok) throw new Error(await sub.text());
 
@@ -1267,12 +1281,12 @@ export function MarketplacePanel() {
       if (!prep.ok) throw new Error(await prep.text());
       const prepJson = (await prep.json()) as { txB64: string };
 
-      const signedTxB64 = await signPreparedTx(prepJson.txB64);
+      const walletSubmit = await prepareWalletSubmission(prepJson.txB64);
 
       const sub = await fetch(`/api/market/listings/${listing.listingId}/buy/submit`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ walletPubkey: walletPk, signedTxB64 }),
+        body: JSON.stringify({ walletPubkey: walletPk, ...walletSubmit }),
       });
       if (!sub.ok) throw new Error(await sub.text());
 
