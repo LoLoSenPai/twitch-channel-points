@@ -75,17 +75,21 @@ export function getAvailableStickerIds(params: {
 }): string[] {
   const { mintedCounts, reservedCounts } = params;
 
-  const available = STICKERS.filter((sticker) => {
+  const available = STICKERS.flatMap((sticker) => {
     const id = String(sticker.id);
     const minted = mintedCounts.get(id) ?? 0;
     const reserved = reservedCounts?.get(id) ?? 0;
     const maxSupply = sticker.maxSupply ?? null;
 
-    if (!maxSupply) return true;
-    return minted + reserved < maxSupply;
-  }).map((sticker) => String(sticker.id));
+    if (!maxSupply) return [id];
 
-  // deterministic ordering for reproducible selection
+    const remaining = Math.max(0, maxSupply - minted - reserved);
+    if (remaining <= 0) return [];
+    return Array.from({ length: remaining }, () => id);
+  });
+
+  // Deterministic ordering for reproducible proofs.
+  // Duplicates are intentional: each remaining copy occupies one slot in the draw pool.
   return available.sort((a, b) => {
     const aNum = Number(a);
     const bNum = Number(b);

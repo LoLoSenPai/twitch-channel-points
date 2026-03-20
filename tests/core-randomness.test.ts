@@ -31,11 +31,21 @@ function testSupplyFiltering() {
   assert(!ids.includes("1"), "sticker #1 should be filtered when maxSupply is reached");
   assert(!ids.includes("12"), "sticker #12 should be filtered when minted+reserved reaches maxSupply");
   assert(ids.includes("14"), "sticker #14 should still be available");
+  assert.equal(
+    ids.filter((id) => id === "14").length,
+    50,
+    "sticker #14 should appear once per remaining copy",
+  );
+  assert.equal(
+    ids.filter((id) => id === "2").length,
+    10,
+    "sticker #2 should appear once per remaining copy",
+  );
 
   for (let i = 1; i < ids.length; i += 1) {
     assert(
-      Number(ids[i - 1]) < Number(ids[i]),
-      "available ids should be sorted ascending for deterministic draw",
+      Number(ids[i - 1]) <= Number(ids[i]),
+      "draw pool should be sorted ascending for deterministic draw",
     );
   }
 }
@@ -57,4 +67,3 @@ function main() {
 }
 
 main();
-

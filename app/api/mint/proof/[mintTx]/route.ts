@@ -58,7 +58,7 @@ export async function GET(
         ? mint.drawAvailableStickerIds.map(String)
         : [],
       algorithm:
-        "availableIds sorted ascending; index = BigInt(randomHex) % availableIds.length",
+        "drawPool stored at mint time; index = BigInt(randomHex) % drawPool.length; selectedStickerId = drawPool[index]",
     },
   });
 }

@@ -106,7 +106,7 @@ export async function GET(
 
   try {
     if (!randomHex) throw new Error("randomHex manquant");
-    if (!availableStickerIds.length) throw new Error("availableStickerIds vide");
+    if (!availableStickerIds.length) throw new Error("draw pool vide");
     computedIndex = uniformIndexFromHex(randomHex, availableStickerIds.length);
     expectedStickerId = String(availableStickerIds[computedIndex] ?? "");
   } catch (e) {
@@ -162,7 +162,8 @@ export async function GET(
       indexMatches,
       stickerMatches,
       error: algorithmError,
-      formula: "index = BigInt(randomHex) % availableStickerIds.length",
+      formula:
+        "index = BigInt(randomHex) % drawPool.length; selectedStickerId = drawPool[index]",
     },
     transactions: {
       mint: mintCheck,

@@ -83,7 +83,8 @@ export default async function FairnessPage() {
           </h1>
           <p className="site-muted mt-3 text-sm sm:text-base">
             Le mint est tiré avec une random vérifiable (Switchboard), puis le NFT est choisi
-            uniformément parmi les IDs encore mintables.
+            uniformément dans le draw pool enregistré au moment du mint. Sur les nouveaux mints,
+            ce pool est pondéré par les copies restantes.
           </p>
           <div className="mt-4 flex flex-wrap gap-2">
             <a
