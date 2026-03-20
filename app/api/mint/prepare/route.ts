@@ -178,17 +178,6 @@ export async function POST(req: Request) {
       return NextResponse.json({
         flowVersion: MINT_BACKEND_FLOW_VERSION,
         intentId,
-        proof: {
-          provider: randomnessProof.provider,
-          queuePubkey: randomnessProof.queuePubkey,
-          randomnessAccount: randomnessProof.randomnessAccount,
-          commitTx: randomnessProof.commitTx,
-          revealTx: randomnessProof.revealTx,
-          closeTx: randomnessProof.closeTx,
-          randomHex: randomnessProof.randomHex,
-          drawIndex: draw.index,
-          availableCount: availableStickerIds.length,
-        },
       });
     }
 
@@ -260,17 +249,6 @@ export async function POST(req: Request) {
       flowVersion: "legacy",
       intentId,
       txB64,
-      proof: {
-        provider: randomnessProof.provider,
-        queuePubkey: randomnessProof.queuePubkey,
-        randomnessAccount: randomnessProof.randomnessAccount,
-        commitTx: randomnessProof.commitTx,
-        revealTx: randomnessProof.revealTx,
-        closeTx: randomnessProof.closeTx,
-        randomHex: randomnessProof.randomHex,
-        drawIndex: draw.index,
-        availableCount: availableStickerIds.length,
-      },
     });
   } catch (e) {
     console.error("mint/prepare failed", e);
