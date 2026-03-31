@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 
 type LeaderboardEntry = {
   twitchUserId: string;
@@ -108,20 +109,27 @@ export function LeaderboardPanel() {
             </tr>
           </thead>
           <tbody>
-            {!loading && !items.length ? (
+            {!loading && !items.filter((e) => e.totalCards > 0).length ? (
               <tr>
                 <td colSpan={5} className="site-muted px-3 py-4 text-center text-sm">
                   Aucun joueur classé pour le moment.
                 </td>
               </tr>
             ) : (
-              items.slice(0, 100).map((entry, index) => (
+              items.filter((e) => e.totalCards > 0).slice(0, 100).map((entry, index) => (
                 <tr
                   key={`leader-${entry.twitchUserId}`}
                   className="border-b border-[color:var(--site-surface-border)] last:border-b-0"
                 >
                   <td className="px-3 py-2">{index + 1}</td>
-                  <td className="px-3 py-2">{entry.displayName || short(entry.twitchUserId, 4, 4)}</td>
+                  <td className="px-3 py-2">
+                    <Link
+                      href={`/album/${encodeURIComponent(entry.displayName.toLowerCase())}`}
+                      className="hover:underline"
+                    >
+                      {entry.displayName || short(entry.twitchUserId, 4, 4)}
+                    </Link>
+                  </td>
                   <td className="px-3 py-2">{entry.uniqueCards}</td>
                   <td className="px-3 py-2">{entry.totalCards}</td>
                   <td className="px-3 py-2">

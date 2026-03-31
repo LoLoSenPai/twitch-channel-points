@@ -222,7 +222,7 @@ function AlbumLeaf({
     );
 }
 
-export function AlbumGrid() {
+export function AlbumGrid({ viewUserId }: { viewUserId?: string } = {}) {
     const wallet = useWallet();
     const [me, setMe] = useState<Me | null>(null);
     const [loading, setLoading] = useState(true);
@@ -246,10 +246,15 @@ export function AlbumGrid() {
 
         (async () => {
             try {
-                const walletPubkey = wallet.publicKey?.toBase58();
-                const url = walletPubkey
-                    ? `/api/me?walletPubkey=${encodeURIComponent(walletPubkey)}`
-                    : "/api/me";
+                let url: string;
+                if (viewUserId) {
+                    url = `/api/users/${encodeURIComponent(viewUserId)}/album`;
+                } else {
+                    const walletPubkey = wallet.publicKey?.toBase58();
+                    url = walletPubkey
+                        ? `/api/me?walletPubkey=${encodeURIComponent(walletPubkey)}`
+                        : "/api/me";
+                }
                 const response = await fetch(url, { cache: "no-store" });
                 if (!active) return;
                 if (response.ok) {
@@ -266,7 +271,8 @@ export function AlbumGrid() {
             active = false;
             if (turnTimer.current) clearTimeout(turnTimer.current);
         };
-    }, [wallet.publicKey]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [viewUserId ?? wallet.publicKey?.toBase58()]);
 
     useEffect(() => {
         setMounted(true);
@@ -414,13 +420,19 @@ export function AlbumGrid() {
             <header className="album-hero">
                 <div className="album-hero-headline">
                     <p className="album-kicker">NYLS COLLECTION</p>
-                    <h2 className="album-title">Ton album Panini</h2>
+                    <h2 className="album-title">
+                        {viewUserId
+                            ? `Album de ${me?.user?.displayName ?? viewUserId}`
+                            : "Ton album Panini"}
+                    </h2>
                     <p className="album-subtitle">
                         {loading
-                            ? "Chargement de ton album..."
-                            : me?.user?.displayName
-                                ? `${me.user.displayName}, complète la collection en mintant chaque case.`
-                                : "Connecte Twitch pour afficher ton avancement complet."}
+                            ? "Chargement de l'album..."
+                            : viewUserId
+                                ? `Collection de ${me?.user?.displayName ?? viewUserId}`
+                                : me?.user?.displayName
+                                    ? `${me.user.displayName}, complète la collection en mintant chaque case.`
+                                    : "Connecte Twitch pour afficher ton avancement complet."}
                     </p>
                 </div>
 
