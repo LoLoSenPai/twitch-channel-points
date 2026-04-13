@@ -358,18 +358,8 @@ async function finalizeMintSuccess(params: {
     { $set: { status: "DONE", mintTx: txSig, submittedTxSig: txSig, error: null } },
   );
 
-  let stickerName = `Panini #${String(intent.stickerId)}`;
-  try {
-    const base = process.env.METADATA_BASE_URI;
-    if (base) {
-      const metaUrl = `${base}/${String(intent.stickerId)}.json`;
-      const metaRes = await fetch(metaUrl, { cache: "no-store" });
-      if (metaRes.ok) {
-        const meta = (await metaRes.json()) as { name?: string };
-        if (meta?.name) stickerName = meta.name;
-      }
-    }
-  } catch {}
+  const stickerName =
+    getSticker(String(intent.stickerId))?.name ?? `Panini #${String(intent.stickerId)}`;
 
   const payload: NotifyPayload = {
     displayName,

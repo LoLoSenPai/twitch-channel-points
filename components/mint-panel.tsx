@@ -48,17 +48,37 @@ type Rarity =
     | "SSR";
 
 type StickerJson = {
-    items: Array<{ id: string; rarity?: string }>;
+    items: Array<{ id: string; name?: string; image?: string; rarity?: string }>;
 };
 
-const stickerRarityMap = new Map(
-    (stickers as StickerJson).items.map((item) => [String(item.id), item.rarity])
-);
-
 const SOLSCAN_CLUSTER = process.env.NEXT_PUBLIC_SOLSCAN_CLUSTER?.trim() ?? "";
+const STICKERS_IMAGE_BASE =
+    process.env.NEXT_PUBLIC_STICKERS_IMAGE_BASE?.trim() || "/stickers/";
 const BOOSTER_ASSET_VERSION = process.env.NEXT_PUBLIC_BOOSTER_ASSET_VERSION?.trim() ?? "1";
 const BOOSTER_RENDER_MODE_KEY = "mint.booster.render_mode";
 type BoosterRenderMode = "3d" | "image";
+
+function resolveStickerImageSrc(image?: string) {
+    const value = (image ?? "").trim();
+    if (!value) return "";
+
+    if (value.startsWith("http://") || value.startsWith("https://")) return value;
+    if (value.startsWith("/")) return value;
+
+    const base = STICKERS_IMAGE_BASE.endsWith("/") ? STICKERS_IMAGE_BASE : `${STICKERS_IMAGE_BASE}/`;
+    return `${base}${value}`;
+}
+
+const stickerInfoMap = new Map(
+    (stickers as StickerJson).items.map((item) => [
+        String(item.id),
+        {
+            name: item.name ?? `Panini #${String(item.id)}`,
+            image: resolveStickerImageSrc(item.image),
+            rarity: item.rarity,
+        },
+    ])
+);
 
 function solscanTxUrl(signature: string) {
     const sig = String(signature ?? "").trim();
@@ -68,7 +88,7 @@ function solscanTxUrl(signature: string) {
 }
 
 function rarityFromStickerId(id: string): Rarity {
-    const configured = normalizeRarity(stickerRarityMap.get(String(id)));
+    const configured = normalizeRarity(stickerInfoMap.get(String(id))?.rarity);
     if (configured) return configured;
     if (id === "3") return "SSR"; // le plus rare (10%)
     if (id === "2") return "SR";  // moyen (30%)
@@ -213,42 +233,15 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
             const r = rarityFromStickerId(String(stickerId));
             setRarity(r);
 
+            const stickerInfo = stickerInfoMap.get(String(stickerId));
             const baseReveal: Reveal = {
                 id: String(stickerId),
-                name: `Panini #${String(stickerId)}`,
-                image: "",
+                name: stickerInfo?.name ?? `Panini #${String(stickerId)}`,
+                image: stickerInfo?.image ?? "",
                 tx,
             };
 
             void refreshTickets().catch(() => { });
-
-            void (async () => {
-                try {
-                    const metaBase = process.env.NEXT_PUBLIC_METADATA_BASE_URI;
-                    const metaUrl = metaBase ? `${metaBase}/${stickerId}.json` : null;
-                    if (!metaUrl) return;
-
-                    const metaRes = await fetch(metaUrl, { cache: "no-store" });
-                    if (!metaRes.ok) return;
-
-                    const meta = (await metaRes.json()) as { name?: string; image?: string };
-
-                    const patch = {
-                        name: meta?.name ?? baseReveal.name,
-                        image: meta?.image ?? baseReveal.image,
-                    };
-
-                    setPendingReveal((prev) =>
-                        prev && prev.id === baseReveal.id ? { ...prev, ...patch } : prev
-                    );
-
-                    setReveal((prev) =>
-                        prev && prev.id === baseReveal.id ? { ...prev, ...patch } : prev
-                    );
-                } catch {
-                    // silence
-                }
-            })();
 
             return baseReveal;
         } catch (e) {
@@ -557,9 +550,9 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                     </div>
 
                     <div className="flex flex-wrap gap-2">
-                        <a className="site-btn rounded-xl px-3 py-2 text-sm cursor-pointer" href="/album">
+                        <Link className="site-btn rounded-xl px-3 py-2 text-sm cursor-pointer" href="/album">
                             Voir dans l&apos;album
-                        </a>
+                        </Link>
 
                         <a
                             className="site-btn rounded-xl px-3 py-2 text-sm opacity-80 cursor-pointer"
@@ -665,12 +658,12 @@ function PullOverlay({ phase, sticker, onFlip, onClose, accent, tx, showProofLin
                     </div>
 
                     <div className="mt-4 flex w-full max-w-[300px] flex-wrap justify-center gap-2">
-                        <a
+                        <Link
                             className="min-w-[92px] rounded-xl border border-white/20 bg-black/40 px-3 py-2 text-center text-sm cursor-pointer"
                             href="/album"
                         >
                             Album
-                        </a>
+                        </Link>
 
                         {tx ? (
                             <a
