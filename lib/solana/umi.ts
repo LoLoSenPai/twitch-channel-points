@@ -4,7 +4,7 @@ import { mplBubblegum } from "@metaplex-foundation/mpl-bubblegum";
 import { mplCore } from "@metaplex-foundation/mpl-core";
 
 function createBaseUmi() {
-  return createUmi(process.env.HELIUS_RPC_URL!)
+  return createUmi(process.env.HELIUS_RPC_URL!, { commitment: "confirmed" })
     .use(mplBubblegum())
     .use(mplCore());
 }

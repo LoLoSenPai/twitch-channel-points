@@ -375,7 +375,7 @@ async function finalizeMintSuccess(params: {
     tx: txSig,
   };
 
-  await notifyTwitchBot(payload);
+  void notifyTwitchBot(payload);
 }
 
 
@@ -503,7 +503,9 @@ export async function POST(req: Request) {
             }),
       });
 
-      const result = await builder.sendAndConfirm(umi);
+      const result = await builder.sendAndConfirm(umi, {
+        confirm: { commitment: "confirmed" },
+      });
       const submittedTxSig = result.signature.toString();
       backendSubmittedTxSig = submittedTxSig;
 

@@ -1515,6 +1515,8 @@ export function MarketplacePanel() {
                       {makerAssetOptions.map((group) => {
                         const selected = makerSelectedStickerId === group.stickerId;
                         const isDisabled = !group.primaryAssetId;
+                        const sticker = stickerById.get(String(group.stickerId));
+                        const rarity = rarityBadgeMeta(sticker?.rarity);
                         return (
                           <button
                             key={`maker-group-${group.stickerId}`}
@@ -1536,7 +1538,7 @@ export function MarketplacePanel() {
                                 : `Sélectionner #${group.stickerId}`
                             }
                           >
-                            <div className="site-surface h-10 w-8 shrink-0 overflow-hidden rounded">
+                            <div className="site-surface relative h-10 w-8 shrink-0 overflow-hidden rounded">
                               {group.imageSrc ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
@@ -1549,6 +1551,15 @@ export function MarketplacePanel() {
                                   #{group.stickerId}
                                 </div>
                               )}
+                              {rarity ? (
+                                <div className="pointer-events-none absolute bottom-0.5 left-0.5">
+                                  <span
+                                    className={`rounded-full border px-1 py-[1px] text-[8px] font-medium leading-none tracking-wide backdrop-blur-[1px] ${rarity.chipClass}`}
+                                  >
+                                    {rarity.label}
+                                  </span>
+                                </div>
+                              ) : null}
                             </div>
                             <div className="min-w-0">
                               <div className="truncate text-sm">#{group.stickerId}</div>
@@ -1572,6 +1583,21 @@ export function MarketplacePanel() {
                 {makerSelectedGroup ? (
                   <div className="site-surface-soft rounded-lg px-2.5 py-1.5 text-xs">
                     Carte proposée: <span className="font-medium">#{makerSelectedGroup.stickerId}</span>
+                    {(() => {
+                      const rarity = rarityBadgeMeta(
+                        stickerById.get(String(makerSelectedGroup.stickerId))?.rarity
+                      );
+                      return rarity ? (
+                        <>
+                          {" · "}
+                          <span
+                            className={`inline-flex rounded-full border px-1.5 py-0.5 text-[10px] font-medium leading-none ${rarity.chipClass}`}
+                          >
+                            {rarity.label}
+                          </span>
+                        </>
+                      ) : null;
+                    })()}
                     {" · "}dispo x{makerSelectedGroup.availableCount}
                     {makerSelectedGroup.lockedCount > 0
                       ? ` · verrouillé x${makerSelectedGroup.lockedCount}`
