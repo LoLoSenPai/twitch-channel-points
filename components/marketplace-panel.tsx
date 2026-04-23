@@ -594,6 +594,8 @@ export function MarketplacePanel() {
     );
   }, [ownedStickerGroups, makerSelectedStickerId]);
 
+  const canCreateOffer = Boolean(makerAssetId && wantedStickerIds.length && !loading);
+
   const duplicateCopiesCount = useMemo(() => {
     return ownedStickerGroups.reduce((sum, group) => sum + Math.max(0, group.count - 1), 0);
   }, [ownedStickerGroups]);
@@ -774,8 +776,7 @@ export function MarketplacePanel() {
         )
       : false;
     if (!hasMaker) {
-      const fallbackGroup = ownedStickerGroups.find((group) => group.primaryAssetId);
-      setMakerAssetId(fallbackGroup?.primaryAssetId ?? "");
+      setMakerAssetId("");
     }
 
     const hasSale = saleAssetId
@@ -1538,7 +1539,7 @@ export function MarketplacePanel() {
                                 : `Sélectionner #${group.stickerId}`
                             }
                           >
-                            <div className="site-surface relative h-10 w-8 shrink-0 overflow-hidden rounded">
+                            <div className="site-surface h-10 w-8 shrink-0 overflow-hidden rounded">
                               {group.imageSrc ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
@@ -1551,23 +1552,21 @@ export function MarketplacePanel() {
                                   #{group.stickerId}
                                 </div>
                               )}
-                              {rarity ? (
-                                <div className="pointer-events-none absolute bottom-0.5 left-0.5">
-                                  <span
-                                    className={`rounded-full border px-1 py-[1px] text-[8px] font-medium leading-none tracking-wide backdrop-blur-[1px] ${rarity.chipClass}`}
-                                  >
-                                    {rarity.label}
-                                  </span>
-                                </div>
-                              ) : null}
                             </div>
-                            <div className="min-w-0">
+                            <div className="min-w-0 flex-1">
                               <div className="truncate text-sm">#{group.stickerId}</div>
                               <div className="text-[11px] opacity-70">
                                 dispo x{group.availableCount}
                                 {group.lockedCount > 0 ? ` · verrouillé x${group.lockedCount}` : ""}
                               </div>
                             </div>
+                            {rarity ? (
+                              <span
+                                className={`ml-auto shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-none ${rarity.chipClass}`}
+                              >
+                                {rarity.label}
+                              </span>
+                            ) : null}
                           </button>
                         );
                       })}
@@ -1696,8 +1695,15 @@ export function MarketplacePanel() {
 
             <button
               className={buttonPrimaryWideClass}
-              disabled={loading}
+              disabled={!canCreateOffer}
               onClick={() => void createOffer()}
+              title={
+                makerAssetId
+                  ? wantedStickerIds.length
+                    ? undefined
+                    : "Choisis au moins une carte demandée"
+                  : "Choisis d'abord une carte à proposer"
+              }
             >
               {busyAction === "create-offer" ? "Création..." : "Créer l'offre"}
             </button>
