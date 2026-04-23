@@ -5,8 +5,8 @@ import { SaleListing } from "@/lib/models";
 import {
   assertSignedTxMatchesPrepared,
   confirmTxSig,
-  getTradeAssetState,
   sendSignedTxB64,
+  waitForTradeAssetState,
 } from "@/lib/solana/trades";
 
 type Params = { id: string };
@@ -56,10 +56,11 @@ export async function POST(
       sig = await confirmTxSig(txSig);
     }
 
-    const state = await getTradeAssetState(String(listing.sellerAssetId));
-    if (state.leafOwner !== String(listing.buyerWallet)) {
-      throw new Error("Purchase did not transfer asset to buyer");
-    }
+    await waitForTradeAssetState(
+      String(listing.sellerAssetId),
+      (state) => state.leafOwner === String(listing.buyerWallet),
+      { description: "Purchase did not transfer asset to buyer" }
+    );
 
     await SaleListing.updateOne(
       { listingId, status: "LOCKED" },

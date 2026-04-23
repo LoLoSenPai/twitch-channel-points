@@ -5,9 +5,9 @@ import { TradeOffer } from "@/lib/models";
 import {
   confirmTxSig,
   executeDelegatedSwap,
-  getTradeAssetState,
   signedTxMatchesPrepared,
   sendSignedTxB64,
+  waitForTradeAssetState,
 } from "@/lib/solana/trades";
 import { tradeDelegatePublicKeyBase58 } from "@/lib/solana/umi";
 
@@ -60,13 +60,13 @@ export async function POST(
       takerDelegationTxSig = await confirmTxSig(txSig);
     }
 
-    const takerAssetState = await getTradeAssetState(String(offer.takerAssetId));
-    if (takerAssetState.leafOwner !== String(offer.takerWallet)) {
-      throw new Error("Taker no longer owns the offered asset");
-    }
-    if (takerAssetState.leafDelegate !== tradeDelegatePublicKeyBase58()) {
-      throw new Error("Taker asset is not delegated to trade authority");
-    }
+    await waitForTradeAssetState(
+      String(offer.takerAssetId),
+      (state) =>
+        state.leafOwner === String(offer.takerWallet) &&
+        state.leafDelegate === tradeDelegatePublicKeyBase58(),
+      { description: "Taker asset is not delegated to trade authority" }
+    );
 
     const settlementTxSig = await executeDelegatedSwap({
       makerAssetId: String(offer.makerAssetId),

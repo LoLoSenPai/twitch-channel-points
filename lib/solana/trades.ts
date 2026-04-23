@@ -165,6 +165,45 @@ export async function getAssetWithTradeProof(
   };
 }
 
+async function waitForTradeAssetProofOwnedBy(
+  assetId: string,
+  ownerWallet: string,
+  options?: { truncateCanopy?: boolean }
+) {
+  const umi = umiTradeDelegate();
+  const deadline = Date.now() + tradeStateWaitMs();
+  let lastOwner: string | null = null;
+  let lastError: unknown = null;
+
+  while (Date.now() <= deadline) {
+    try {
+      const asset = await loadAssetWithProof(umi, assetId, {
+        truncateCanopy: options?.truncateCanopy,
+      });
+      assertAssetInConfiguredCollection(asset);
+      const leafOwner = String(asset.leafOwner);
+      lastOwner = leafOwner;
+      if (publicKeyEquals(asset.leafOwner, ownerWallet)) {
+        return {
+          umi,
+          asset,
+          stickerId: parseStickerId(asset),
+        };
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    await sleep(tradeStatePollMs());
+  }
+
+  throw new Error(
+    `Asset owner mismatch${lastOwner ? ` (owner=${lastOwner})` : ""}${
+      lastError ? `: ${(lastError as Error)?.message ?? String(lastError)}` : ""
+    }`
+  );
+}
+
 export async function getTradeAssetState(
   assetId: string,
   options?: { truncateCanopy?: boolean }
@@ -178,18 +217,75 @@ export async function getTradeAssetState(
   };
 }
 
+function tradeStateWaitMs() {
+  const value = Number(process.env.TRADE_ASSET_STATE_WAIT_MS ?? 12000);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 12000;
+}
+
+function tradeStatePollMs() {
+  const value = Number(process.env.TRADE_ASSET_STATE_POLL_MS ?? 600);
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 600;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function waitForTradeAssetState(
+  assetId: string,
+  predicate: (state: Awaited<ReturnType<typeof getTradeAssetState>>) => boolean,
+  options?: {
+    timeoutMs?: number;
+    pollMs?: number;
+    truncateCanopy?: boolean;
+    description?: string;
+  }
+) {
+  const timeoutMs = options?.timeoutMs ?? tradeStateWaitMs();
+  const pollMs = options?.pollMs ?? tradeStatePollMs();
+  const deadline = Date.now() + timeoutMs;
+  let lastState: Awaited<ReturnType<typeof getTradeAssetState>> | null = null;
+  let lastError: unknown = null;
+
+  while (Date.now() <= deadline) {
+    try {
+      const state = await getTradeAssetState(assetId, {
+        truncateCanopy: options?.truncateCanopy,
+      });
+      lastState = state;
+      if (predicate(state)) return state;
+    } catch (error) {
+      lastError = error;
+    }
+    await sleep(pollMs);
+  }
+
+  if (lastState) {
+    throw new Error(
+      options?.description
+        ? `${options.description} (owner=${lastState.leafOwner}, delegate=${lastState.leafDelegate})`
+        : `Asset state did not reach expected value (owner=${lastState.leafOwner}, delegate=${lastState.leafDelegate})`
+    );
+  }
+
+  throw new Error(
+    options?.description
+      ? `${options.description}${lastError ? `: ${(lastError as Error)?.message ?? String(lastError)}` : ""}`
+      : `Unable to fetch asset state${lastError ? `: ${(lastError as Error)?.message ?? String(lastError)}` : ""}`
+  );
+}
+
 export async function prepareDelegateTxForAsset(params: {
   assetId: string;
   ownerWallet: string;
   newDelegateWallet: string;
 }) {
-  const { umi, asset, stickerId } = await getAssetWithTradeProof(params.assetId);
+  const { umi, asset, stickerId } = await waitForTradeAssetProofOwnedBy(
+    params.assetId,
+    params.ownerWallet
+  );
   const ownerPk = pk(params.ownerWallet);
   const ownerSigner = createNoopSigner(ownerPk);
-
-  if (!publicKeyEquals(asset.leafOwner, params.ownerWallet)) {
-    throw new Error("Asset owner mismatch");
-  }
 
   const builder = delegateV2(umi, {
     merkleTree: asset.merkleTree,
@@ -232,13 +328,12 @@ export async function prepareOwnerTransferTxForAsset(params: {
   ownerWallet: string;
   recipientWallet: string;
 }) {
-  const { umi, asset, stickerId } = await getAssetWithTradeProof(params.assetId);
+  const { umi, asset, stickerId } = await waitForTradeAssetProofOwnedBy(
+    params.assetId,
+    params.ownerWallet
+  );
   const ownerPk = pk(params.ownerWallet);
   const ownerSigner = createNoopSigner(ownerPk);
-
-  if (!publicKeyEquals(asset.leafOwner, params.ownerWallet)) {
-    throw new Error("Asset owner mismatch");
-  }
 
   const coreCollection = coreCollectionFromAsset(asset);
   const builder = transferV2(umi, {

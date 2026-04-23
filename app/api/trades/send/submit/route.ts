@@ -5,9 +5,9 @@ import { db } from "@/lib/db";
 import { TransferIntent } from "@/lib/models";
 import {
   confirmTxSig,
-  getTradeAssetState,
   sendSignedTxB64,
   signedTxMatchesPrepared,
+  waitForTradeAssetState,
 } from "@/lib/solana/trades";
 import { touchWalletForUser } from "@/lib/wallet-link";
 
@@ -74,10 +74,11 @@ export async function POST(req: Request) {
       finalTxSig = await confirmTxSig(txSig);
     }
 
-    const state = await getTradeAssetState(String(intent.assetId));
-    if (state.leafOwner !== String(intent.recipientWallet)) {
-      throw new Error("Transfer did not move asset to recipient");
-    }
+    await waitForTradeAssetState(
+      String(intent.assetId),
+      (state) => state.leafOwner === String(intent.recipientWallet),
+      { description: "Transfer did not move asset to recipient" }
+    );
 
     await TransferIntent.updateOne(
       { intentId, status: "PREPARED" },
