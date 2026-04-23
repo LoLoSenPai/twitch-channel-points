@@ -135,16 +135,7 @@ export function LeaderboardPanel() {
                   }`}
                   style={mythicRowStyle(Boolean(entry.hasMythic))}
                 >
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <span>{index + 1}</span>
-                      {entry.hasMythic ? (
-                        <span className="rounded-full border border-red-300/35 bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-red-100">
-                          M
-                        </span>
-                      ) : null}
-                    </div>
-                  </td>
+                  <td className="px-3 py-2">{index + 1}</td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
