@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { Collection, Mint, Redemption, TradeOffer, UserWallet } from "@/lib/models";
-import { STICKERS_TOTAL } from "@/lib/stickers";
+import { STICKERS, STICKERS_TOTAL } from "@/lib/stickers";
 import { getTwitchAppAccessToken } from "@/lib/twitch/app-token";
 import { isAssetIdBlocked } from "@/lib/blocked-assets";
 
@@ -27,6 +27,8 @@ type LeaderboardEntry = {
   totalCards: number;
   uniqueCards: number;
   completionPct: number;
+  hasMythic: boolean;
+  mythicCount: number;
 };
 
 type InsightsPayload = {
@@ -212,6 +214,12 @@ function completionPct(uniqueCards: number) {
   return Math.max(0, Math.min(100, Math.round((uniqueCards / total) * 100)));
 }
 
+const MYTHIC_STICKER_IDS = new Set(
+  STICKERS.filter((sticker) => String(sticker.rarity ?? "").toLowerCase() === "mythic").map(
+    (sticker) => String(sticker.id)
+  )
+);
+
 function insightsCacheTtlMs() {
   const seconds = Number(process.env.TRADE_INSIGHTS_CACHE_SECONDS ?? 15);
   if (!Number.isFinite(seconds) || seconds <= 0) return 15_000;
@@ -310,6 +318,8 @@ export async function GET() {
           totalCards: 0,
           uniqueCards: 0,
           completionPct: 0,
+          hasMythic: false,
+          mythicCount: 0,
         });
         continue;
       }
@@ -324,9 +334,14 @@ export async function GET() {
         const allAssets = assetsPerWallet.flat();
         const uniqueAssets = new Set<string>();
         const uniqueStickers = new Set<string>();
+        let mythicCount = 0;
         for (const asset of allAssets) {
           uniqueAssets.add(String(asset.assetId));
-          uniqueStickers.add(String(asset.stickerId));
+          const stickerId = String(asset.stickerId);
+          uniqueStickers.add(stickerId);
+          if (MYTHIC_STICKER_IDS.has(stickerId)) {
+            mythicCount += 1;
+          }
         }
 
         const uniqueCount = uniqueStickers.size;
@@ -336,29 +351,43 @@ export async function GET() {
           totalCards: uniqueAssets.size,
           uniqueCards: uniqueCount,
           completionPct: completionPct(uniqueCount),
+          hasMythic: mythicCount > 0,
+          mythicCount,
         });
       } catch {
-        const fallbackUnique = mintedStickerByUser.get(userId)?.size ?? 0;
+        const fallbackStickerSet = mintedStickerByUser.get(userId) ?? new Set<string>();
+        const fallbackUnique = fallbackStickerSet.size ?? 0;
         const fallbackTotal = mintedTotalByUser.get(userId) ?? 0;
+        const fallbackMythicCount = [...fallbackStickerSet].filter((stickerId) =>
+          MYTHIC_STICKER_IDS.has(String(stickerId))
+        ).length;
         leaderboard.push({
           twitchUserId: userId,
           displayName: displayNameById.get(userId) ?? userId,
           totalCards: fallbackTotal,
           uniqueCards: fallbackUnique,
           completionPct: completionPct(fallbackUnique),
+          hasMythic: fallbackMythicCount > 0,
+          mythicCount: fallbackMythicCount,
         });
       }
     }
   } else {
     for (const userId of knownUserIds) {
-      const fallbackUnique = mintedStickerByUser.get(userId)?.size ?? 0;
+      const fallbackStickerSet = mintedStickerByUser.get(userId) ?? new Set<string>();
+      const fallbackUnique = fallbackStickerSet.size ?? 0;
       const fallbackTotal = mintedTotalByUser.get(userId) ?? 0;
+      const fallbackMythicCount = [...fallbackStickerSet].filter((stickerId) =>
+        MYTHIC_STICKER_IDS.has(String(stickerId))
+      ).length;
       leaderboard.push({
         twitchUserId: userId,
         displayName: displayNameById.get(userId) ?? userId,
         totalCards: fallbackTotal,
         uniqueCards: fallbackUnique,
         completionPct: completionPct(fallbackUnique),
+        hasMythic: fallbackMythicCount > 0,
+        mythicCount: fallbackMythicCount,
       });
     }
   }

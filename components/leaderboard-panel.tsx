@@ -9,6 +9,8 @@ type LeaderboardEntry = {
   totalCards: number;
   uniqueCards: number;
   completionPct: number;
+  hasMythic?: boolean;
+  mythicCount?: number;
 };
 
 type InsightsResponse = {
@@ -25,6 +27,15 @@ function short(v: string, head = 5, tail = 5) {
   if (!v) return "";
   if (v.length <= head + tail + 1) return v;
   return `${v.slice(0, head)}...${v.slice(-tail)}`;
+}
+
+function mythicRowStyle(enabled: boolean) {
+  if (!enabled) return undefined;
+  return {
+    background:
+      "linear-gradient(90deg, color-mix(in oklab, var(--site-surface-soft-bg), #7f1d1d 22%), color-mix(in oklab, var(--site-surface-bg), #4c0519 10%))",
+    boxShadow: "inset 0 0 0 1px color-mix(in oklab, var(--site-surface-border), #b91c1c 28%)",
+  } as const;
 }
 
 export function LeaderboardPanel() {
@@ -119,16 +130,35 @@ export function LeaderboardPanel() {
               items.filter((e) => e.totalCards > 0).slice(0, 100).map((entry, index) => (
                 <tr
                   key={`leader-${entry.twitchUserId}`}
-                  className="border-b border-[color:var(--site-surface-border)] last:border-b-0"
+                  className={`border-b border-[color:var(--site-surface-border)] last:border-b-0 ${
+                    entry.hasMythic ? "relative" : ""
+                  }`}
+                  style={mythicRowStyle(Boolean(entry.hasMythic))}
                 >
-                  <td className="px-3 py-2">{index + 1}</td>
                   <td className="px-3 py-2">
-                    <Link
-                      href={`/album/${encodeURIComponent(entry.displayName.toLowerCase())}`}
-                      className="hover:underline"
-                    >
-                      {entry.displayName || short(entry.twitchUserId, 4, 4)}
-                    </Link>
+                    <div className="flex items-center gap-2">
+                      <span>{index + 1}</span>
+                      {entry.hasMythic ? (
+                        <span className="rounded-full border border-red-300/35 bg-red-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-red-100">
+                          M
+                        </span>
+                      ) : null}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Link
+                        href={`/album/${encodeURIComponent(entry.displayName.toLowerCase())}`}
+                        className="hover:underline"
+                      >
+                        {entry.displayName || short(entry.twitchUserId, 4, 4)}
+                      </Link>
+                      {entry.hasMythic ? (
+                        <span className="rounded-full border border-red-300/40 bg-red-500/12 px-2 py-0.5 text-[11px] font-medium tracking-wide text-red-50">
+                          Mythic{(entry.mythicCount ?? 0) > 1 ? ` x${entry.mythicCount}` : ""}
+                        </span>
+                      ) : null}
+                    </div>
                   </td>
                   <td className="px-3 py-2">{entry.uniqueCards}</td>
                   <td className="px-3 py-2">{entry.totalCards}</td>
@@ -144,4 +174,3 @@ export function LeaderboardPanel() {
     </section>
   );
 }
-
