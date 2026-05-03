@@ -46,7 +46,7 @@ export async function POST(req: Request) {
   const twitchUserId = (session?.user as { id?: string })?.id;
   if (!twitchUserId) return new NextResponse("Unauthorized", { status: 401 });
   if (isMintBlockedForTwitchUser(twitchUserId)) {
-    return new NextResponse("Mint blocked for this account", { status: 403 });
+    return new NextResponse("Mint unavailable", { status: 409 });
   }
 
   const body = await req.json().catch(() => null);

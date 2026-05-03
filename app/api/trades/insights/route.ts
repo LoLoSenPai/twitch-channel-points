@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { Collection, Mint, Redemption, TradeOffer, UserWallet } from "@/lib/models";
-import { getBlockedMintTwitchUserIds } from "@/lib/blocked-users";
 import { STICKERS, STICKERS_TOTAL } from "@/lib/stickers";
 import { getTwitchAppAccessToken } from "@/lib/twitch/app-token";
 import { isAssetIdBlocked } from "@/lib/blocked-assets";
@@ -249,20 +248,17 @@ export async function GET() {
     ]);
 
   const userIds = new Set<string>();
-  const blockedUserIds = getBlockedMintTwitchUserIds();
-  const addVisibleUserId = (value: unknown) => {
-    const id = String(value ?? "").trim();
-    if (!id || blockedUserIds.has(id)) return;
-    userIds.add(id);
-  };
   for (const v of tradeUsersMaker ?? []) {
-    addVisibleUserId(v);
+    const id = String(v ?? "").trim();
+    if (id) userIds.add(id);
   }
   for (const v of tradeUsersTaker ?? []) {
-    addVisibleUserId(v);
+    const id = String(v ?? "").trim();
+    if (id) userIds.add(id);
   }
   for (const v of redemptionUsers ?? []) {
-    addVisibleUserId(v);
+    const id = String(v ?? "").trim();
+    if (id) userIds.add(id);
   }
 
   const walletByUser = new Map<string, Set<string>>();
@@ -270,7 +266,7 @@ export async function GET() {
   const mintedTotalByUser = new Map<string, number>();
   for (const row of walletRows as Array<{ twitchUserId?: string; wallet?: string }>) {
     const userId = String(row.twitchUserId ?? "").trim();
-    if (!userId || blockedUserIds.has(userId)) continue;
+    if (!userId) continue;
     userIds.add(userId);
     const wallet = String(row.wallet ?? "").trim();
     if (!wallet) continue;
@@ -280,7 +276,7 @@ export async function GET() {
   }
   for (const row of mintRows as Array<{ twitchUserId?: string; wallet?: string; stickerId?: string }>) {
     const userId = String(row.twitchUserId ?? "").trim();
-    if (!userId || blockedUserIds.has(userId)) continue;
+    if (!userId) continue;
     userIds.add(userId);
 
     const wallet = String(row.wallet ?? "").trim();
