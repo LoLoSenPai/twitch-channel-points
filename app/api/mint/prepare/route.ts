@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Redemption, MintIntent, Collection, Mint } from "@/lib/models";
+import { isMintBlockedForTwitchUser } from "@/lib/blocked-users";
 import {
   getAvailableStickerIds,
   getSticker,
@@ -44,6 +45,9 @@ export async function POST(req: Request) {
   const session = await auth();
   const twitchUserId = (session?.user as { id?: string })?.id;
   if (!twitchUserId) return new NextResponse("Unauthorized", { status: 401 });
+  if (isMintBlockedForTwitchUser(twitchUserId)) {
+    return new NextResponse("Mint blocked for this account", { status: 403 });
+  }
 
   const body = await req.json().catch(() => null);
   const walletPubkey = body?.walletPubkey as string | undefined;
