@@ -115,7 +115,13 @@ function rarityBoostMultiplier(r: Rarity | null) {
 }
 
 
-export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean }) {
+export function MintPanel({
+    showProofLinks = false,
+    mintClosed = false,
+}: {
+    showProofLinks?: boolean;
+    mintClosed?: boolean;
+}) {
     const wallet = useWallet();
     const [loading, setLoading] = useState(false);
     const [reveal, setReveal] = useState<Reveal | null>(null);
@@ -147,7 +153,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
     const walletOk = !!wallet.publicKey;
     const ticketsKnown = tickets !== undefined;
     const ticketsOk = (tickets ?? 0) > 0;
-    const ready = walletOk && ticketsOk && !loading && phase === "idle";
+    const ready = !mintClosed && walletOk && ticketsOk && !loading && phase === "idle";
     const refreshCooldownSeconds = Math.max(0, Math.ceil((refreshCooldownUntil - refreshCooldownNow) / 1000));
     const canRefreshTickets = !loading && !refreshingUi && refreshCooldownSeconds === 0;
 
@@ -264,6 +270,10 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
     async function openBooster() {
         if (loading || phase !== "idle") return;
 
+        if (mintClosed) {
+            setHint("Le mint de la saison 1 est terminé. Reste informé via la chaîne Twitch pour la suite.");
+            return;
+        }
         if (!walletOk) {
             setHint("Connecte ton wallet Solana pour ouvrir un booster.");
             return;
@@ -309,7 +319,12 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
 
             setPhase("flash");
             setTimeout(() => setPhase("cardBack"), 180);
-        } catch {
+        } catch (error) {
+            const message =
+                error instanceof Error && error.message
+                    ? error.message
+                    : "Mint impossible pour le moment.";
+            setHint(message);
             // reset clean
             setPhase("idle");
             setGlow(0);
@@ -332,6 +347,11 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                     <div className="text-lg font-semibold">Collection #1: Promesses & Liquidations</div>
 
                     <div className="flex flex-wrap items-center gap-2 text-sm opacity-70">
+                        {mintClosed ? (
+                            <span className="rounded-full border border-red-300/40 bg-red-500/10 px-2 py-0.5 text-xs font-semibold text-red-100">
+                                Mint ended
+                            </span>
+                        ) : null}
                         <span>
                             Tickets:{" "}
                             <span className="font-medium">
@@ -400,7 +420,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                             labelUrl={`/booster-front.png?v=${encodeURIComponent(BOOSTER_ASSET_VERSION)}`}
                             backLabelUrl={`/booster-back.png?v=${encodeURIComponent(BOOSTER_ASSET_VERSION)}`}
                             onOpen={openBooster}
-                            canOpen={!loading && phase === "idle"} // pas de canMint ici
+                            canOpen={!mintClosed && !loading && phase === "idle"}
                             theme={{ body: { color: "#eef3fa", metalness: 0.88, roughness: 0.16, ...(phase === "charging" ? { emissive: glowColor, emissiveIntensity: chargingIntensity } : {}), }, }}
                             shake={phase === "charging" ? glow : 0}
                             resetOrbitKey={resetOrbitKey}
@@ -410,7 +430,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                         <button
                             type="button"
                             onClick={openBooster}
-                            disabled={loading || phase !== "idle"}
+                            disabled={mintClosed || loading || phase !== "idle"}
                             className="site-surface group block w-full rounded-2xl p-4 cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
                         >
                             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -425,6 +445,8 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                     <div className="mt-3 text-sm opacity-80">
                         {hint ? (
                             <div>{hint}</div>
+                        ) : mintClosed ? (
+                            <div>Le mint de la saison 1 est terminé. Les cartes restent visibles et les échanges restent disponibles.</div>
                         ) : !wallet.publicKey ? (
                             <div>Connecte ton wallet Solana pour ouvrir un booster.</div>
                         ) : tickets === undefined ? (
@@ -450,15 +472,25 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                         </span>
 
                         <span className={`rounded-full border px-3 py-1 text-xs ${ready ? "opacity-90" : "opacity-60"}`}>
-                            {ready ? "OK Ready" : "Ready"}
+                            {mintClosed ? "Mint ended" : ready ? "OK Ready" : "Ready"}
                         </span>
                     </div>
                     <div className="text-lg font-semibold">Comment ça marche ?</div>
-                    <ol className="mt-3 space-y-2 text-sm opacity-80 list-decimal pl-5">
-                        <li>Récupère un ticket via le reward Twitch.</li>
-                        <li>Connecte ton wallet Solana.</li>
-                        <li>Clique sur le booster pour lancer un mint sans frais, puis révèle ta carte.</li>
-                    </ol>
+                    {mintClosed ? (
+                        <div className="mt-3 rounded-xl border border-red-300/20 bg-red-500/10 p-3 text-sm opacity-90">
+                            <div className="font-medium">Saison 1 terminée</div>
+                            <p className="mt-1 opacity-75">
+                                Le mint est fermé pour cette collection. Garde tes cartes, continue les échanges,
+                                et reste informé via la chaîne Twitch de Nyls pour la suite.
+                            </p>
+                        </div>
+                    ) : (
+                        <ol className="mt-3 space-y-2 text-sm opacity-80 list-decimal pl-5">
+                            <li>Récupère un ticket via le reward Twitch.</li>
+                            <li>Connecte ton wallet Solana.</li>
+                            <li>Clique sur le booster pour lancer un mint sans frais, puis révèle ta carte.</li>
+                        </ol>
+                    )}
                     {/* <p className="mt-3 text-xs opacity-75">
                         Tirage vérifiable: la preuve de ton dernier mint est visible directement dans
                         la preview, puis consultable via le bouton &quot;Voir la preuve&quot;.
@@ -484,7 +516,7 @@ export function MintPanel({ showProofLinks = false }: { showProofLinks?: boolean
                         <div className="site-surface rounded-xl p-3">
                             <div className="font-medium">Ça coûte quoi ?</div>
                             <div className="opacity-70 mt-1">
-                                1 ticket. Aucun frais (gasless).
+                                {mintClosed ? "Les mints sont terminés pour la saison 1." : "1 ticket. Aucun frais (gasless)."}
                             </div>
                         </div>
 

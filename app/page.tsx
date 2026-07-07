@@ -2,6 +2,7 @@ import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { MintPanel } from "@/components/mint-panel";
 import PageShell from "@/components/page-shell";
+import { isMintSeasonEnded } from "@/lib/mint-season";
 
 interface ExtendedUser {
   name?: string | null;
@@ -10,6 +11,7 @@ interface ExtendedUser {
 
 export default async function HomePage() {
   const session = await auth();
+  const mintClosed = isMintSeasonEnded();
   const randomnessMode = String(process.env.MINT_RANDOMNESS_MODE ?? "local")
     .trim()
     .toLowerCase();
@@ -23,11 +25,12 @@ export default async function HomePage() {
             <div className="space-y-4">
               <p className="site-muted text-xs uppercase tracking-[0.2em]">Collection Twitch</p>
               <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-                Mint tes cartes et complète ton album
+                {mintClosed ? "Saison 1 terminée" : "Mint tes cartes et complète ton album"}
               </h1>
               <p className="site-muted max-w-xl text-sm sm:text-base">
-                Gagne des tickets via les points de chaîne Twitch, connecte ton compte,
-                ouvre des boosters et collectionne les 44 cartes.
+                {mintClosed
+                  ? "Le mint de la saison 1 est fermé. Les cartes, albums et échanges restent accessibles, et la suite sera annoncée sur la chaîne Twitch."
+                  : "Gagne des tickets via les points de chaîne Twitch, connecte ton compte, ouvre des boosters et collectionne les 44 cartes."}
               </p>
 
               <div className="pt-1">
@@ -45,7 +48,7 @@ export default async function HomePage() {
               <ol className="site-muted mt-4 space-y-3 text-sm">
                 <li>1. Récupère un ticket via les rewards Twitch.</li>
                 <li>2. Connecte ton compte et ton wallet Solana.</li>
-                <li>3. Ouvre un booster pour minter une carte.</li>
+                <li>3. {mintClosed ? "Le mint est fermé pour la saison 1." : "Ouvre un booster pour minter une carte."}</li>
                 <li>4. Complète ton album et échange tes doublons.</li>
               </ol>
             </aside>
@@ -57,8 +60,8 @@ export default async function HomePage() {
               <p className="site-muted text-sm">cartes à collectionner</p>
             </article>
             <article className="site-surface-soft rounded-2xl p-4">
-              <p className="text-2xl font-semibold">1 ticket</p>
-              <p className="site-muted text-sm">par mint de booster</p>
+              <p className="text-2xl font-semibold">{mintClosed ? "Mint terminé" : "1 ticket"}</p>
+              <p className="site-muted text-sm">{mintClosed ? "saison 1 clôturée" : "par mint de booster"}</p>
             </article>
             <article className="site-surface-soft rounded-2xl p-4">
               <p className="text-2xl font-semibold">Échanges</p>
@@ -82,14 +85,15 @@ export default async function HomePage() {
               Bienvenue, {user.displayName ?? user.name}
             </h1>
             <p className="site-muted text-sm sm:text-base">
-              Ouvre des boosters, récupère des cartes et avance dans ton album.
+              {mintClosed
+                ? "La saison 1 est terminée. Tes cartes, ton album et les échanges restent disponibles."
+                : "Ouvre des boosters, récupère des cartes et avance dans ton album."}
             </p>
           </div>
         </section>
 
-        <MintPanel showProofLinks={showFairness} />
+        <MintPanel showProofLinks={showFairness} mintClosed={mintClosed} />
       </main>
     </PageShell>
   );
 }
-

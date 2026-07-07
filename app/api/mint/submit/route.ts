@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Collection, Redemption, MintIntent, Mint } from "@/lib/models";
 import { isMintBlockedForTwitchUser } from "@/lib/blocked-users";
+import { isMintSeasonEnded, MINT_SEASON_ENDED_MESSAGE } from "@/lib/mint-season";
 import { getSticker, type StickerRarity } from "@/lib/stickers";
 import { MINT_BACKEND_FLOW_VERSION } from "@/lib/solana/mint-program";
 import { umiServer } from "@/lib/solana/umi";
@@ -384,6 +385,9 @@ export async function POST(req: Request) {
   const session = await auth();
   const twitchUserId = (session?.user as SessionUser)?.id;
   if (!twitchUserId) return new NextResponse("Unauthorized", { status: 401 });
+  if (isMintSeasonEnded()) {
+    return new NextResponse(MINT_SEASON_ENDED_MESSAGE, { status: 409 });
+  }
   if (isMintBlockedForTwitchUser(twitchUserId)) {
     return new NextResponse("Mint unavailable", { status: 409 });
   }
